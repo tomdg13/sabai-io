@@ -1,10 +1,11 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:kupcar/config/config.dart';
 import 'package:kupcar/driver/BookingConfirmPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:intl/intl.dart';
 import '../utils/simple_translations.dart';
 
 class DriverPage extends StatefulWidget {
@@ -14,7 +15,7 @@ class DriverPage extends StatefulWidget {
   _DriverPageState createState() => _DriverPageState();
 }
 
-class _DriverPageState extends State<DriverPage> {
+class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   String name = '';
   String phone = '';
   String status = 'Offline';
@@ -22,6 +23,7 @@ class _DriverPageState extends State<DriverPage> {
   String token = '';
   List<dynamic> bookings = [];
   bool loading = false;
+  Timer? refreshTimer;
 
   double? currentLat;
   double? currentLon;
@@ -29,8 +31,35 @@ class _DriverPageState extends State<DriverPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadDriverInfo();
     getLanguage();
+    startAutoRefresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (status == 'Online' && currentLat != null && currentLon != null) {
+        fetchNearbyBookings(currentLat!, currentLon!);
+      }
+    }
+  }
+
+  void startAutoRefresh() {
+    refreshTimer?.cancel();
+    refreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      if (status == 'Online' && currentLat != null && currentLon != null) {
+        fetchNearbyBookings(currentLat!, currentLon!);
+      }
+    });
   }
 
   Future<void> getLanguage() async {
@@ -55,7 +84,7 @@ class _DriverPageState extends State<DriverPage> {
       await fetchNearbyBookings(currentLat!, currentLon!);
     } else {
       setState(() {
-        bookings = []; // Clear bookings if offline
+        bookings = [];
       });
     }
   }
@@ -83,11 +112,9 @@ class _DriverPageState extends State<DriverPage> {
         setState(() {
           bookings = data;
         });
-      } else {
-        // Removed SnackBar
       }
     } catch (e) {
-      // Removed SnackBar
+      // Handle error
     } finally {
       setState(() {
         loading = false;
@@ -121,14 +148,12 @@ class _DriverPageState extends State<DriverPage> {
           await fetchNearbyBookings(currentLat!, currentLon!);
         } else {
           setState(() {
-            bookings = []; // Clear bookings when offline
+            bookings = [];
           });
         }
-      } else {
-        // Removed SnackBar
       }
     } catch (e) {
-      // Removed SnackBar
+      // Handle error
     }
   }
 
@@ -194,7 +219,7 @@ class _DriverPageState extends State<DriverPage> {
                       itemCount: bookings.length,
                       itemBuilder: (context, index) {
                         final booking = bookings[index];
-                        final DateTime requestTime = DateTime.parse(
+                        final requestTime = DateTime.parse(
                           booking['request_time'],
                         );
                         final formattedTime =
@@ -224,7 +249,9 @@ class _DriverPageState extends State<DriverPage> {
                               ],
                             ),
                             title: Text(
-                              " ${booking['passenger_id']}",
+                              (booking['passenger_name'] ??
+                                      booking['passenger_id'])
+                                  .toString(),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w500,
                               ),
@@ -246,8 +273,6 @@ class _DriverPageState extends State<DriverPage> {
                           ),
                         );
                       },
-                   
-                   
                     ),
             ),
           ],

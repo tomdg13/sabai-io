@@ -188,6 +188,32 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
               ),
             ),
           ),
+
+          // === New car_id display section ===
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.directions_car, color: Colors.orange),
+                const SizedBox(width: 8),
+                Text(
+                  "${SimpleTranslations.get(langCodes, 'car_id')}: ",
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    booking['car_id']?.toString() ?? '-',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
             child: Text(
