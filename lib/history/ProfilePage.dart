@@ -1,0 +1,219 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:kupcar/config/config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/simple_translations.dart';
+import 'ImagePreviewPage.dart'; // Import your ImagePreviewPage here
+
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  Map<String, dynamic>? profileData;
+  bool loading = true;
+  String? error;
+  String langCode = 'en';
+  String? token;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLangAndProfile();
+  }
+
+  Future<void> _loadLangAndProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    langCode = prefs.getString('languageCode') ?? 'en';
+    token = prefs.getString('access_token');
+    final phone = prefs.getString('user');
+
+    debugPrint('🔑 Token: $token');
+    debugPrint('📞 Phone/User: $phone');
+
+    if (token == null || phone == null) {
+      setState(() {
+        error = 'Token or phone not found. Please login again.';
+        loading = false;
+      });
+      return;
+    }
+
+    await _fetchProfile(token!, phone);
+  }
+
+  Future<void> _fetchProfile(String token, String phone) async {
+    try {
+      final url = AppConfig.api('/api/user/getProfiledriver');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'phone': int.tryParse(phone) ?? phone}),
+      );
+
+      debugPrint('📦 API Response status: ${response.statusCode}');
+      debugPrint('📦 API Response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'success') {
+          setState(() {
+            profileData = data['data'];
+            loading = false;
+            error = null;
+          });
+        } else {
+          setState(() {
+            error = data['message'] ?? 'Failed to load profile';
+            loading = false;
+          });
+        }
+      } else {
+        setState(() {
+          error = 'Server error: ${response.statusCode}';
+          loading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        error = 'Network error: $e';
+        loading = false;
+      });
+    }
+  }
+
+  Widget _buildProfileHeader() {
+    final imageUrl = profileData?['profile_image_url'];
+    return GestureDetector(
+      onTap: () {
+        if (profileData != null && token != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ImagePreviewPage(
+                imageUrl: imageUrl ?? '',
+                name: profileData!['name'] ?? '',
+                customerId: profileData!['customer_id'] ?? 0,
+                token: token!,
+                onUpdateProfile: _refreshProfile,
+              ),
+            ),
+          );
+        }
+      },
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 55,
+            backgroundColor: Colors.grey.shade300,
+            child: ClipOval(
+              child: Image.network(
+                imageUrl ?? '',
+                width: 110,
+                height: 110,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Image.asset(
+                  'assets/images/default_profile.png',
+                  width: 110,
+                  height: 110,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            profileData?['name'] ?? '',
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            profileData?['email'] ?? '',
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _refreshProfile() {
+    if (token != null && profileData != null) {
+      _fetchProfile(token!, profileData!['phone']);
+    }
+  }
+
+  Widget _buildDetailCard(IconData icon, String label, dynamic value) {
+    if (value == null || value.toString().isEmpty)
+      return const SizedBox.shrink();
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: ListTile(
+        leading: Icon(icon, color: Colors.blueAccent),
+        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        subtitle: Text(value.toString()),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (error != null) {
+      return Center(
+        child: Text(
+          error!,
+          style: const TextStyle(color: Colors.red, fontSize: 16),
+        ),
+      );
+    }
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            _buildProfileHeader(),
+            const SizedBox(height: 20),
+            _buildDetailCard(
+              Icons.phone,
+              SimpleTranslations.get(langCode, 'phone'),
+              profileData?['phone'],
+            ),
+            _buildDetailCard(
+              Icons.credit_card,
+              SimpleTranslations.get(langCode, 'document_id'),
+              profileData?['document_id'],
+            ),
+            _buildDetailCard(
+              Icons.account_balance,
+              SimpleTranslations.get(langCode, 'account_no'),
+              profileData?['account_no'],
+            ),
+            _buildDetailCard(
+              Icons.person,
+              SimpleTranslations.get(langCode, 'account_name'),
+              profileData?['account_name'],
+            ),
+            _buildDetailCard(
+              Icons.info_outline,
+              SimpleTranslations.get(langCode, 'bio'),
+              profileData?['bio'],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
