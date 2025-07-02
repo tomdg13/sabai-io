@@ -1,8 +1,63 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+
+// Reusable widget for image preview + pick
+class ImagePickerWidget extends StatelessWidget {
+  final String label;
+  final File? imageFile;
+  final String? imageUrl;
+  final VoidCallback onTap;
+  final double size;
+  final bool isCircular;
+
+  const ImagePickerWidget({
+    Key? key,
+    required this.label,
+    this.imageFile,
+    this.imageUrl,
+    required this.onTap,
+    this.size = 100,
+    this.isCircular = true,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    ImageProvider? imageProvider;
+
+    if (imageFile != null) {
+      imageProvider = FileImage(imageFile!);
+    } else if (imageUrl != null && imageUrl!.isNotEmpty) {
+      imageProvider = NetworkImage(imageUrl!);
+    }
+
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: isCircular ? BoxShape.circle : BoxShape.rectangle,
+              border: Border.all(color: Colors.grey),
+              image: imageProvider != null
+                  ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
+                  : null,
+            ),
+            child: imageProvider == null
+                ? const Icon(Icons.image, size: 40)
+                : null,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(label),
+      ],
+    );
+  }
+}
 
 class carInfoPage extends StatefulWidget {
   final Map<String, dynamic> carData;
@@ -71,47 +126,6 @@ class _carInfoPageState extends State<carInfoPage> {
     }
   }
 
-  Widget _imagePreview(
-    String label, {
-    File? imageFile,
-    String? imageUrl,
-    required VoidCallback onTap,
-    double size = 100,
-    bool isCircular = true,
-  }) {
-    ImageProvider? imageProvider;
-
-    if (imageFile != null) {
-      imageProvider = FileImage(imageFile);
-    } else if (imageUrl != null && imageUrl.isNotEmpty) {
-      imageProvider = NetworkImage(imageUrl);
-    }
-
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: isCircular ? BoxShape.circle : BoxShape.rectangle,
-              border: Border.all(color: Colors.grey),
-              image: imageProvider != null
-                  ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
-                  : null,
-            ),
-            child: imageProvider == null
-                ? const Icon(Icons.image, size: 40)
-                : null,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(label),
-      ],
-    );
-  }
-
   Widget _buildReadOnlyField({required String label, required String value}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -143,8 +157,8 @@ class _carInfoPageState extends State<carInfoPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _imagePreview(
-                    SimpleTranslations.get(effectiveLangCode, "picture_Id"),
+                  ImagePickerWidget(
+                    label: SimpleTranslations.get(effectiveLangCode, "picture_Id"),
                     imageFile: _picture_id,
                     imageUrl: carData['picture_id'] as String?,
                     onTap: () => _pickImage('picture_id'),
@@ -157,24 +171,24 @@ class _carInfoPageState extends State<carInfoPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _imagePreview(
-                    SimpleTranslations.get(effectiveLangCode, "picture1"),
+                  ImagePickerWidget(
+                    label: SimpleTranslations.get(effectiveLangCode, "picture1"),
                     imageFile: _picture1,
                     imageUrl: carData['picture1'] as String?,
                     onTap: () => _pickImage('picture1'),
                     size: 100,
                     isCircular: false,
                   ),
-                  _imagePreview(
-                    SimpleTranslations.get(effectiveLangCode, "picture2"),
+                  ImagePickerWidget(
+                    label: SimpleTranslations.get(effectiveLangCode, "picture2"),
                     imageFile: _picture2,
                     imageUrl: carData['picture2'] as String?,
                     onTap: () => _pickImage('picture2'),
                     size: 100,
                     isCircular: false,
                   ),
-                  _imagePreview(
-                    SimpleTranslations.get(effectiveLangCode, "picture3"),
+                  ImagePickerWidget(
+                    label: SimpleTranslations.get(effectiveLangCode, "picture3"),
                     imageFile: _picture3,
                     imageUrl: carData['picture3'] as String?,
                     onTap: () => _pickImage('picture3'),
@@ -194,7 +208,7 @@ class _carInfoPageState extends State<carInfoPage> {
               ),
               _buildReadOnlyField(
                 label: SimpleTranslations.get(effectiveLangCode, 'car_type_id'),
-                value: carData['car_type_id'] ?? '',
+                value: carData['car_type_id'].toString(),
               ),
 
               // Combined container for pr_name and license_plate
@@ -241,7 +255,7 @@ class _carInfoPageState extends State<carInfoPage> {
               ),
 
               const SizedBox(height: 30),
-              // Buttons removed
+              // Buttons or other widgets if needed
             ],
           ),
         ),

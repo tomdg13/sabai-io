@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:kupcar/config/config.dart';
 import 'package:kupcar/driver/BookingConfirmPage.dart';
-import 'package:kupcar/car/CarAddPage.dart'; // Adjust import if needed
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 
@@ -17,13 +16,13 @@ class DriverPage extends StatefulWidget {
 }
 
 class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
-  String name = 'Driver';
+  String name = '';
   String phone = '';
-  String licensePlate = '';
   String status = 'Offline';
   String langCodes = 'en';
   String token = '';
   List<dynamic> bookings = [];
+  bool loading = false;
   Timer? refreshTimer;
 
   double? currentLat;
@@ -65,14 +64,14 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
 
   Future<void> getLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      langCodes = prefs.getString('languageCode') ?? 'en';
-    });
+    langCodes = prefs.getString('languageCode') ?? 'en';
+    setState(() {});
   }
 
   Future<void> _loadDriverInfo() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
+      name = prefs.getString('name') ?? 'Driver';
       phone = prefs.getString('user') ?? '';
       status = prefs.getString('status') ?? 'Offline';
       token = prefs.getString('access_token') ?? '';
@@ -80,8 +79,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
 
     currentLat = 17.960895;
     currentLon = 102.620052;
-
-    await getDriverProfile();
 
     if (status == 'Online' && currentLat != null && currentLon != null) {
       await fetchNearbyBookings(currentLat!, currentLon!);
@@ -92,41 +89,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> getDriverProfile() async {
-    if (token.isEmpty || phone.isEmpty) return;
-
-    final url = Uri.parse(
-      'http://209.97.172.105:3000/api/user/getProfiledriver',
-    );
-    final body = jsonEncode({'phone': int.tryParse(phone) ?? phone});
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: body,
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        final profile = data['data'] ?? {};
-
-        setState(() {
-          name = profile['name'] ?? 'Driver';
-          licensePlate = profile['license_plate'] ?? '';
-        });
-      }
-    } catch (e) {
-      // Handle error if needed
-    }
-  }
-
   Future<void> fetchNearbyBookings(double lat, double lon) async {
-    if (token.isEmpty) return;
-
     final url = AppConfig.api('/api/driver/nearby');
     final payload = {'lat': lat, 'lon': lon};
 
@@ -147,7 +110,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
         });
       }
     } catch (e) {
-      // Handle error if needed
+      // Error handling
     }
   }
 
@@ -175,7 +138,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
 
         if (newStatus == 'Online' && currentLat != null && currentLon != null) {
           await fetchNearbyBookings(currentLat!, currentLon!);
-          startAutoRefresh();
+          startAutoRefresh(); // restart timer when online
         } else {
           refreshTimer?.cancel();
           setState(() {
@@ -184,52 +147,12 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
         }
       }
     } catch (e) {
-      // Handle error if needed
+      // Error handling
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Show Add Car button if license plate missing
-    if (licensePlate.isEmpty) {
-      return Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  "${SimpleTranslations.get(langCodes, 'welcome')}, $name",
-                  style: const TextStyle(fontSize: 20),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  SimpleTranslations.get(langCodes, 'no_car_assigned'),
-                  style: const TextStyle(fontSize: 16, color: Colors.red),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CarAddPage(),
-                      ),
-                    ).then((_) {
-                      getDriverProfile();
-                    });
-                  },
-                  child: Text(SimpleTranslations.get(langCodes, 'add_car')),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -240,44 +163,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
               "${SimpleTranslations.get(langCodes, 'welcome')}, $name",
               style: const TextStyle(fontSize: 20),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 20,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.yellow,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.black, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.yellowAccent.withOpacity(0.1),
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.directions_car, color: Colors.black),
-                    const SizedBox(width: 10),
-
-                    Text(
-                      licensePlate,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            const SizedBox(height: 20),
             Row(
               children: [
                 Text(
@@ -364,25 +250,11 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                               size: 16,
                             ),
                             onTap: () {
-                              final updatedBooking = Map<String, dynamic>.from(
-                                booking,
-                              );
-
-                              updatedBooking['car_id'] =
-                                  booking['car_id'] ?? 19;
-                              updatedBooking['license_plate'] =
-                                  booking['license_plate'] ?? licensePlate;
-                              updatedBooking['driver_name'] =
-                                  booking['driver_name'] ?? name;
-                              updatedBooking['driver_phone'] =
-                                  booking['driver_phone'] ?? phone;
-
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => BookingConfirmPage(
-                                    booking: updatedBooking,
-                                  ),
+                                  builder: (context) =>
+                                      BookingConfirmPage(booking: booking),
                                 ),
                               );
                             },

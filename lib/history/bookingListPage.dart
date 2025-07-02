@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:kupcar/driver/BookingConfirmPage.dart'; // Update if your path differs
+import 'package:kupcar/driver/BookingConfirmPage.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/config.dart';
@@ -29,19 +29,19 @@ class _BookingListPageState extends State<BookingListPage> {
   Future<void> _loadLangAndBookings() async {
     final prefs = await SharedPreferences.getInstance();
     langCode = prefs.getString('langCode') ?? 'en';
-    final passengerId = prefs.getString('user');
-    if (passengerId != null) {
-      await fetchBookings(passengerId);
+    final driverId = prefs.getString('user');
+    if (driverId != null) {
+      await fetchBookings(driverId);
     } else {
       setState(() {
         loading = false;
-        error = 'Missing passenger ID';
+        error = 'Missing driver ID';
       });
     }
   }
 
-  Future<void> fetchBookings(String passengerId) async {
-    final url = AppConfig.api('/api/book/bookList');
+  Future<void> fetchBookings(String driverId) async {
+    final url = Uri.parse('http://209.97.172.105:3000/api/book/driverbookList');
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
 
@@ -52,20 +52,28 @@ class _BookingListPageState extends State<BookingListPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({"passenger_id": passengerId}),
+        body: jsonEncode({"driver_id": driverId}),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
           final List<dynamic> result = data['data'] ?? [];
-          result.sort(
+
+          // ✅ Filter out bookings with status 'booking'
+          final filtered = result.where((b) {
+            final status = (b['book_status'] ?? '').toString().toLowerCase();
+            return status != 'booking';
+          }).toList();
+
+          filtered.sort(
             (a, b) => DateTime.parse(
               b['request_time'],
             ).compareTo(DateTime.parse(a['request_time'])),
           );
+
           setState(() {
-            bookings = result;
+            bookings = filtered;
             loading = false;
           });
         } else {
@@ -88,23 +96,16 @@ class _BookingListPageState extends State<BookingListPage> {
     }
   }
 
-  String formatDateTime(String iso) {
-    try {
-      final dt = DateTime.parse(iso).toLocal();
-      return DateFormat('yyyy-MM-dd HH:mm').format(dt);
-    } catch (_) {
-      return iso;
-    }
-  }
-
   String translateStatus(String status) {
     if (langCode == 'la') {
       switch (status.toLowerCase()) {
         case 'pick up':
         case 'pickup':
           return 'ໄປຮັບ';
-        case 'booking':
-          return 'ເອີນລົດ';
+        case 'completed':
+          return 'ສຳເລັດ';
+        case 'cancelled':
+          return 'ຍົກເລີກ';
         default:
           return status;
       }
@@ -118,8 +119,6 @@ class _BookingListPageState extends State<BookingListPage> {
       case 'pick up':
       case 'pickup':
         return Colors.green.shade700;
-      case 'booking':
-        return Colors.orange.shade700;
       case 'completed':
         return Colors.blue.shade700;
       case 'cancelled':
@@ -201,7 +200,6 @@ class _BookingListPageState extends State<BookingListPage> {
                           );
                         },
                       ),
-                      // Positioned status label at top right
                       Positioned(
                         top: 8,
                         right: 8,
