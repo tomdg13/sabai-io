@@ -9,7 +9,7 @@ import 'package:kupcar/driver/BookingDetailPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../menu/menu_page.dart';
+// import '../menu/menu_page.dart';
 import '../utils/simple_translations.dart';
 import '../config/config.dart';
 
@@ -54,6 +54,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
 
   double _deg2rad(double deg) => deg * (pi / 180);
 
+  // ignore: unused_element
   Future<void> _openMaps(double lat, double lon) async {
     final googleUrl = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&destination=$lat,$lon&travelmode=driving',
@@ -241,6 +242,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
                       final prefs = await SharedPreferences.getInstance();
                       final driverId = prefs.getString('user') ?? '';
                       final token = prefs.getString('access_token') ?? '';
+                      // ignore: unused_local_variable
                       final role = prefs.getString('role') ?? 'customer';
                       final bookingId = booking['book_id'];
                       final carId = booking['car_id'];

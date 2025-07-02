@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:kupcar/driver/BookingConfirmPage.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../config/config.dart';
+// import '../config/config.dart';
 import '../utils/simple_translations.dart';
 import 'package:intl/intl.dart';
 

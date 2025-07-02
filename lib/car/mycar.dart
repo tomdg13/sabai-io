@@ -109,6 +109,7 @@ class _MyCarPageState extends State<MyCarPage> {
     }
   }
 
+  // ignore: unused_element
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
