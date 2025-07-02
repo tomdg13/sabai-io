@@ -146,10 +146,6 @@ class SimpleTranslations {
       'enter_brand': 'Please enter brand',
       'enter_model': 'Please enter model',
       'enter_license_plate': 'Please enter a valid license plate',
-<<<<<<< HEAD
-    },
-    'la': {
-=======
       'addCar': 'Add Car',
       "pickup": "Pickup",
       "dropoff": "Dropoff",
@@ -165,7 +161,6 @@ class SimpleTranslations {
       "driver": "ຄົນຂັບລົດ",
       "pickup": "ຈຸດຮັບ",
       "dropoff": "ຈຸດສົ່ງ",
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
       "no_image_selected": "ບໍ່ມີຮູບ ກະລູນາເພີມຮູບ",
       "booking_confirmation": "ຢືນຢັນການຈອງ",
       "pickup_location": "ສະຖານທີ່ຮັບຜິດຊອບ",
@@ -286,10 +281,7 @@ class SimpleTranslations {
       'pickup_time': 'ມາຮັບເວລາ 10:30 AM',
       'online': 'ເປີດ',
       'offline': 'ປິດ',
-<<<<<<< HEAD
-=======
       'addCar': 'ເພີມລົດ',
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
 
       //----------drver confrim
       // "booking_confirmation": "ຢືນຢັນການຈອງ",

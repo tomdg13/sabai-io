@@ -1,12 +1,3 @@
-<<<<<<< HEAD
-import 'package:flutter/material.dart';
-import 'package:kupcar/config/config.dart';
-import 'package:kupcar/driver/BookingConfirmPage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:intl/intl.dart';
-=======
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -16,7 +7,6 @@ import 'package:kupcar/config/config.dart';
 import 'package:kupcar/driver/BookingConfirmPage.dart';
 import 'package:kupcar/car/CarAddPage.dart'; // Adjust import if needed
 import 'package:shared_preferences/shared_preferences.dart';
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
 import '../utils/simple_translations.dart';
 
 class DriverPage extends StatefulWidget {
@@ -26,25 +16,15 @@ class DriverPage extends StatefulWidget {
   _DriverPageState createState() => _DriverPageState();
 }
 
-<<<<<<< HEAD
-class _DriverPageState extends State<DriverPage> {
-  String name = '';
-  String phone = '';
-=======
 class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   String name = 'Driver';
   String phone = '';
   String licensePlate = '';
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
   String status = 'Offline';
   String langCodes = 'en';
   String token = '';
   List<dynamic> bookings = [];
-<<<<<<< HEAD
-  bool loading = false;
-=======
   Timer? refreshTimer;
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
 
   double? currentLat;
   double? currentLon;
@@ -52,10 +32,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-<<<<<<< HEAD
-    _loadDriverInfo();
-    getLanguage();
-=======
     WidgetsBinding.instance.addObserver(this);
     _loadDriverInfo();
     getLanguage();
@@ -85,28 +61,18 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
         fetchNearbyBookings(currentLat!, currentLon!);
       }
     });
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
   }
 
   Future<void> getLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-<<<<<<< HEAD
-    langCodes = prefs.getString('languageCode') ?? 'en';
-    setState(() {});
-=======
     setState(() {
       langCodes = prefs.getString('languageCode') ?? 'en';
     });
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
   }
 
   Future<void> _loadDriverInfo() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-<<<<<<< HEAD
-      name = prefs.getString('name') ?? 'Driver';
-=======
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
       phone = prefs.getString('user') ?? '';
       status = prefs.getString('status') ?? 'Offline';
       token = prefs.getString('access_token') ?? '';
@@ -115,30 +81,17 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
     currentLat = 17.960895;
     currentLon = 102.620052;
 
-<<<<<<< HEAD
-=======
     await getDriverProfile();
 
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
     if (status == 'Online' && currentLat != null && currentLon != null) {
       await fetchNearbyBookings(currentLat!, currentLon!);
     } else {
       setState(() {
-<<<<<<< HEAD
-        bookings = []; // Clear bookings if offline
-=======
         bookings = [];
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
       });
     }
   }
 
-<<<<<<< HEAD
-  Future<void> fetchNearbyBookings(double lat, double lon) async {
-    setState(() {
-      loading = true;
-    });
-=======
   Future<void> getDriverProfile() async {
     if (token.isEmpty || phone.isEmpty) return;
 
@@ -173,7 +126,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
 
   Future<void> fetchNearbyBookings(double lat, double lon) async {
     if (token.isEmpty) return;
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
 
     final url = AppConfig.api('/api/driver/nearby');
     final payload = {'lat': lat, 'lon': lon};
@@ -193,21 +145,9 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
         setState(() {
           bookings = data;
         });
-<<<<<<< HEAD
-      } else {
-        // Removed SnackBar
-      }
-    } catch (e) {
-      // Removed SnackBar
-    } finally {
-      setState(() {
-        loading = false;
-      });
-=======
       }
     } catch (e) {
       // Handle error if needed
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
     }
   }
 
@@ -235,18 +175,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
 
         if (newStatus == 'Online' && currentLat != null && currentLon != null) {
           await fetchNearbyBookings(currentLat!, currentLon!);
-<<<<<<< HEAD
-        } else {
-          setState(() {
-            bookings = []; // Clear bookings when offline
-          });
-        }
-      } else {
-        // Removed SnackBar
-      }
-    } catch (e) {
-      // Removed SnackBar
-=======
           startAutoRefresh();
         } else {
           refreshTimer?.cancel();
@@ -257,14 +185,11 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
       }
     } catch (e) {
       // Handle error if needed
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
     }
   }
 
   @override
   Widget build(BuildContext context) {
-<<<<<<< HEAD
-=======
     // Show Add Car button if license plate missing
     if (licensePlate.isEmpty) {
       return Scaffold(
@@ -305,7 +230,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
       );
     }
 
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -316,9 +240,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
               "${SimpleTranslations.get(langCodes, 'welcome')}, $name",
               style: const TextStyle(fontSize: 20),
             ),
-<<<<<<< HEAD
-            const SizedBox(height: 20),
-=======
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Container(
@@ -357,7 +278,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                 ),
               ),
             ),
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
             Row(
               children: [
                 Text(
@@ -389,37 +309,19 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 10),
             Expanded(
-<<<<<<< HEAD
-              child: loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : status != 'Online'
-=======
               child: status != 'Online'
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
                   ? Center(
                       child: Text(
                         SimpleTranslations.get(langCodes, 'offline_message'),
                       ),
                     )
                   : bookings.isEmpty
-<<<<<<< HEAD
-                  ? Center(
-                      child: Text(
-                        SimpleTranslations.get(langCodes, 'no_bookings'),
-                      ),
-                    )
-=======
                   ? const Center(child: CircularProgressIndicator())
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
                   : ListView.builder(
                       itemCount: bookings.length,
                       itemBuilder: (context, index) {
                         final booking = bookings[index];
-<<<<<<< HEAD
-                        final DateTime requestTime = DateTime.parse(
-=======
                         final requestTime = DateTime.parse(
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
                           booking['request_time'],
                         );
                         final formattedTime =
@@ -449,13 +351,9 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                               ],
                             ),
                             title: Text(
-<<<<<<< HEAD
-                              " ${booking['passenger_id']}",
-=======
                               (booking['passenger_name'] ??
                                       booking['passenger_id'])
                                   .toString(),
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
                               style: const TextStyle(
                                 fontWeight: FontWeight.w500,
                               ),
@@ -466,13 +364,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                               size: 16,
                             ),
                             onTap: () {
-<<<<<<< HEAD
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      BookingConfirmPage(booking: booking),
-=======
                               final updatedBooking = Map<String, dynamic>.from(
                                 booking,
                               );
@@ -492,18 +383,12 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                                   builder: (context) => BookingConfirmPage(
                                     booking: updatedBooking,
                                   ),
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
                                 ),
                               );
                             },
                           ),
                         );
                       },
-<<<<<<< HEAD
-                   
-                   
-=======
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
                     ),
             ),
           ],

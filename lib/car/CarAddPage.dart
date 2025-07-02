@@ -60,12 +60,6 @@ class _CarAddPageState extends State<CarAddPage> {
       langCode = code;
       _driverId = driver;
     });
-<<<<<<< HEAD
-
-    debugPrint('Retrieved langCode: $langCode');
-    debugPrint('Retrieved driver ID: $_driverId');
-=======
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
   }
 
   String _getMimeType(File? file) {
@@ -93,17 +87,8 @@ class _CarAddPageState extends State<CarAddPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() => _carTypes = data['data'] ?? []);
-<<<<<<< HEAD
-      } else {
-        debugPrint('Failed to load car types: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Error fetching car types: $e');
-    }
-=======
       }
     } catch (_) {}
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
   }
 
   Future<void> _fetchProvinces() async {
@@ -119,28 +104,15 @@ class _CarAddPageState extends State<CarAddPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() => _provinces = data['data'] ?? []);
-<<<<<<< HEAD
-      } else {
-        debugPrint('Failed to load provinces: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Error fetching provinces: $e');
-    }
-=======
       }
     } catch (_) {}
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
   }
 
   Future<void> _pickImage(String type) async {
     final picker = ImagePicker();
-<<<<<<< HEAD
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-=======
     final picked = await picker.pickImage(
       source: ImageSource.camera,
     ); // <-- camera only
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
     if (picked != null) {
       setState(() {
         final file = File(picked.path);
@@ -169,41 +141,19 @@ class _CarAddPageState extends State<CarAddPage> {
         _picture2 == null ||
         _picture3 == null ||
         picture_id == null) {
-<<<<<<< HEAD
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              SimpleTranslations.get(langCode, 'no_image_selected'),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-=======
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(SimpleTranslations.get(langCode, 'no_image_selected')),
           backgroundColor: Colors.red,
         ),
       );
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
       return;
     }
 
     if (_selectedProvinceId == null ||
         _selectedCarTypeId == null ||
-<<<<<<< HEAD
-        _driverId == null) {
-      debugPrint(
-        'Missing required selections: province $_selectedProvinceId, carType $_selectedCarTypeId, driver $_driverId',
-      );
-      return;
-    }
-=======
         _driverId == null)
       return;
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
 
     setState(() => _loading = true);
 
@@ -214,12 +164,7 @@ class _CarAddPageState extends State<CarAddPage> {
     final body = {
       "brand": _brandController.text,
       "model": _modelController.text,
-<<<<<<< HEAD
-      "license_plate":
-          _licensePlateController.text, // license plate can be empty
-=======
       "license_plate": _licensePlateController.text,
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
       "car_province_id": _selectedProvinceId.toString(),
       "car_type_id": _selectedCarTypeId.toString(),
       "driver_id": _driverId.toString(),
@@ -243,28 +188,14 @@ class _CarAddPageState extends State<CarAddPage> {
         body: jsonEncode(body),
       );
 
-<<<<<<< HEAD
-      debugPrint('Response status: ${response.statusCode}');
-      debugPrint('Response body: ${response.body}');
-
-=======
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
       final data = jsonDecode(response.body);
       if ((response.statusCode == 200 || response.statusCode == 201) &&
           data['status'] == 'success') {
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/menu');
         }
-<<<<<<< HEAD
-      } else {
-        debugPrint('Failed to add car: ${data['message'] ?? 'Unknown error'}');
-      }
-    } catch (e) {
-      debugPrint('Error submitting car: $e');
-=======
       }
     } catch (_) {
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
     } finally {
       setState(() => _loading = false);
     }
@@ -278,14 +209,7 @@ class _CarAddPageState extends State<CarAddPage> {
     bool isCircular = true,
   }) {
     ImageProvider? imageProvider;
-<<<<<<< HEAD
-
-    if (image is File) {
-      imageProvider = FileImage(image);
-    }
-=======
     if (image is File) imageProvider = FileImage(image);
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
 
     return Column(
       children: [
@@ -366,8 +290,6 @@ class _CarAddPageState extends State<CarAddPage> {
                             ],
                           ),
                           const SizedBox(height: 20),
-<<<<<<< HEAD
-=======
                           DropdownButtonFormField<int>(
                             value: _selectedProvinceId,
                             decoration: InputDecoration(
@@ -435,7 +357,6 @@ class _CarAddPageState extends State<CarAddPage> {
                                   )
                                 : null,
                           ),
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
                           TextFormField(
                             controller: _brandController,
                             decoration: InputDecoration(
@@ -466,80 +387,7 @@ class _CarAddPageState extends State<CarAddPage> {
                                   )
                                 : null,
                           ),
-<<<<<<< HEAD
-                          // license_plate field without validation - user can skip it
-                          TextFormField(
-                            controller: _licensePlateController,
-                            decoration: InputDecoration(
-                              labelText: SimpleTranslations.get(
-                                langCode,
-                                'license_plate',
-                              ),
-                            ),
-                            keyboardType: TextInputType.text,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                RegExp(r'[ເ-ໄກ-ຮ0-9\s]'),
-                              ),
-                              LengthLimitingTextInputFormatter(7),
-                              _LaoPlateFormatter(),
-                            ],
-                          ),
-                          DropdownButtonFormField<int>(
-                            value: _selectedProvinceId,
-                            decoration: InputDecoration(
-                              labelText: SimpleTranslations.get(
-                                langCode,
-                                'Carprovince',
-                              ),
-                            ),
-                            items: _provinces
-                                .map<DropdownMenuItem<int>>(
-                                  (prov) => DropdownMenuItem<int>(
-                                    value: prov['pr_id'] ?? 0,
-                                    child: Text(
-                                      prov['pr_name'] ?? 'Unknown name',
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (val) =>
-                                setState(() => _selectedProvinceId = val),
-                            validator: (v) => v == null
-                                ? SimpleTranslations.get(
-                                    langCode,
-                                    'select_province',
-                                  )
-                                : null,
-                          ),
-                          DropdownButtonFormField<int>(
-                            value: _selectedCarTypeId,
-                            decoration: InputDecoration(
-                              labelText: SimpleTranslations.get(
-                                langCode,
-                                'car_type',
-                              ),
-                            ),
-                            items: _carTypes
-                                .map<DropdownMenuItem<int>>(
-                                  (type) => DropdownMenuItem<int>(
-                                    value: type['car_type_id'],
-                                    child: Text(type['car_type_la']),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (val) =>
-                                setState(() => _selectedCarTypeId = val),
-                            validator: (v) => v == null
-                                ? SimpleTranslations.get(
-                                    langCode,
-                                    'select_car_type',
-                                  )
-                                : null,
-                          ),
-=======
                           const SizedBox(height: 40),
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
                         ],
                       ),
                     ),
@@ -587,28 +435,14 @@ class _LaoPlateFormatter extends TextInputFormatter {
     TextEditingValue newValue,
   ) {
     final raw = newValue.text.replaceAll(' ', '');
-<<<<<<< HEAD
-
-    if (raw.length <= 2) {
-      return newValue.copyWith(text: raw);
-    } else if (raw.length <= 6) {
-      final letters = raw.substring(0, 2);
-      final numbers = raw.substring(2);
-      final formatted = '$letters $numbers';
-=======
     if (raw.length <= 2) return newValue.copyWith(text: raw);
     if (raw.length <= 6) {
       final formatted = '${raw.substring(0, 2)} ${raw.substring(2)}';
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
       return TextEditingValue(
         text: formatted,
         selection: TextSelection.collapsed(offset: formatted.length),
       );
     }
-<<<<<<< HEAD
-
-=======
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
     return oldValue;
   }
 }

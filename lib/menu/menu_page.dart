@@ -1,19 +1,11 @@
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
-import 'package:kupcar/car/CarListPage.dart';
-=======
 // import 'package:kupcar/car/CarListPage.dart';
 import 'package:kupcar/car/mycar.dart' as mycar_ctrl;
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
 import 'package:kupcar/driver/DriverPage.dart' as driver_ctrl;
 import 'package:kupcar/history/ProfilePage.dart' as profile_ctrl;
 import 'package:kupcar/history/bookingListPage.dart' as booklist_ctrl;
 import 'package:kupcar/history/MessagePage.dart' as message_ctrl;
-<<<<<<< HEAD
-
-=======
 // import 'package:kupcar/car/CarListPage.dart';
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 
@@ -74,13 +66,9 @@ class _MenuPageState extends State<MenuPage> {
         return [
           _TabItem(t('driver_dashboard'), Icons.home, driver_ctrl.DriverPage()),
           _TabItem(t('message'), Icons.message, message_ctrl.MessagePage()),
-<<<<<<< HEAD
-          _TabItem(t('my_car'), Icons.directions_car, const CarListPage()),
-=======
           // _TabItem(t('my_car'), Icons.directions_car, CarListPage()),
           // _TabItem(t('my_car'), Icons.directions_car, const CarListPage()),
           _TabItem(t('car'), Icons.directions_car, mycar_ctrl.MyCarPage()),
->>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
           _TabItem(t('setting'), Icons.settings, profile_ctrl.ProfilePage()),
         ];
     }
