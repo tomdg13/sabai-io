@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+<<<<<<< HEAD
 import 'package:kupcar/driver/BookingConfirmPage.dart'; // Update if your path differs
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/config.dart';
+=======
+import 'package:kupcar/driver/BookingConfirmPage.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+// import '../config/config.dart';
+>>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
 import '../utils/simple_translations.dart';
 import 'package:intl/intl.dart';
 
@@ -29,6 +36,7 @@ class _BookingListPageState extends State<BookingListPage> {
   Future<void> _loadLangAndBookings() async {
     final prefs = await SharedPreferences.getInstance();
     langCode = prefs.getString('langCode') ?? 'en';
+<<<<<<< HEAD
     final passengerId = prefs.getString('user');
     if (passengerId != null) {
       await fetchBookings(passengerId);
@@ -36,12 +44,26 @@ class _BookingListPageState extends State<BookingListPage> {
       setState(() {
         loading = false;
         error = 'Missing passenger ID';
+=======
+    final driverId = prefs.getString('user');
+    if (driverId != null) {
+      await fetchBookings(driverId);
+    } else {
+      setState(() {
+        loading = false;
+        error = 'Missing driver ID';
+>>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
       });
     }
   }
 
+<<<<<<< HEAD
   Future<void> fetchBookings(String passengerId) async {
     final url = AppConfig.api('/api/book/bookList');
+=======
+  Future<void> fetchBookings(String driverId) async {
+    final url = Uri.parse('http://209.97.172.105:3000/api/book/driverbookList');
+>>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
 
@@ -52,20 +74,41 @@ class _BookingListPageState extends State<BookingListPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
+<<<<<<< HEAD
         body: jsonEncode({"passenger_id": passengerId}),
+=======
+        body: jsonEncode({"driver_id": driverId}),
+>>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
           final List<dynamic> result = data['data'] ?? [];
+<<<<<<< HEAD
           result.sort(
+=======
+
+          // ✅ Filter out bookings with status 'booking'
+          final filtered = result.where((b) {
+            final status = (b['book_status'] ?? '').toString().toLowerCase();
+            return status != 'booking';
+          }).toList();
+
+          filtered.sort(
+>>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
             (a, b) => DateTime.parse(
               b['request_time'],
             ).compareTo(DateTime.parse(a['request_time'])),
           );
+<<<<<<< HEAD
           setState(() {
             bookings = result;
+=======
+
+          setState(() {
+            bookings = filtered;
+>>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
             loading = false;
           });
         } else {
@@ -88,6 +131,7 @@ class _BookingListPageState extends State<BookingListPage> {
     }
   }
 
+<<<<<<< HEAD
   String formatDateTime(String iso) {
     try {
       final dt = DateTime.parse(iso).toLocal();
@@ -97,14 +141,23 @@ class _BookingListPageState extends State<BookingListPage> {
     }
   }
 
+=======
+>>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
   String translateStatus(String status) {
     if (langCode == 'la') {
       switch (status.toLowerCase()) {
         case 'pick up':
         case 'pickup':
           return 'ໄປຮັບ';
+<<<<<<< HEAD
         case 'booking':
           return 'ເອີນລົດ';
+=======
+        case 'completed':
+          return 'ສຳເລັດ';
+        case 'cancelled':
+          return 'ຍົກເລີກ';
+>>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
         default:
           return status;
       }
@@ -118,8 +171,11 @@ class _BookingListPageState extends State<BookingListPage> {
       case 'pick up':
       case 'pickup':
         return Colors.green.shade700;
+<<<<<<< HEAD
       case 'booking':
         return Colors.orange.shade700;
+=======
+>>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
       case 'completed':
         return Colors.blue.shade700;
       case 'cancelled':
@@ -201,7 +257,10 @@ class _BookingListPageState extends State<BookingListPage> {
                           );
                         },
                       ),
+<<<<<<< HEAD
                       // Positioned status label at top right
+=======
+>>>>>>> 0d04b9071e082b16868912fd964bd2e2d6fdcf95
                       Positioned(
                         top: 8,
                         right: 8,
