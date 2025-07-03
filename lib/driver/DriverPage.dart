@@ -204,11 +204,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                   style: const TextStyle(fontSize: 20),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  SimpleTranslations.get(langCodes, 'no_car_assigned'),
-                  style: const TextStyle(fontSize: 16, color: Colors.red),
-                  textAlign: TextAlign.center,
-                ),
+
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () {

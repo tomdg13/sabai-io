@@ -156,21 +156,6 @@ class _LoginPageState extends State<LoginPage> {
       final message =
           data['message'] ?? AppLocalizations.of(context)!.login_failed;
 
-      // Show popup dialog for failed login
-      // showDialog(
-      //   context: context,
-      //   builder: (context) => AlertDialog(
-      //     title: const Text('Login Failed'),
-      //     content: Text(message),
-      //     actions: [
-      //       TextButton(
-      //         onPressed: () => Navigator.pop(context),
-      //         child: const Text('OK'),
-      //       ),
-      //     ],
-      //   ),
-      // );
-
       setState(() => msg = message);
     }
 

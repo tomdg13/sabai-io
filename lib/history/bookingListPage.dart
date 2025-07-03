@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:kupcar/driver/BookingConfirmPage.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-// import '../config/config.dart';
 import '../utils/simple_translations.dart';
 import 'package:intl/intl.dart';
 
@@ -30,6 +29,10 @@ class _BookingListPageState extends State<BookingListPage> {
     final prefs = await SharedPreferences.getInstance();
     langCode = prefs.getString('langCode') ?? 'en';
     final driverId = prefs.getString('user');
+
+    print('🌐 Language: $langCode');
+    print('👤 Driver ID: $driverId');
+
     if (driverId != null) {
       await fetchBookings(driverId);
     } else {
@@ -55,12 +58,13 @@ class _BookingListPageState extends State<BookingListPage> {
         body: jsonEncode({"driver_id": driverId}),
       );
 
+      print('📥 Response: ${response.body}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
           final List<dynamic> result = data['data'] ?? [];
 
-          // ✅ Filter out bookings with status 'booking'
           final filtered = result.where((b) {
             final status = (b['book_status'] ?? '').toString().toLowerCase();
             return status != 'booking';
@@ -99,7 +103,6 @@ class _BookingListPageState extends State<BookingListPage> {
   String translateStatus(String status) {
     if (langCode == 'la') {
       switch (status.toLowerCase()) {
-        case 'pick up':
         case 'pickup':
           return 'ໄປຮັບ';
         case 'completed':
@@ -109,14 +112,12 @@ class _BookingListPageState extends State<BookingListPage> {
         default:
           return status;
       }
-    } else {
-      return status;
     }
+    return status;
   }
 
   Color statusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'pick up':
       case 'pickup':
         return Colors.green.shade700;
       case 'completed':
@@ -139,8 +140,17 @@ class _BookingListPageState extends State<BookingListPage> {
             )
           : bookings.isEmpty
           ? Center(
-              child: Text(
-                SimpleTranslations.get(langCode, 'no_bookings_found'),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.car_crash, size: 60, color: Colors.grey),
+
+                  const SizedBox(height: 8),
+                  Text(
+                    SimpleTranslations.get(langCode, 'add_car_first'),
+                    style: const TextStyle(color: Colors.black87),
+                  ),
+                ],
               ),
             )
           : ListView.builder(
@@ -191,6 +201,7 @@ class _BookingListPageState extends State<BookingListPage> {
                         subtitle: Text("Time: $formattedTime"),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () {
+                          print('📲 Booking tapped: ${booking['book_id']}');
                           Navigator.push(
                             context,
                             MaterialPageRoute(

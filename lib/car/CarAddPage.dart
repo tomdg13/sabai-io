@@ -32,12 +32,12 @@ class _CarAddPageState extends State<CarAddPage> {
   List<dynamic> _provinces = [];
   int? _selectedProvinceId;
 
-  String langCode = 'en';
+  // String langCodes = 'en';
+  String langCodes = '';
   int? _driverId;
   bool _languageLoaded = false;
   bool _loading = false;
 
-  @override
   void initState() {
     super.initState();
     _initialize();
@@ -52,12 +52,12 @@ class _CarAddPageState extends State<CarAddPage> {
 
   Future<void> _getLanguageAndDriverId() async {
     final prefs = await SharedPreferences.getInstance();
-    final code = prefs.getString('languageCode') ?? 'en';
+    langCodes = prefs.getString('languageCode') ?? 'en';
+    debugPrint('Language code: $langCodes');
     final driverString = prefs.getString('user');
     int? driver = driverString != null ? int.tryParse(driverString) : null;
 
     setState(() {
-      langCode = code;
       _driverId = driver;
     });
   }
@@ -143,7 +143,7 @@ class _CarAddPageState extends State<CarAddPage> {
         picture_id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(SimpleTranslations.get(langCode, 'no_image_selected')),
+          content: Text(SimpleTranslations.get(langCodes, 'no_image_selected')),
           backgroundColor: Colors.red,
         ),
       );
@@ -245,7 +245,7 @@ class _CarAddPageState extends State<CarAddPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(SimpleTranslations.get(langCode, 'CarAddPage')),
+        title: Text(SimpleTranslations.get(langCodes, 'CarAddPage')),
       ),
       body: Stack(
         children: [
@@ -259,7 +259,7 @@ class _CarAddPageState extends State<CarAddPage> {
                       child: Column(
                         children: [
                           _imagePreview(
-                            SimpleTranslations.get(langCode, "picture_Id"),
+                            SimpleTranslations.get(langCodes, "picture_Id"),
                             picture_id,
                             () => _pickImage('picture_id'),
                             size: 200,
@@ -270,19 +270,19 @@ class _CarAddPageState extends State<CarAddPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
                               _imagePreview(
-                                SimpleTranslations.get(langCode, "picture1"),
+                                SimpleTranslations.get(langCodes, "picture1"),
                                 _picture1,
                                 () => _pickImage('picture1'),
                                 isCircular: false,
                               ),
                               _imagePreview(
-                                SimpleTranslations.get(langCode, "picture2"),
+                                SimpleTranslations.get(langCodes, "picture2"),
                                 _picture2,
                                 () => _pickImage('picture2'),
                                 isCircular: false,
                               ),
                               _imagePreview(
-                                SimpleTranslations.get(langCode, "picture3"),
+                                SimpleTranslations.get(langCodes, "picture3"),
                                 _picture3,
                                 () => _pickImage('picture3'),
                                 isCircular: false,
@@ -294,7 +294,7 @@ class _CarAddPageState extends State<CarAddPage> {
                             value: _selectedProvinceId,
                             decoration: InputDecoration(
                               labelText: SimpleTranslations.get(
-                                langCode,
+                                langCodes,
                                 'Carprovince',
                               ),
                             ),
@@ -310,7 +310,7 @@ class _CarAddPageState extends State<CarAddPage> {
                                 setState(() => _selectedProvinceId = val),
                             validator: (v) => v == null
                                 ? SimpleTranslations.get(
-                                    langCode,
+                                    langCodes,
                                     'select_province',
                                   )
                                 : null,
@@ -319,7 +319,7 @@ class _CarAddPageState extends State<CarAddPage> {
                             controller: _licensePlateController,
                             decoration: InputDecoration(
                               labelText: SimpleTranslations.get(
-                                langCode,
+                                langCodes,
                                 'license_plate',
                               ),
                             ),
@@ -336,7 +336,7 @@ class _CarAddPageState extends State<CarAddPage> {
                             value: _selectedCarTypeId,
                             decoration: InputDecoration(
                               labelText: SimpleTranslations.get(
-                                langCode,
+                                langCodes,
                                 'car_type',
                               ),
                             ),
@@ -352,7 +352,7 @@ class _CarAddPageState extends State<CarAddPage> {
                                 setState(() => _selectedCarTypeId = val),
                             validator: (v) => v == null
                                 ? SimpleTranslations.get(
-                                    langCode,
+                                    langCodes,
                                     'select_car_type',
                                   )
                                 : null,
@@ -361,13 +361,13 @@ class _CarAddPageState extends State<CarAddPage> {
                             controller: _brandController,
                             decoration: InputDecoration(
                               labelText: SimpleTranslations.get(
-                                langCode,
+                                langCodes,
                                 'brand',
                               ),
                             ),
                             validator: (v) => (v == null || v.isEmpty)
                                 ? SimpleTranslations.get(
-                                    langCode,
+                                    langCodes,
                                     'enter_brand',
                                   )
                                 : null,
@@ -376,13 +376,13 @@ class _CarAddPageState extends State<CarAddPage> {
                             controller: _modelController,
                             decoration: InputDecoration(
                               labelText: SimpleTranslations.get(
-                                langCode,
+                                langCodes,
                                 'model',
                               ),
                             ),
                             validator: (v) => (v == null || v.isEmpty)
                                 ? SimpleTranslations.get(
-                                    langCode,
+                                    langCodes,
                                     'enter_model',
                                   )
                                 : null,
@@ -407,14 +407,14 @@ class _CarAddPageState extends State<CarAddPage> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _loading ? null : _submit,
-                        child: Text(SimpleTranslations.get(langCode, 'Save')),
+                        child: Text(SimpleTranslations.get(langCodes, 'Save')),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
-                        child: Text(SimpleTranslations.get(langCode, 'Back')),
+                        child: Text(SimpleTranslations.get(langCodes, 'Back')),
                       ),
                     ),
                   ],

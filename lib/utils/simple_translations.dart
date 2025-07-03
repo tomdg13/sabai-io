@@ -153,8 +153,15 @@ class SimpleTranslations {
       "booking_id": "Booking ID",
       "passenger": "Passenger",
       "driver": "Driver",
+      "add_car_first": "Add Car First",
+      "no_car_assigned": "No Car Assigned",
+      "add_car": "Add Car First",
     },
     'la': {
+      "no_car_assigned": "ເພີ້ມລົດກອນ",
+      "add_car_first": "ເພີ້ມລົດກອນ",
+      "add_car": "ເພີ້ມລົດກອນ",
+
       "booking_details": "ລາຍລະອຽດການຈອງ",
       "booking_id": "ເລກທີການຈອງ",
       "passenger": "ຜູ້ໂດຍສານ",

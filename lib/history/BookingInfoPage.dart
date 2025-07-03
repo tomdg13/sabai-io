@@ -60,8 +60,9 @@ class _BookingListPageState extends State<BookingListPage> {
         if (data['status'] == 'success') {
           final List<dynamic> result = data['data'] ?? [];
           result.sort(
-            (a, b) => DateTime.parse(b['request_time'])
-                .compareTo(DateTime.parse(a['request_time'])),
+            (a, b) => DateTime.parse(
+              b['request_time'],
+            ).compareTo(DateTime.parse(a['request_time'])),
           );
           setState(() {
             bookings = result;
@@ -150,7 +151,8 @@ class _BookingListPageState extends State<BookingListPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => BookingConfirmedPage(bookingId: bookingId),
+                      builder: (context) =>
+                          BookingConfirmedPage(bookingId: bookingId),
                     ),
                   );
                 }
