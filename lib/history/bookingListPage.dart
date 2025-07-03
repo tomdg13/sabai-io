@@ -27,7 +27,7 @@ class _BookingListPageState extends State<BookingListPage> {
 
   Future<void> _loadLangAndBookings() async {
     final prefs = await SharedPreferences.getInstance();
-    langCode = prefs.getString('langCode') ?? 'en';
+    langCode = prefs.getString('languageCode') ?? 'en';
     final driverId = prefs.getString('user');
 
     print('🌐 Language: $langCode');
@@ -147,7 +147,7 @@ class _BookingListPageState extends State<BookingListPage> {
 
                   const SizedBox(height: 8),
                   Text(
-                    SimpleTranslations.get(langCode, 'add_car_first'),
+                    SimpleTranslations.get(langCode, 'no_data_found'),
                     style: const TextStyle(color: Colors.black87),
                   ),
                 ],

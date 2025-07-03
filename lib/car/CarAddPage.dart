@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:kupcar/config/config.dart' show AppConfig;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,12 +33,12 @@ class _CarAddPageState extends State<CarAddPage> {
   List<dynamic> _provinces = [];
   int? _selectedProvinceId;
 
-  // String langCodes = 'en';
   String langCodes = '';
   int? _driverId;
   bool _languageLoaded = false;
   bool _loading = false;
 
+  @override
   void initState() {
     super.initState();
     _initialize();
@@ -53,7 +54,6 @@ class _CarAddPageState extends State<CarAddPage> {
   Future<void> _getLanguageAndDriverId() async {
     final prefs = await SharedPreferences.getInstance();
     langCodes = prefs.getString('languageCode') ?? 'en';
-    debugPrint('Language code: $langCodes');
     final driverString = prefs.getString('user');
     int? driver = driverString != null ? int.tryParse(driverString) : null;
 
@@ -72,6 +72,17 @@ class _CarAddPageState extends State<CarAddPage> {
       default:
         return 'png';
     }
+  }
+
+  Future<File> _resizeImage(File file, {int maxWidth = 800}) async {
+    final bytes = await file.readAsBytes();
+    final image = img.decodeImage(bytes);
+    if (image == null) return file;
+
+    final resized = img.copyResize(image, width: maxWidth);
+    final resizedBytes = img.encodeJpg(resized, quality: 85);
+    final resizedFile = await file.writeAsBytes(resizedBytes);
+    return resizedFile;
   }
 
   Future<void> _fetchCarTypes() async {
@@ -110,24 +121,24 @@ class _CarAddPageState extends State<CarAddPage> {
 
   Future<void> _pickImage(String type) async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.camera,
-    ); // <-- camera only
+    final picked = await picker.pickImage(source: ImageSource.camera);
     if (picked != null) {
+      final file = File(picked.path);
+      final resized = await _resizeImage(file);
+
       setState(() {
-        final file = File(picked.path);
         switch (type) {
           case 'picture1':
-            _picture1 = file;
+            _picture1 = resized;
             break;
           case 'picture2':
-            _picture2 = file;
+            _picture2 = resized;
             break;
           case 'picture3':
-            _picture3 = file;
+            _picture3 = resized;
             break;
           case 'picture_id':
-            picture_id = file;
+            picture_id = resized;
             break;
         }
       });
@@ -156,7 +167,6 @@ class _CarAddPageState extends State<CarAddPage> {
       return;
 
     setState(() => _loading = true);
-
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
 

@@ -156,8 +156,10 @@ class SimpleTranslations {
       "add_car_first": "Add Car First",
       "no_car_assigned": "No Car Assigned",
       "add_car": "Add Car First",
+      "no_data_found": "No Data Found",
     },
     'la': {
+      "no_data_found": "ບໍ່ມີຂໍ້ມູນ",
       "no_car_assigned": "ເພີ້ມລົດກອນ",
       "add_car_first": "ເພີ້ມລົດກອນ",
       "add_car": "ເພີ້ມລົດກອນ",
