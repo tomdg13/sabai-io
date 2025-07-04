@@ -101,7 +101,8 @@ class _ProfilePageState extends State<ProfilePage> {
               builder: (_) => ImagePreviewPage(
                 imageUrl: imageUrl ?? '',
                 name: profileData!['name'] ?? '',
-                customerId: profileData!['customer_id'] ?? 0,
+                customerId: profileData!['customer_id'] ,
+                role: profileData!['role'] ?? 'driver', // <-- Add this line!
                 token: token!,
                 onUpdateProfile: _refreshProfile,
               ),

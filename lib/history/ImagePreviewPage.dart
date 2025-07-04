@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:kupcar/config/config.dart';
+// import 'package:kupcar/config/config.dart';
 
 class ImagePreviewPage extends StatefulWidget {
   final String imageUrl; // original image URL
   final String name; // user name to show on appbar
   final int customerId;
   final String token;
+  final String role; // <-- added role
   final VoidCallback onUpdateProfile;
 
   const ImagePreviewPage({
@@ -18,6 +20,7 @@ class ImagePreviewPage extends StatefulWidget {
     required this.name,
     required this.customerId,
     required this.token,
+    required this.role, // <-- added role
     required this.onUpdateProfile,
   });
 
@@ -69,6 +72,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
         },
         body: jsonEncode({
           'customer_id': widget.customerId,
+          'role': widget.role, // <-- added role here
           'profile_image': newImageBase64,
         }),
       );
@@ -158,7 +162,6 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                     ),
                   ],
                 ),
-
                 if (isNewImagePicked) ...[
                   const SizedBox(height: 24),
                   Padding(
