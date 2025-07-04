@@ -80,11 +80,11 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile image updated successfully!'),
-            ),
-          );
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   const SnackBar(
+          //     content: Text('Profile image updated successfully!'),
+          //   ),
+          // );
           widget.onUpdateProfile();
           Navigator.of(context).pop(); // go back after upload success
         } else {

@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:kupcar/config/config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
-import 'ImagePreviewPage.dart'; // Import your ImagePreviewPage here
+import 'ImagePreviewPage.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -49,6 +49,15 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _fetchProfile(String token, String phone) async {
     try {
       final url = AppConfig.api('/api/user/getProfiledriver');
+      final Map<String, dynamic> requestBody = {
+        'phone': int.tryParse(phone) != null ? int.parse(phone) : phone,
+        'role': 'driver',
+      };
+
+      // Logging API call details
+      debugPrint('🔗 API URL: $url');
+      debugPrint('📤 Request Body: ${jsonEncode(requestBody)}');
+      debugPrint('🔐 Bearer Token: Bearer $token');
 
       final response = await http.post(
         url,
@@ -56,7 +65,7 @@ class _ProfilePageState extends State<ProfilePage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({'phone': int.tryParse(phone) ?? phone}),
+        body: jsonEncode(requestBody),
       );
 
       debugPrint('📦 API Response status: ${response.statusCode}');
@@ -64,9 +73,22 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
+
         if (data['status'] == 'success') {
           setState(() {
             profileData = data['data'];
+            loading = false;
+            error = null;
+          });
+        } else if (data['message'] == 'No profile') {
+          setState(() {
+            profileData = {
+              "name": "Unknown Driver",
+              "email": "",
+              "profile_image_url": "",
+              "phone": phone,
+              "role": "driver",
+            };
             loading = false;
             error = null;
           });
@@ -90,6 +112,12 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  void _refreshProfile() {
+    if (token != null && profileData != null) {
+      _fetchProfile(token!, profileData!['phone']);
+    }
+  }
+
   Widget _buildProfileHeader() {
     final imageUrl = profileData?['profile_image_url'];
     return GestureDetector(
@@ -101,8 +129,8 @@ class _ProfilePageState extends State<ProfilePage> {
               builder: (_) => ImagePreviewPage(
                 imageUrl: imageUrl ?? '',
                 name: profileData!['name'] ?? '',
-                customerId: profileData!['customer_id'] ,
-                role: profileData!['role'] ?? 'driver', // <-- Add this line!
+                customerId: profileData!['customer_id'] ?? 0,
+                role: 'driver',
                 token: token!,
                 onUpdateProfile: _refreshProfile,
               ),
@@ -144,15 +172,10 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _refreshProfile() {
-    if (token != null && profileData != null) {
-      _fetchProfile(token!, profileData!['phone']);
-    }
-  }
-
   Widget _buildDetailCard(IconData icon, String label, dynamic value) {
-    if (value == null || value.toString().isEmpty)
+    if (value == null || value.toString().isEmpty) {
       return const SizedBox.shrink();
+    }
 
     return Card(
       elevation: 2,
