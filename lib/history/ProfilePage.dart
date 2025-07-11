@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:sabaicub/config/config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
@@ -32,9 +33,6 @@ class _ProfilePageState extends State<ProfilePage> {
     token = prefs.getString('access_token');
     final phone = prefs.getString('user');
 
-    debugPrint('🔑 Token: $token');
-    debugPrint('📞 Phone/User: $phone');
-
     if (token == null || phone == null) {
       setState(() {
         error = 'Token or phone not found. Please login again.';
@@ -49,15 +47,10 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _fetchProfile(String token, String phone) async {
     try {
       final url = AppConfig.api('/api/user/getProfiledriver');
-      final Map<String, dynamic> requestBody = {
-        'phone': int.tryParse(phone) != null ? int.parse(phone) : phone,
+      final requestBody = {
+        'phone': int.tryParse(phone) ?? phone,
         'role': 'driver',
       };
-
-      // Logging API call details
-      debugPrint('🔗 API URL: $url');
-      debugPrint('📤 Request Body: ${jsonEncode(requestBody)}');
-      debugPrint('🔐 Bearer Token: Bearer $token');
 
       final response = await http.post(
         url,
@@ -68,27 +61,11 @@ class _ProfilePageState extends State<ProfilePage> {
         body: jsonEncode(requestBody),
       );
 
-      debugPrint('📦 API Response status: ${response.statusCode}');
-      debugPrint('📦 API Response body: ${response.body}');
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
-
         if (data['status'] == 'success') {
           setState(() {
             profileData = data['data'];
-            loading = false;
-            error = null;
-          });
-        } else if (data['message'] == 'No profile') {
-          setState(() {
-            profileData = {
-              "name": "Unknown Driver",
-              "email": "",
-              "profile_image_url": "",
-              "phone": phone,
-              "role": "driver",
-            };
             loading = false;
             error = null;
           });
@@ -115,6 +92,17 @@ class _ProfilePageState extends State<ProfilePage> {
   void _refreshProfile() {
     if (token != null && profileData != null) {
       _fetchProfile(token!, profileData!['phone']);
+    }
+  }
+
+  String? getLocalizedValue(String keyLo, String keyEn) {
+    final valueEn = profileData?[keyEn]?.toString();
+    final valueLo = profileData?[keyLo]?.toString();
+
+    if (langCode == 'en') {
+      return (valueEn != null && valueEn.isNotEmpty) ? valueEn : valueLo;
+    } else {
+      return valueLo;
     }
   }
 
@@ -203,6 +191,19 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     }
 
+    final villageName = getLocalizedValue('vill_name', 'vill_name_en');
+    final districtName = getLocalizedValue('dr_name', 'dr_name_en');
+    final provinceName = getLocalizedValue('pr_name', 'pr_name_en');
+
+    // ignore: unused_local_variable
+    String? formattedDate;
+    if (profileData?['profile_date'] != null) {
+      final dt = DateTime.tryParse(profileData!['profile_date']);
+      formattedDate = dt != null
+          ? DateFormat('yyyy-MM-dd – kk:mm').format(dt)
+          : null;
+    }
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -234,6 +235,40 @@ class _ProfilePageState extends State<ProfilePage> {
               Icons.info_outline,
               SimpleTranslations.get(langCode, 'bio'),
               profileData?['bio'],
+            ),
+            _buildDetailCard(
+              Icons.directions_car,
+              SimpleTranslations.get(langCode, 'license_plate'),
+              profileData?['license_plate'],
+            ),
+          
+
+         
+
+            _buildDetailCard(
+              Icons.home,
+              SimpleTranslations.get(langCode, 'village_name'),
+              villageName,
+            ),
+            _buildDetailCard(
+              Icons.apartment,
+              SimpleTranslations.get(langCode, 'district_name'),
+              districtName,
+            ),
+            _buildDetailCard(
+              Icons.public,
+              SimpleTranslations.get(langCode, 'province_name'),
+              provinceName,
+            ),
+            _buildDetailCard(
+              Icons.verified_user,
+              SimpleTranslations.get(langCode, 'status'),
+              profileData?['status'],
+            ),
+            _buildDetailCard(
+              Icons.wifi_off,
+              SimpleTranslations.get(langCode, 'online'),
+              profileData?['online'],
             ),
           ],
         ),
