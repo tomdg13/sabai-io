@@ -174,7 +174,7 @@ class _CarAddPageState extends State<CarAddPage> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
 
-    final url = Uri.parse("http://209.97.172.105:3000/api/car/carAdd");
+    final url = AppConfig.api('/api/car/carAdd');
     final body = {
       "brand": _brandController.text,
       "model": _modelController.text,

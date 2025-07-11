@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:sabaicub/config/config.dart';
 import 'package:sabaicub/driver/BookingConfirmPage.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -44,7 +45,7 @@ class _BookingListPageState extends State<BookingListPage> {
   }
 
   Future<void> fetchBookings(String driverId) async {
-    final url = Uri.parse('http://209.97.172.105:3000/api/book/driverbookList');
+    final url = AppConfig.api('/api/book/driverbookList');
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
 

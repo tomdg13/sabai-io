@@ -95,8 +95,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   Future<void> getDriverProfile() async {
     if (token.isEmpty || phone.isEmpty) return;
 
-    final url = Uri.parse(
-      'http://209.97.172.105:3000/api/user/getProfiledriver',
+    final url = AppConfig.api('/api/user/getProfiledriver',
     );
     final body = jsonEncode({'phone': int.tryParse(phone) ?? phone});
 

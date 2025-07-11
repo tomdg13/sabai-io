@@ -204,7 +204,6 @@ class _BookingPageState extends State<BookingPage> {
       "review": "",
     };
 
-    // final url = Uri.parse('http://209.97.172.105:3000/api/book/bookAdd');
     final url = AppConfig.api('/api/book/bookAdd');
 
     print('🔑 JWT Token: $token');
