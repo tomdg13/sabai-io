@@ -1,13 +1,67 @@
 import 'package:flutter/material.dart';
-import 'package:sabaicub/login/verifyOtp.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:sabaicub/login/regiteruser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
 import '../l10n/app_localizations.dart';
 import '../config/config.dart';
 import '../utils/simple_translations.dart';
-// import 'package:Sabaikee/login/verifyOtp.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final prefs = await SharedPreferences.getInstance();
+  final savedLangCode = prefs.getString('languageCode') ?? 'en';
+
+  runApp(MyApp(initialLocale: Locale(savedLangCode)));
+}
+
+class MyApp extends StatefulWidget {
+  final Locale initialLocale;
+  const MyApp({super.key, required this.initialLocale});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late Locale _locale;
+
+  @override
+  void initState() {
+    super.initState();
+    _locale = widget.initialLocale;
+  }
+
+  Future<void> _setLocale(Locale locale) async {
+    setState(() => _locale = locale);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('languageCode', locale.languageCode);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Login App',
+      locale: _locale,
+      supportedLocales: const [Locale('en'), Locale('la')],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: LoginPage(
+        key: ValueKey(_locale.languageCode),
+        setLocale: _setLocale,
+      ),
+      builder: (context, child) {
+        return KeyedSubtree(key: ValueKey(_locale.languageCode), child: child!);
+      },
+    );
+  }
+}
 
 class LoginPage extends StatefulWidget {
   final Future<void> Function(Locale)? setLocale;
@@ -26,8 +80,6 @@ class _LoginPageState extends State<LoginPage> {
   String msg = '';
   String currecntl = 'en';
 
-  final Map<String, String> languages = {'en': '🇺🇸', 'la': '🇱🇦'};
-
   String _getText(String key) {
     return SimpleTranslations.get(currecntl, key);
   }
@@ -40,28 +92,20 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedLangCode = prefs.getString('languageCode') ?? 'en';
     userCtrl.text = prefs.getString('user') ?? '';
+    passCtrl.text = prefs.getString('pass') ?? '';
     rememberMe = prefs.getBool('remember') ?? false;
-    if (rememberMe) {
-      passCtrl.text = prefs.getString('pass') ?? '';
-    } else {
-      passCtrl.text = '';
-    }
-
-    setState(() {
-      currecntl = savedLangCode;
-    });
+    setState(() {});
   }
 
   Future<void> _savePrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user', userCtrl.text);
-    await prefs.setBool('remember', rememberMe);
     if (rememberMe) {
+      await prefs.setString('user', userCtrl.text);
       await prefs.setString('pass', passCtrl.text);
+      await prefs.setBool('remember', true);
     } else {
-      await prefs.remove('pass');
+      await prefs.clear();
     }
   }
 
@@ -84,9 +128,7 @@ class _LoginPageState extends State<LoginPage> {
       msg = '';
     });
 
-    // ✅ Use loginDriver endpoint here
     final url = AppConfig.api('/api/auth/loginDriver');
-
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
@@ -99,12 +141,11 @@ class _LoginPageState extends State<LoginPage> {
     final data = jsonDecode(response.body);
     final code = data['responseCode'];
     final token = data['data']?['access_token'];
+    await prefs.setString('access_token', token ?? '');
 
     if (code == '00' && token != null) {
-      await prefs.setString('access_token', token);
       final role = _decodeRole(token);
       await _savePrefs();
-
       if (!mounted) return;
       Navigator.pushReplacementNamed(
         context,
@@ -112,9 +153,10 @@ class _LoginPageState extends State<LoginPage> {
         arguments: {'role': role ?? 'unknown', 'token': token},
       );
     } else {
-      final errorMessage =
+      final message =
           data['message'] ?? AppLocalizations.of(context)!.login_failed;
-      setState(() => msg = errorMessage);
+
+      setState(() => msg = message);
     }
 
     setState(() => loading = false);
@@ -122,34 +164,61 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final currentLocale = Localizations.localeOf(context).languageCode;
+    final activeStyle = const TextStyle(
+      color: Colors.white,
+      fontWeight: FontWeight.bold,
+      fontSize: 16,
+    );
+    final inactiveStyle = TextStyle(
+      color: Colors.white.withOpacity(0.6),
+      fontWeight: FontWeight.normal,
+      fontSize: 16,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_getText('loginTitle')),
         actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: DropdownButton<String>(
-              value: currecntl,
-              dropdownColor: Colors.blue,
-              underline: const SizedBox(),
-              iconEnabledColor: Colors.white,
-              items: languages.entries.map((entry) {
-                return DropdownMenuItem<String>(
-                  value: entry.key,
-                  child: Text(
-                    entry.value,
-                    style: const TextStyle(color: Colors.white, fontSize: 28),
+          Row(
+            children: [
+              InkWell(
+                onTap: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('languageCode', 'en');
+                  widget.setLocale?.call(const Locale('en'));
+                  setState(() => currecntl = 'en');
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
                   ),
-                );
-              }).toList(),
-              onChanged: (String? newLang) async {
-                if (newLang == null) return;
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setString('languageCode', newLang);
-                widget.setLocale?.call(Locale(newLang));
-                setState(() => currecntl = newLang);
-              },
-            ),
+                  child: Text(
+                    '🇺🇸',
+                    style: currentLocale == 'en' ? activeStyle : inactiveStyle,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('languageCode', 'la');
+                  widget.setLocale?.call(const Locale('la'));
+                  setState(() => currecntl = 'la');
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
+                  ),
+                  child: Text(
+                    '🇱🇦',
+                    style: currentLocale == 'la' ? activeStyle : inactiveStyle,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -160,7 +229,6 @@ class _LoginPageState extends State<LoginPage> {
             TextField(
               controller: userCtrl,
               decoration: InputDecoration(labelText: _getText('phone')),
-              keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 16),
             TextField(
@@ -196,12 +264,12 @@ class _LoginPageState extends State<LoginPage> {
             const SizedBox(height: 12),
             TextButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const VerifyOtpPage(),
-                  ),
-                );
+                // Navigator.push(
+                // context,
+                // MaterialPageRoute(
+                // builder: (context) => const RegisterUserPage(),
+                // ),
+                // );
               },
               child: Text(
                 _getText('register'),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:kupcar/car/CarAddPage.dart';
-import 'package:kupcar/car/carInfoPage.dart';
+import 'package:sabaicub/car/CarAddPage.dart';
+import 'package:sabaicub/car/carInfoPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 

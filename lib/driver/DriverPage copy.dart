@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:kupcar/config/config.dart';
-import 'package:kupcar/driver/BookingConfirmPage.dart';
+import 'package:sabaicub/config/config.dart';
+import 'package:sabaicub/driver/BookingConfirmPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 

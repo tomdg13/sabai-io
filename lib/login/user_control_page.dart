@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:kupcar/config/config.dart';
-import 'package:kupcar/login/login_page.dart';
+import 'package:sabaicub/config/config.dart';
+import 'package:sabaicub/login/login_page.dart';
 import 'dart:convert';
 
 import '../utils/simple_translations.dart'; // adjust path if needed

@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:kupcar/config/config.dart';
-import 'package:kupcar/car/carAddPage.dart'; // Import CarAddPage here
+import 'package:sabaicub/config/config.dart';
+import 'package:sabaicub/car/carAddPage.dart'; // Import CarAddPage here
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 import 'package:image_picker/image_picker.dart';

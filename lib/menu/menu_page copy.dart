@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:kupcar/driver/DriverPage.dart' as driver_ctrl;
-import 'package:kupcar/history/ProfilePage.dart';
-import 'package:kupcar/history/bookingListPage.dart' as booklist_ctrl;
-import 'package:kupcar/history/bookingPage.dart' as book_ctrl;
+import 'package:sabaicub/driver/DriverPage.dart' as driver_ctrl;
+import 'package:sabaicub/history/ProfilePage.dart';
+import 'package:sabaicub/history/bookingListPage.dart' as booklist_ctrl;
+import 'package:sabaicub/history/bookingPage.dart' as book_ctrl;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 

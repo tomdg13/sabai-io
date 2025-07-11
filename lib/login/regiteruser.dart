@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:kupcar/config/config.dart';
-import 'package:kupcar/login/CameraWithOverlayPage.dart';
+import 'package:sabaicub/config/config.dart';
+import 'package:sabaicub/login/CameraWithOverlayPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 import 'package:crypto/crypto.dart';
@@ -15,7 +15,8 @@ import 'package:crypto/crypto.dart';
 import 'camera_with_overlay_page.dart';
 
 class RegisterUserPage extends StatefulWidget {
-  const RegisterUserPage({Key? key}) : super(key: key);
+  final String phone;
+  const RegisterUserPage({Key? key, required this.phone}) : super(key: key);
 
   @override
   State<RegisterUserPage> createState() => _RegisterUserPageState();
@@ -23,16 +24,26 @@ class RegisterUserPage extends StatefulWidget {
 
 class _RegisterUserPageState extends State<RegisterUserPage> {
   final _formKey = GlobalKey<FormState>();
-
+  late TextEditingController _phoneController;
   final _nameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _documentIdController = TextEditingController();
   final _accountNoController = TextEditingController();
   final _accountNameController = TextEditingController();
 
   String langCodes = 'en';
+
+  bool _isPasswordStrong = false;
+  double _passwordStrength = 0.0;
+  Color _strengthColor = Colors.red;
+  String _passwordStrengthLabel = '';
+
+  double _confirmPasswordMatchStrength = 0.0;
+  Color _confirmPasswordColor = Colors.red;
+  String _confirmPasswordLabel = '';
 
   String _getMimeType(File? file) {
     final ext = file?.path.split('.').last.toLowerCase();
@@ -66,15 +77,99 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
   @override
   void initState() {
     super.initState();
+    _phoneController = TextEditingController(text: widget.phone);
+
+    // Add password listeners
+    _passwordController.addListener(() {
+      _checkPasswordStrength(_passwordController.text);
+      _checkConfirmPasswordMatch();
+    });
+    _confirmPasswordController.addListener(() {
+      _checkConfirmPasswordMatch();
+    });
+
+    // Add phone listener to sync with username
+    _phoneController.addListener(() {
+      _usernameController.text = _phoneController.text;
+    });
+
     getLanguage();
     _fetchBanks();
     _fetchProvinces();
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _nameController.dispose();
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _documentIdController.dispose();
+    _accountNoController.dispose();
+    _accountNameController.dispose();
+    super.dispose();
   }
 
   Future<void> getLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       langCodes = prefs.getString('languageCode') ?? 'en';
+    });
+  }
+
+  void _checkPasswordStrength(String password) {
+    bool hasLetter = password.contains(RegExp(r'[a-zA-Z]'));
+    bool hasNumber = password.contains(RegExp(r'[0-9]'));
+
+    setState(() {
+      if (password.length < 4 || !hasLetter || !hasNumber) {
+        _isPasswordStrong = false;
+        _passwordStrength = 0.33;
+        _strengthColor = Colors.red;
+        _passwordStrengthLabel = SimpleTranslations.get(
+          langCodes,
+          'PasswordTooEasy',
+        );
+      } else if (password.length < 6) {
+        _isPasswordStrong = true;
+        _passwordStrength = 0.66;
+        _strengthColor = Colors.orange;
+        _passwordStrengthLabel = SimpleTranslations.get(
+          langCodes,
+          'PasswordMedium',
+        );
+      } else {
+        _isPasswordStrong = true;
+        _passwordStrength = 1.0;
+        _strengthColor = Colors.green;
+        _passwordStrengthLabel = SimpleTranslations.get(
+          langCodes,
+          'PasswordStrong',
+        );
+      }
+    });
+  }
+
+  void _checkConfirmPasswordMatch() {
+    setState(() {
+      if (_confirmPasswordController.text == _passwordController.text &&
+          _confirmPasswordController.text.isNotEmpty) {
+        _confirmPasswordMatchStrength = 1.0;
+        _confirmPasswordColor = Colors.green;
+        _confirmPasswordLabel = SimpleTranslations.get(
+          langCodes,
+          'PasswordsMatch',
+        );
+      } else {
+        _confirmPasswordMatchStrength = 0.33;
+        _confirmPasswordColor = Colors.red;
+        _confirmPasswordLabel = SimpleTranslations.get(
+          langCodes,
+          'PasswordsDoNotMatch',
+        );
+      }
     });
   }
 
@@ -210,6 +305,17 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Password validation checks
+    if (_passwordController.text != _confirmPasswordController.text) {
+      _showError(SimpleTranslations.get(langCodes, 'PasswordsDoNotMatch'));
+      return;
+    }
+    if (!_isPasswordStrong) {
+      _showError(SimpleTranslations.get(langCodes, 'PasswordTooEasy'));
+      return;
+    }
+
     if (_photoFile == null || _photoIdFile == null) {
       _showError(SimpleTranslations.get(langCodes, 'PleaseSelectSelfieAndID'));
       return;
@@ -235,7 +341,7 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
       "username": _usernameController.text,
       "email": _emailController.text,
       "password": md5.convert(utf8.encode(_passwordController.text)).toString(),
-      "phone": _usernameController.text,
+      "phone": _phoneController.text,
       "document_id": _documentIdController.text,
       "photo":
           "data:image/${_getMimeType(_photoFile)};base64,${base64Encode(_photoFile!.readAsBytesSync())}",
@@ -278,7 +384,8 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
                 ),
               ),
             );
-            Navigator.pop(context, true);
+            // Navigate to login page after successful registration
+            Navigator.popUntil(context, (route) => route.isFirst);
           }
         } else {
           _showError(
@@ -349,13 +456,9 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    _buildTextField(_usernameController, 'phone', true),
-                    _buildTextField(
-                      _passwordController,
-                      'password',
-                      true,
-                      isPassword: true,
-                    ),
+                    _buildTextField(_phoneController, 'phone', true),
+                    _buildPasswordField(),
+                    _buildConfirmPasswordField(),
                     _buildTextField(_nameController, 'name', true),
                     _buildTextField(
                       _emailController,
@@ -445,12 +548,99 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
     );
   }
 
+  Widget _buildPasswordField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextFormField(
+            controller: _passwordController,
+            decoration: InputDecoration(
+              labelText: SimpleTranslations.get(langCodes, 'password'),
+            ),
+            obscureText: true,
+            validator: (v) {
+              if (v == null || v.isEmpty) {
+                return '${SimpleTranslations.get(langCodes, 'Enter')} password';
+              }
+              if (v.length < 6) {
+                return SimpleTranslations.get(langCodes, 'PasswordMin6Chars');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: _passwordStrength,
+            backgroundColor: Colors.grey[300],
+            valueColor: AlwaysStoppedAnimation<Color>(_strengthColor),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _passwordStrengthLabel,
+            style: TextStyle(
+              fontSize: 12,
+              color: _strengthColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfirmPasswordField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextFormField(
+            controller: _confirmPasswordController,
+            decoration: InputDecoration(
+              labelText: SimpleTranslations.get(langCodes, 'ConfirmPassword'),
+            ),
+            obscureText: true,
+            validator: (v) {
+              if (v == null || v.isEmpty) {
+                return SimpleTranslations.get(langCodes, 'ConfirmYourPassword');
+              }
+              if (v != _passwordController.text) {
+                return SimpleTranslations.get(langCodes, 'PasswordsDoNotMatch');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 8),
+          if (_confirmPasswordController.text.isNotEmpty) ...[
+            LinearProgressIndicator(
+              value: _confirmPasswordMatchStrength,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(_confirmPasswordColor),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _confirmPasswordLabel,
+              style: TextStyle(
+                fontSize: 12,
+                color: _confirmPasswordColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildTextField(
     TextEditingController controller,
     String labelKey,
     bool required, {
     bool isPassword = false,
     bool isEmail = false,
+    bool readOnly = false,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -460,6 +650,7 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
           labelText: SimpleTranslations.get(langCodes, labelKey),
         ),
         obscureText: isPassword,
+        readOnly: readOnly,
         keyboardType: isEmail ? TextInputType.emailAddress : TextInputType.text,
         validator: (v) {
           if (!required) return null;
@@ -563,3 +754,5 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
     );
   }
 }
+
+

@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:kupcar/config/config.dart';
-import 'package:kupcar/history/bookingListPage.dart';
+import 'package:sabaicub/config/config.dart';
+import 'package:sabaicub/history/bookingListPage.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
