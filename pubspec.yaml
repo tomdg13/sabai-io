@@ -51,9 +51,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "ic_launcher"
   ios: true
-  image_path: "assets/icon/Kddriver.png"  # Put your icon image here
+  image_path: "assets/icon/Sabaicub.png"  # Put your icon image here
   min_sdk_android: 21 # android min sdk min:16, default 21
   adaptive_icon_background: "#FFFFFF" # only available for Android 8.0 devices and above
-  adaptive_icon_foreground: "assets/icon/Kddriver.png" # only available for Android 8.0 devices and above
+  adaptive_icon_foreground: "assets/icon/Sabaicub.png" # only available for Android 8.0 devices and above
 
   flutter_lints: ^6.0.0
