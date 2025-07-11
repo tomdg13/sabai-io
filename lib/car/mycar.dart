@@ -1,10 +1,10 @@
+// your imports...
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sabaicub/config/config.dart';
-import 'package:sabaicub/car/carAddPage.dart'; // Import CarAddPage here
+import 'package:sabaicub/car/carAddPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 import 'package:image_picker/image_picker.dart';
@@ -24,9 +24,8 @@ class _MyCarPageState extends State<MyCarPage> {
   String? phone;
   Map<String, dynamic>? carData;
 
-  int _selectedIndex = 0; // For BottomNavigationBar
+  int _selectedIndex = 0;
 
-  // Images picked by user (optional)
   File? _picture_id;
   File? _picture1;
   File? _picture2;
@@ -44,9 +43,6 @@ class _MyCarPageState extends State<MyCarPage> {
     token = prefs.getString('access_token');
     phone = prefs.getString('user');
 
-    debugPrint('🔐 Token: $token');
-    debugPrint('📞 Phone: $phone');
-
     if (token == null || phone == null) {
       setState(() {
         loading = false;
@@ -63,10 +59,6 @@ class _MyCarPageState extends State<MyCarPage> {
       final url = AppConfig.api('/api/car/myCar');
       final body = jsonEncode({'driver_id': phone});
 
-      debugPrint('🌐 POST $url');
-      debugPrint('📤 Headers: Authorization: Bearer $token');
-      debugPrint('📤 Body: $body');
-
       final response = await http.post(
         url,
         headers: {
@@ -75,9 +67,6 @@ class _MyCarPageState extends State<MyCarPage> {
         },
         body: body,
       );
-
-      debugPrint('📥 Response status: ${response.statusCode}');
-      debugPrint('📥 Response body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final res = jsonDecode(response.body);
@@ -107,13 +96,6 @@ class _MyCarPageState extends State<MyCarPage> {
         loading = false;
       });
     }
-  }
-
-  // ignore: unused_element
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
   }
 
   Future<void> _pickImage(String type) async {
@@ -225,7 +207,6 @@ class _MyCarPageState extends State<MyCarPage> {
                 imageFile: _picture1,
                 imageUrl: carData!['picture1'] as String?,
                 onTap: () => _pickImage('picture1'),
-                size: 100,
                 isCircular: false,
               ),
               _imagePreview(
@@ -233,7 +214,6 @@ class _MyCarPageState extends State<MyCarPage> {
                 imageFile: _picture2,
                 imageUrl: carData!['picture2'] as String?,
                 onTap: () => _pickImage('picture2'),
-                size: 100,
                 isCircular: false,
               ),
               _imagePreview(
@@ -241,7 +221,6 @@ class _MyCarPageState extends State<MyCarPage> {
                 imageFile: _picture3,
                 imageUrl: carData!['picture3'] as String?,
                 onTap: () => _pickImage('picture3'),
-                size: 100,
                 isCircular: false,
               ),
             ],
@@ -257,9 +236,7 @@ class _MyCarPageState extends State<MyCarPage> {
           ),
           _buildReadOnlyField(
             label: SimpleTranslations.get(langCode, 'car_type_id'),
-            value:
-                carData!['car_type_la'] ??
-                '', // Show car_type_la for readable type
+            value: carData!['car_type_la'] ?? '',
           ),
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -272,14 +249,11 @@ class _MyCarPageState extends State<MyCarPage> {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     carData!['pr_name'] ?? '',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: Colors.black,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -289,7 +263,6 @@ class _MyCarPageState extends State<MyCarPage> {
                     carData!['license_plate'] ?? '',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: Colors.black,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                       letterSpacing: 1,
@@ -298,6 +271,23 @@ class _MyCarPageState extends State<MyCarPage> {
                 ],
               ),
             ),
+          ),
+
+          // ✅ New Fields: insurance_no, insurance_date, car_status
+          _buildReadOnlyField(
+            label: SimpleTranslations.get(langCode, 'insurance_no'),
+            value: carData!['insurance_no'] ?? '',
+          ),
+          _buildReadOnlyField(
+            label: SimpleTranslations.get(langCode, 'insurance_date'),
+            value: (carData!['insurance_date'] ?? '')
+                .toString()
+                .split('T')
+                .first,
+          ),
+          _buildReadOnlyField(
+            label: SimpleTranslations.get(langCode, 'car_status'),
+            value: carData!['car_status'] ?? '',
           ),
         ],
       ),
@@ -325,7 +315,6 @@ class _MyCarPageState extends State<MyCarPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Text(error!, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 20),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
@@ -337,21 +326,11 @@ class _MyCarPageState extends State<MyCarPage> {
                   borderRadius: BorderRadius.circular(30),
                 ),
                 backgroundColor: Colors.blueAccent,
-                elevation: 5,
-                shadowColor: Colors.blue.withOpacity(0.5),
               ),
-              icon: const Icon(
-                Icons.directions_car,
-                size: 28,
-                color: Colors.white,
-              ),
+              icon: const Icon(Icons.directions_car, size: 28),
               label: Text(
                 SimpleTranslations.get(langCode, 'addCar'),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+                style: const TextStyle(fontSize: 18),
               ),
               onPressed: () {
                 Navigator.push(

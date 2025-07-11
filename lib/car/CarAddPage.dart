@@ -21,6 +21,7 @@ class _CarAddPageState extends State<CarAddPage> {
   final _brandController = TextEditingController();
   final _modelController = TextEditingController();
   final _licensePlateController = TextEditingController();
+  final _insuranceNoController = TextEditingController();
 
   File? _picture1;
   File? _picture2;
@@ -37,6 +38,9 @@ class _CarAddPageState extends State<CarAddPage> {
   int? _driverId;
   bool _languageLoaded = false;
   bool _loading = false;
+
+  DateTime? _insuranceDate;
+  // String _carStatus = 'inactive'; // default inactive
 
   @override
   void initState() {
@@ -186,6 +190,9 @@ class _CarAddPageState extends State<CarAddPage> {
           "data:image/${_getMimeType(_picture3)};base64,${base64Encode(_picture3!.readAsBytesSync())}",
       "picture_id":
           "data:image/${_getMimeType(picture_id)};base64,${base64Encode(picture_id!.readAsBytesSync())}",
+      "insurance_no": _insuranceNoController.text,
+      "insurance_date": _insuranceDate?.toIso8601String(),
+      "car_status": "active",
     };
 
     try {
@@ -206,6 +213,7 @@ class _CarAddPageState extends State<CarAddPage> {
         }
       }
     } catch (_) {
+      // Handle error if needed
     } finally {
       setState(() => _loading = false);
     }
@@ -397,6 +405,80 @@ class _CarAddPageState extends State<CarAddPage> {
                                   )
                                 : null,
                           ),
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: _insuranceNoController,
+                            decoration: InputDecoration(
+                              labelText: SimpleTranslations.get(
+                                langCodes,
+                                'insurance_no',
+                              ),
+                            ),
+                            validator: (v) => (v == null || v.isEmpty)
+                                ? SimpleTranslations.get(
+                                    langCodes,
+                                    'enter_insurance_no',
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 10),
+                          InkWell(
+                            onTap: () async {
+                              final pickedDate = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now(),
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2100),
+                              );
+                              if (pickedDate != null) {
+                                setState(() {
+                                  _insuranceDate = pickedDate;
+                                });
+                              }
+                            },
+                            child: InputDecorator(
+                              decoration: InputDecoration(
+                                labelText: SimpleTranslations.get(
+                                  langCodes,
+                                  'insurance_date',
+                                ),
+                                border: const OutlineInputBorder(),
+                              ),
+                              child: Text(
+                                _insuranceDate != null
+                                    ? "${_insuranceDate!.toLocal()}".split(
+                                        ' ',
+                                      )[0]
+                                    : SimpleTranslations.get(
+                                        langCodes,
+                                        'select_date',
+                                      ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+
+                          // DropdownButtonFormField<String>(
+                          //   value: _carStatus,
+                          //   decoration: InputDecoration(
+                          //     labelText: SimpleTranslations.get(
+                          //       langCodes,
+                          //       'car_status',
+                          //     ),
+                          //   ),
+                          //   items: [
+                          //     DropdownMenuItem(
+                          //       value: 'active',
+                          //       child: Text('Active'),
+                          //     ),
+                          //     DropdownMenuItem(
+                          //       value: 'inactive',
+                          //       child: Text('Inactive'),
+                          //     ),
+                          //   ],
+                          //   onChanged: (val) =>
+                          //       setState(() => _carStatus = val ?? 'inactive'),
+                          // ),
                           const SizedBox(height: 40),
                         ],
                       ),

@@ -208,8 +208,18 @@ class SimpleTranslations {
       'PleaseSelectSelfieAndID': 'ຮູບຕົນເອງ',
       'PasswordsMatch': 'Passwords Matched',
       'Register': 'Register',
+
+      'insurance_no': 'Insurance No',
+      'enter_insurance_no': 'Enter Insurance No',
+      'insurance_date': 'Exprice Date Insurance',
+      'select_date': 'Select Exprice Date Insurance',
     },
     'la': {
+      'insurance_no': 'ເລກທີປະກັນໄພ',
+      'enter_insurance_no': 'ປ້ອນເລກທີປະກັນໄພ',
+      'insurance_date': 'ວັນທີໝົດອາຍຸ',
+      'select_date': 'ປ້ອນວັນທີໝົດອາຍຸ',
+
       'Register': 'ລົງທະບຽນ',
       'PasswordsMatch': 'ລະຫັດຜ່ານຕົງກັນ',
       'PasswordsDoNotMatch': 'ລະຫັດຜ່ານບໍ່ຕົງກັນ',
