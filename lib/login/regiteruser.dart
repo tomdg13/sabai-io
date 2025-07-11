@@ -78,6 +78,7 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
   void initState() {
     super.initState();
     _phoneController = TextEditingController(text: widget.phone);
+    // _usernameController = TextEditingController(text: widget.phone);
 
     // Add password listeners
     _passwordController.addListener(() {
@@ -338,7 +339,7 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
     final url = AppConfig.api('/api/customer/addDriver');
     final body = {
       "name": _nameController.text,
-      "username": _usernameController.text,
+      "username": _phoneController.text,
       "email": _emailController.text,
       "password": md5.convert(utf8.encode(_passwordController.text)).toString(),
       "phone": _phoneController.text,
@@ -354,7 +355,7 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
       "account_bank_id": _selectedBankId,
       "account_no": _accountNoController.text,
       "account_name": _accountNameController.text,
-      "status": "unactive",
+      "status": "active",
       "online": "online",
       "language": langCodes.toUpperCase(),
     };
@@ -457,13 +458,19 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
                     ),
                     const SizedBox(height: 20),
                     _buildTextField(_phoneController, 'phone', true),
+                    // _buildTextField(
+                    //   _usernameController,
+                    //   'username',
+                    //   true,
+                    //   readOnly: true,
+                    // ),
                     _buildPasswordField(),
                     _buildConfirmPasswordField(),
                     _buildTextField(_nameController, 'name', true),
                     _buildTextField(
                       _emailController,
                       'email',
-                      true,
+                      false,
                       isEmail: true,
                     ),
                     _buildTextField(_documentIdController, 'DocumentID', false),
@@ -754,5 +761,3 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
     );
   }
 }
-
-
