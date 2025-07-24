@@ -102,7 +102,7 @@ class _BookingDetailPageState extends State<BookingDetailPage>
       Marker(
         markerId: const MarkerId('pickup'),
         position: LatLng(pickupLat, pickupLon),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         infoWindow: InfoWindow(
           title: SimpleTranslations.get(langCodes, 'pickup_location'),
           snippet: _currentBooking['pickup_address'] ?? '',
@@ -223,7 +223,7 @@ class _BookingDetailPageState extends State<BookingDetailPage>
               _currentPosition!.longitude,
             ),
             icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueBlue,
+              BitmapDescriptor.hueOrange,
             ),
             infoWindow: InfoWindow(
               title: SimpleTranslations.get(langCodes, 'your_location'),

@@ -227,7 +227,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
               _currentPosition!.longitude,
             ),
             icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueBlue,
+              BitmapDescriptor.hueOrange,
             ),
             infoWindow: InfoWindow(
               title: SimpleTranslations.get(langCodes, 'your_location'),
@@ -351,7 +351,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       Marker(
         markerId: const MarkerId('pickup'),
         position: LatLng(pickupLat, pickupLon),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         infoWindow: InfoWindow(
           title: SimpleTranslations.get(langCodes, 'pickup_location'),
           snippet: booking['pickup_address'] ?? '',
@@ -663,10 +663,44 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final driverId = prefs.getString('user') ?? '';
+      final driverIdString = prefs.getString('user') ?? '';
       final token = prefs.getString('access_token') ?? '';
       final bookingId = widget.booking['book_id'];
-      final carId = widget.booking['car_id'];
+      final carIdString = widget.booking['car_id'];
+
+      // Convert driver_id and car_id to integers
+      final driverId = int.tryParse(driverIdString) ?? 0;
+      final carId = int.tryParse(carIdString.toString()) ?? 0;
+
+      // Get current location for driver location fields
+      String driverLocation = "";
+      String driverLat = "";
+      String driverLon = "";
+
+      if (_currentPosition != null) {
+        driverLat = _currentPosition!.latitude.toString();
+        driverLon = _currentPosition!.longitude.toString();
+        driverLocation =
+            "${_currentPosition!.latitude}, ${_currentPosition!.longitude}";
+      } else {
+        // Try to get current location if not available
+        try {
+          Position? position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high,
+          );
+          if (position != null) {
+            driverLat = position.latitude.toString();
+            driverLon = position.longitude.toString();
+            driverLocation = "${position.latitude}, ${position.longitude}";
+          }
+        } catch (e) {
+          print('Error getting current location: $e');
+          // Use default or fallback location if needed
+          driverLat = "0.0";
+          driverLon = "0.0";
+          driverLocation = "0.0, 0.0";
+        }
+      }
 
       final url = AppConfig.api('/api/book/update/$bookingId');
       final response = await http.put(
@@ -676,9 +710,12 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'driver_id': driverId,
-          'car_id': carId,
+          'driver_id': driverId, // Now as integer
+          'car_id': carId, // Now as integer
           'book_status': 'Pick up',
+          'driver_location': driverLocation, // Format: "lat, lon"
+          'driver_lat': driverLat, // As string
+          'driver_lon': driverLon, // As string
         }),
       );
 
@@ -711,6 +748,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       }
     } catch (e) {
       _showSnackBar('Network error occurred', Colors.red);
+      print('Error confirming booking: $e');
     } finally {
       if (mounted) {
         setState(() {

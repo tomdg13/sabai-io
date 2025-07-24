@@ -180,7 +180,12 @@ class _BookingListPageState extends State<BookingListPage> {
                 final formattedPrice = NumberFormat(
                   '#,###',
                 ).format(booking['payment_price']);
-                final status = booking['book_status'] ?? '';
+
+                // Use different status field based on language code
+                final status = langCode.toLowerCase() == 'la'
+                    ? booking['bookla_status'] ?? ''
+                    : booking['book_status'] ?? '';
+
                 final translatedStatus = translateStatus(status);
                 final statusBgColor = statusColor(status);
 
