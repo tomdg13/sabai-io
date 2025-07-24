@@ -37,10 +37,13 @@ class _BookingListPageState extends State<BookingListPage> {
     if (driverId != null) {
       await fetchBookings(driverId);
     } else {
-      setState(() {
-        loading = false;
-        error = 'Missing driver ID';
-      });
+      // Check if widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          loading = false;
+          error = 'Missing driver ID';
+        });
+      }
     }
   }
 
@@ -77,27 +80,39 @@ class _BookingListPageState extends State<BookingListPage> {
             ).compareTo(DateTime.parse(a['request_time'])),
           );
 
-          setState(() {
-            bookings = filtered;
-            loading = false;
-          });
+          // Check if widget is still mounted before calling setState
+          if (mounted) {
+            setState(() {
+              bookings = filtered;
+              loading = false;
+            });
+          }
         } else {
+          // Check if widget is still mounted before calling setState
+          if (mounted) {
+            setState(() {
+              error = data['message'] ?? 'Unknown error';
+              loading = false;
+            });
+          }
+        }
+      } else {
+        // Check if widget is still mounted before calling setState
+        if (mounted) {
           setState(() {
-            error = data['message'] ?? 'Unknown error';
+            error = 'Server error: ${response.statusCode}';
             loading = false;
           });
         }
-      } else {
+      }
+    } catch (e) {
+      // Check if widget is still mounted before calling setState
+      if (mounted) {
         setState(() {
-          error = 'Server error: ${response.statusCode}';
+          error = 'Failed to load data: $e';
           loading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        error = 'Failed to load data: $e';
-        loading = false;
-      });
     }
   }
 
@@ -145,7 +160,6 @@ class _BookingListPageState extends State<BookingListPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.car_crash, size: 60, color: Colors.grey),
-
                   const SizedBox(height: 8),
                   Text(
                     SimpleTranslations.get(langCode, 'no_data_found'),
