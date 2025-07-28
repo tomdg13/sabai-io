@@ -15,6 +15,25 @@ import 'package:geolocator/geolocator.dart';
 import '../utils/simple_translations.dart';
 import '../config/config.dart';
 
+// Theme data class
+class AppTheme {
+  final String name;
+  final Color primaryColor;
+  final Color accentColor;
+  final Color backgroundColor;
+  final Color textColor;
+  final Color buttonTextColor;
+
+  AppTheme({
+    required this.name,
+    required this.primaryColor,
+    required this.accentColor,
+    required this.backgroundColor,
+    required this.textColor,
+    required this.buttonTextColor,
+  });
+}
+
 class BookingConfirmPage extends StatefulWidget {
   final Map<String, dynamic> booking;
 
@@ -27,6 +46,7 @@ class BookingConfirmPage extends StatefulWidget {
 class _BookingConfirmPageState extends State<BookingConfirmPage>
     with TickerProviderStateMixin {
   String langCodes = 'en';
+  String currentTheme = 'green'; // Default theme
   GoogleMapController? _mapController;
   AnimationController? _countdownController;
   AnimationController? _pulseController;
@@ -42,10 +62,65 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
   Set<Marker> _markers = {};
   Set<Polyline> _polylines = {};
 
+  // Predefined themes
+  final Map<String, AppTheme> themes = {
+    'green': AppTheme(
+      name: 'Green',
+      primaryColor: Colors.green,
+      accentColor: Colors.green.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'blue': AppTheme(
+      name: 'Blue',
+      primaryColor: Colors.blue,
+      accentColor: Colors.blue.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'purple': AppTheme(
+      name: 'Purple',
+      primaryColor: Colors.purple,
+      accentColor: Colors.purple.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'orange': AppTheme(
+      name: 'Orange',
+      primaryColor: Colors.orange,
+      accentColor: Colors.orange.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'teal': AppTheme(
+      name: 'Teal',
+      primaryColor: Colors.teal,
+      accentColor: Colors.teal.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'dark': AppTheme(
+      name: 'Dark',
+      primaryColor: Colors.grey.shade800,
+      accentColor: Colors.grey.shade900,
+      backgroundColor: Colors.grey.shade100,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+  };
+
+  AppTheme get selectedTheme => themes[currentTheme] ?? themes['green']!;
+
   @override
   void initState() {
     super.initState();
     getLanguage();
+    _loadTheme();
     _setupAnimations();
     _setupCountdown();
     _setupMarkersAndRoute();
@@ -61,6 +136,16 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     _bookingStatusTimer?.cancel();
     _mapController?.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedTheme = prefs.getString('selectedTheme') ?? 'green';
+    if (mounted) {
+      setState(() {
+        currentTheme = savedTheme;
+      });
+    }
   }
 
   void _setupAnimations() {
@@ -248,6 +333,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: selectedTheme.backgroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -258,26 +344,29 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
               Expanded(
                 child: Text(
                   SimpleTranslations.get(langCodes, 'booking_timeout'),
-                  style: const TextStyle(fontSize: 18),
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: selectedTheme.textColor,
+                  ),
                 ),
               ),
             ],
           ),
           content: Text(
             SimpleTranslations.get(langCodes, 'booking_timeout_message'),
-            style: const TextStyle(fontSize: 16),
+            style: TextStyle(fontSize: 16, color: selectedTheme.textColor),
           ),
           actions: [
             TextButton(
               style: TextButton.styleFrom(
-                backgroundColor: Colors.grey[100],
+                backgroundColor: selectedTheme.primaryColor.withOpacity(0.1),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
               child: Text(
                 SimpleTranslations.get(langCodes, 'ok'),
-                style: const TextStyle(color: Colors.black87),
+                style: TextStyle(color: selectedTheme.primaryColor),
               ),
               onPressed: () {
                 Navigator.of(context).pop();
@@ -298,6 +387,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: selectedTheme.backgroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -308,26 +398,29 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
               Expanded(
                 child: Text(
                   SimpleTranslations.get(langCodes, 'booking_cancelled'),
-                  style: const TextStyle(fontSize: 18),
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: selectedTheme.textColor,
+                  ),
                 ),
               ),
             ],
           ),
           content: Text(
             SimpleTranslations.get(langCodes, 'booking_cancelled_message'),
-            style: const TextStyle(fontSize: 16),
+            style: TextStyle(fontSize: 16, color: selectedTheme.textColor),
           ),
           actions: [
             TextButton(
               style: TextButton.styleFrom(
-                backgroundColor: Colors.grey[100],
+                backgroundColor: selectedTheme.primaryColor.withOpacity(0.1),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
               child: Text(
                 SimpleTranslations.get(langCodes, 'ok'),
-                style: const TextStyle(color: Colors.black87),
+                style: TextStyle(color: selectedTheme.primaryColor),
               ),
               onPressed: () {
                 Navigator.of(context).pop();
@@ -374,7 +467,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       Polyline(
         polylineId: const PolylineId('route'),
         points: [LatLng(pickupLat, pickupLon), LatLng(dropoffLat, dropoffLon)],
-        color: Colors.blue,
+        color: selectedTheme.primaryColor,
         width: 4,
         patterns: [PatternItem.dash(20), PatternItem.gap(10)],
         endCap: Cap.roundCap,
@@ -464,7 +557,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(message, style: const TextStyle(color: Colors.white)),
         backgroundColor: backgroundColor,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -511,7 +604,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     Color ringColor;
 
     if (progress > 0.6) {
-      ringColor = Colors.green;
+      ringColor = selectedTheme.primaryColor;
     } else if (progress > 0.3) {
       ringColor = Colors.orange;
     } else {
@@ -577,7 +670,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
         statusText = SimpleTranslations.get(langCodes, 'waiting_confirmation');
         break;
       case 'pick up':
-        badgeColor = Colors.blue;
+        badgeColor = selectedTheme.primaryColor;
         badgeIcon = Icons.directions_car;
         statusText = SimpleTranslations.get(langCodes, 'driver_coming');
         break;
@@ -630,11 +723,24 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: Colors.black54),
+            Icon(
+              icon,
+              size: 20,
+              color: selectedTheme.textColor.withOpacity(0.7),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: Text(text, style: const TextStyle(fontSize: 15))),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(fontSize: 15, color: selectedTheme.textColor),
+              ),
+            ),
             if (onTap != null)
-              Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: selectedTheme.textColor.withOpacity(0.5),
+              ),
           ],
         ),
       ),
@@ -723,7 +829,10 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         HapticFeedback.lightImpact();
-        _showSnackBar('Booking confirmed successfully!', Colors.green);
+        _showSnackBar(
+          'Booking confirmed successfully!',
+          selectedTheme.primaryColor,
+        );
 
         // Cancel timers before navigation
         _countdownTimer?.cancel();
@@ -786,9 +895,14 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
         '';
 
     return Scaffold(
+      backgroundColor: selectedTheme.backgroundColor,
       appBar: AppBar(
-        title: Text(SimpleTranslations.get(langCodes, 'booking_confirmation')),
-        backgroundColor: Colors.blue,
+        title: Text(
+          SimpleTranslations.get(langCodes, 'booking_confirmation'),
+          style: TextStyle(color: selectedTheme.buttonTextColor),
+        ),
+        backgroundColor: selectedTheme.primaryColor,
+        foregroundColor: selectedTheme.buttonTextColor,
         elevation: 0,
         actions: [
           Padding(
@@ -853,7 +967,9 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                       icon: Icons.payments,
                       label: SimpleTranslations.get(langCodes, 'price'),
                       value: "₭ $formattedPrice",
-                      color: Colors.blue,
+                      color: selectedTheme.primaryColor,
+                      backgroundColor: selectedTheme.backgroundColor,
+                      textColor: selectedTheme.textColor,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -862,7 +978,9 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                       icon: Icons.place,
                       label: SimpleTranslations.get(langCodes, 'distance'),
                       value: formattedDistance,
-                      color: Colors.green,
+                      color: selectedTheme.accentColor,
+                      backgroundColor: selectedTheme.backgroundColor,
+                      textColor: selectedTheme.textColor,
                     ),
                   ),
                 ],
@@ -875,6 +993,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Card(
+                color: selectedTheme.backgroundColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -890,21 +1009,24 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
+                              color: selectedTheme.primaryColor.withOpacity(
+                                0.1,
+                              ),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.local_taxi,
-                              color: Colors.blue,
+                              color: selectedTheme.primaryColor,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               "${SimpleTranslations.get(langCodes, 'suggested_price')} ₭ $formattedSuggestPrice",
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
+                                color: selectedTheme.textColor,
                               ),
                             ),
                           ),
@@ -914,7 +1036,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                       Container(
                         width: double.infinity,
                         height: 1,
-                        color: Colors.grey[200],
+                        color: selectedTheme.textColor.withOpacity(0.2),
                       ),
                       const SizedBox(height: 16),
                       _driverRow(
@@ -949,7 +1071,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.3),
+                        color: selectedTheme.primaryColor.withOpacity(0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -962,21 +1084,21 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _isConfirming
                             ? Colors.grey
-                            : Colors.blue,
-                        foregroundColor: Colors.white,
+                            : selectedTheme.primaryColor,
+                        foregroundColor: selectedTheme.buttonTextColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                         elevation: 0,
                       ),
                       icon: _isConfirming
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 24,
                               height: 24,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
+                                  selectedTheme.buttonTextColor,
                                 ),
                               ),
                             )
@@ -988,9 +1110,10 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                                 langCodes,
                                 'confirm_booking',
                               ),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
+                          color: selectedTheme.buttonTextColor,
                         ),
                       ),
                       onPressed: _isConfirming ? null : _confirmBooking,
@@ -1015,12 +1138,21 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          side: BorderSide(color: Colors.blue.withOpacity(0.5)),
+                          side: BorderSide(
+                            color: selectedTheme.primaryColor.withOpacity(0.5),
+                          ),
                         ),
-                        icon: const Icon(Icons.navigation, size: 20),
+                        icon: Icon(
+                          Icons.navigation,
+                          size: 20,
+                          color: selectedTheme.primaryColor,
+                        ),
                         label: Text(
                           SimpleTranslations.get(langCodes, 'navigate_pickup'),
-                          style: const TextStyle(fontSize: 14),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: selectedTheme.primaryColor,
+                          ),
                         ),
                         onPressed: () => _openMaps(pickupLat, pickupLon),
                       ),
@@ -1061,6 +1193,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Card(
+                color: selectedTheme.backgroundColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -1072,9 +1205,10 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                     children: [
                       Text(
                         SimpleTranslations.get(langCodes, 'trip_details'),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: selectedTheme.textColor,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -1096,7 +1230,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                         Icons.access_time,
                         SimpleTranslations.get(langCodes, 'booking_time'),
                         _formatBookingTime(booking['request_time']),
-                        Colors.blue,
+                        selectedTheme.primaryColor,
                       ),
                       if (booking['passenger_note'] != null &&
                           booking['passenger_note'].toString().isNotEmpty) ...[
@@ -1157,16 +1291,17 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey[600],
+                  color: selectedTheme.textColor.withOpacity(0.6),
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
+                  color: selectedTheme.textColor,
                 ),
               ),
             ],
@@ -1210,6 +1345,8 @@ class _EnhancedInfoCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final Color backgroundColor;
+  final Color textColor;
 
   const _EnhancedInfoCard({
     Key? key,
@@ -1217,11 +1354,14 @@ class _EnhancedInfoCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    required this.backgroundColor,
+    required this.textColor,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: backgroundColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 3,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -1240,8 +1380,8 @@ class _EnhancedInfoCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.grey,
+              style: TextStyle(
+                color: textColor.withOpacity(0.6),
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),

@@ -15,13 +15,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner:  false,
+      debugShowCheckedModeBanner: false,
       title: 'Main',
       theme: ThemeData(
-        
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.green,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.blue,
+          backgroundColor: Colors.green,
           elevation: 2,
           titleTextStyle: TextStyle(
             color: Colors.white,
@@ -32,14 +31,14 @@ class MyApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
+            backgroundColor: Colors.green,
             foregroundColor: Colors.white,
             textStyle: const TextStyle(fontSize: 16),
             padding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
         checkboxTheme: CheckboxThemeData(
-          fillColor: MaterialStateProperty.all(Colors.blue),
+          fillColor: MaterialStateProperty.all(Colors.green),
         ),
         scaffoldBackgroundColor: Colors.white,
       ),
@@ -60,8 +59,8 @@ class MyApp extends StatelessWidget {
           final args =
               ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
           final role = args?['role'] ?? 'customer';
-         
-          return MenuPage(role: role, );
+
+          return MenuPage(role: role);
         },
       },
     );

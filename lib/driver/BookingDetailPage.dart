@@ -15,6 +15,25 @@ import '../menu/menu_page.dart';
 import '../utils/simple_translations.dart';
 import '../config/config.dart';
 
+// Theme data class
+class AppTheme {
+  final String name;
+  final Color primaryColor;
+  final Color accentColor;
+  final Color backgroundColor;
+  final Color textColor;
+  final Color buttonTextColor;
+
+  AppTheme({
+    required this.name,
+    required this.primaryColor,
+    required this.accentColor,
+    required this.backgroundColor,
+    required this.textColor,
+    required this.buttonTextColor,
+  });
+}
+
 class BookingDetailPage extends StatefulWidget {
   final Map<String, dynamic> booking;
 
@@ -27,6 +46,7 @@ class BookingDetailPage extends StatefulWidget {
 class _BookingDetailPageState extends State<BookingDetailPage>
     with TickerProviderStateMixin {
   String langCodes = 'en';
+  String currentTheme = 'green'; // Default theme
   GoogleMapController? _mapController;
   Timer? _statusUpdateTimer;
   Timer? _locationUpdateTimer;
@@ -43,6 +63,60 @@ class _BookingDetailPageState extends State<BookingDetailPage>
   Set<Marker> _markers = {};
   Set<Polyline> _polylines = {};
 
+  // Predefined themes
+  final Map<String, AppTheme> themes = {
+    'green': AppTheme(
+      name: 'Green',
+      primaryColor: Colors.green,
+      accentColor: Colors.green.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'blue': AppTheme(
+      name: 'Blue',
+      primaryColor: Colors.blue,
+      accentColor: Colors.blue.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'purple': AppTheme(
+      name: 'Purple',
+      primaryColor: Colors.purple,
+      accentColor: Colors.purple.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'orange': AppTheme(
+      name: 'Orange',
+      primaryColor: Colors.orange,
+      accentColor: Colors.orange.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'teal': AppTheme(
+      name: 'Teal',
+      primaryColor: Colors.teal,
+      accentColor: Colors.teal.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'dark': AppTheme(
+      name: 'Dark',
+      primaryColor: Colors.grey.shade800,
+      accentColor: Colors.grey.shade900,
+      backgroundColor: Colors.grey.shade100,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+  };
+
+  AppTheme get selectedTheme => themes[currentTheme] ?? themes['green']!;
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +130,7 @@ class _BookingDetailPageState extends State<BookingDetailPage>
     print('=== END BOOKING DATA ===');
 
     getLanguage();
+    _loadTheme();
     _setupAnimations();
     _setupMarkersAndRoute();
     _getCurrentLocation();
@@ -71,6 +146,16 @@ class _BookingDetailPageState extends State<BookingDetailPage>
     _locationUpdateTimer?.cancel();
     _mapController?.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedTheme = prefs.getString('selectedTheme') ?? 'green';
+    if (mounted) {
+      setState(() {
+        currentTheme = savedTheme;
+      });
+    }
   }
 
   void _setupAnimations() {
@@ -125,7 +210,7 @@ class _BookingDetailPageState extends State<BookingDetailPage>
       Polyline(
         polylineId: const PolylineId('route'),
         points: [LatLng(pickupLat, pickupLon), LatLng(dropoffLat, dropoffLon)],
-        color: Colors.blue,
+        color: selectedTheme.primaryColor,
         width: 4,
         patterns: [PatternItem.dash(20), PatternItem.gap(10)],
         endCap: Cap.roundCap,
@@ -280,7 +365,7 @@ class _BookingDetailPageState extends State<BookingDetailPage>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.update, color: Colors.white, size: 20),
+            const Icon(Icons.update, color: Colors.white, size: 20),
             const SizedBox(width: 8),
             Text('Status updated to: $newStatus'),
           ],
@@ -364,7 +449,10 @@ class _BookingDetailPageState extends State<BookingDetailPage>
           _currentBooking['book_status'] = newStatus;
         });
         HapticFeedback.lightImpact();
-        _showSnackBar('Status updated successfully!', Colors.green);
+        _showSnackBar(
+          'Status updated successfully!',
+          selectedTheme.primaryColor,
+        );
       } else {
         _showSnackBar('Failed to update status', Colors.red);
       }
@@ -383,7 +471,7 @@ class _BookingDetailPageState extends State<BookingDetailPage>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(message, style: const TextStyle(color: Colors.white)),
         backgroundColor: backgroundColor,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -398,7 +486,7 @@ class _BookingDetailPageState extends State<BookingDetailPage>
       case 'booking':
         return Colors.orange;
       case 'pick up':
-        return Colors.blue;
+        return selectedTheme.primaryColor;
       case 'in progress':
       case 'on trip':
         return Colors.purple;
@@ -623,26 +711,31 @@ class _BookingDetailPageState extends State<BookingDetailPage>
                               borderRadius: BorderRadius.circular(12),
                             ),
                             side: BorderSide(
-                              color: Colors.blue.withOpacity(0.5),
+                              color: selectedTheme.primaryColor.withOpacity(
+                                0.5,
+                              ),
                             ),
                           ),
                           icon: _isNavigating
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      selectedTheme.primaryColor,
+                                    ),
                                   ),
                                 )
-                              : const Icon(
+                              : Icon(
                                   Icons.navigation,
-                                  color: Colors.blue,
+                                  color: selectedTheme.primaryColor,
                                   size: 20,
                                 ),
                           label: Text(
                             SimpleTranslations.get(langCodes, 'navigate'),
-                            style: const TextStyle(
-                              color: Colors.blue,
+                            style: TextStyle(
+                              color: selectedTheme.primaryColor,
                               fontSize: 14,
                             ),
                           ),
@@ -701,12 +794,17 @@ class _BookingDetailPageState extends State<BookingDetailPage>
         : "-";
 
     return Scaffold(
+      backgroundColor: selectedTheme.backgroundColor,
       appBar: AppBar(
-        title: Text(SimpleTranslations.get(langCodes, 'booking_details')),
-        backgroundColor: Colors.blue,
+        title: Text(
+          SimpleTranslations.get(langCodes, 'booking_details'),
+          style: TextStyle(color: selectedTheme.buttonTextColor),
+        ),
+        backgroundColor: selectedTheme.primaryColor,
+        foregroundColor: selectedTheme.buttonTextColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back, color: selectedTheme.buttonTextColor),
           onPressed: () async {
             final prefs = await SharedPreferences.getInstance();
             final role = prefs.getString('role') ?? 'driver';
@@ -781,7 +879,9 @@ class _BookingDetailPageState extends State<BookingDetailPage>
                             'booking_id',
                           ),
                           value: _currentBooking['book_id']?.toString() ?? '-',
-                          color: Colors.deepPurple,
+                          color: selectedTheme.accentColor,
+                          backgroundColor: selectedTheme.backgroundColor,
+                          textColor: selectedTheme.textColor,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -796,6 +896,8 @@ class _BookingDetailPageState extends State<BookingDetailPage>
                               _currentBooking['name']?.toString() ??
                               '-',
                           color: Colors.teal,
+                          backgroundColor: selectedTheme.backgroundColor,
+                          textColor: selectedTheme.textColor,
                         ),
                       ),
                     ],
@@ -808,7 +910,9 @@ class _BookingDetailPageState extends State<BookingDetailPage>
                           icon: Icons.payments,
                           label: SimpleTranslations.get(langCodes, 'price'),
                           value: formattedPrice,
-                          color: Colors.blue,
+                          color: selectedTheme.primaryColor,
+                          backgroundColor: selectedTheme.backgroundColor,
+                          textColor: selectedTheme.textColor,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -818,6 +922,8 @@ class _BookingDetailPageState extends State<BookingDetailPage>
                           label: SimpleTranslations.get(langCodes, 'distance'),
                           value: formattedDistance,
                           color: Colors.green,
+                          backgroundColor: selectedTheme.backgroundColor,
+                          textColor: selectedTheme.textColor,
                         ),
                       ),
                     ],
@@ -831,6 +937,7 @@ class _BookingDetailPageState extends State<BookingDetailPage>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Card(
+                color: selectedTheme.backgroundColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -843,9 +950,10 @@ class _BookingDetailPageState extends State<BookingDetailPage>
                     children: [
                       Text(
                         SimpleTranslations.get(langCodes, 'trip_details'),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: selectedTheme.textColor,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -869,7 +977,7 @@ class _BookingDetailPageState extends State<BookingDetailPage>
                         Icons.access_time,
                         SimpleTranslations.get(langCodes, 'booking_time'),
                         _formatBookingTime(_currentBooking['request_time']),
-                        Colors.blue,
+                        selectedTheme.primaryColor,
                       ),
                       if (_currentBooking['passenger_note'] != null &&
                           _currentBooking['passenger_note']
@@ -928,23 +1036,28 @@ class _BookingDetailPageState extends State<BookingDetailPage>
                     label,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey[600],
+                      color: selectedTheme.textColor.withOpacity(0.6),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     value,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
+                      color: selectedTheme.textColor,
                     ),
                   ),
                 ],
               ),
             ),
             if (onTap != null)
-              Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: selectedTheme.textColor.withOpacity(0.5),
+              ),
           ],
         ),
       ),
@@ -985,6 +1098,8 @@ class _EnhancedInfoCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final Color backgroundColor;
+  final Color textColor;
 
   const _EnhancedInfoCard({
     Key? key,
@@ -992,11 +1107,14 @@ class _EnhancedInfoCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    required this.backgroundColor,
+    required this.textColor,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: backgroundColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 3,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -1031,7 +1149,7 @@ class _EnhancedInfoCard extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: Colors.grey[600],
+                color: textColor.withOpacity(0.6),
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),

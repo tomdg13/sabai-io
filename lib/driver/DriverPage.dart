@@ -9,6 +9,25 @@ import 'package:sabaicub/car/CarAddPage.dart'; // Adjust import if needed
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 
+// Theme data class
+class AppTheme {
+  final String name;
+  final Color primaryColor;
+  final Color accentColor;
+  final Color backgroundColor;
+  final Color textColor;
+  final Color buttonTextColor;
+
+  AppTheme({
+    required this.name,
+    required this.primaryColor,
+    required this.accentColor,
+    required this.backgroundColor,
+    required this.textColor,
+    required this.buttonTextColor,
+  });
+}
+
 class DriverPage extends StatefulWidget {
   const DriverPage({Key? key}) : super(key: key);
 
@@ -22,6 +41,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   String licensePlate = '';
   String status = 'Offline';
   String langCodes = 'en';
+  String currentTheme = 'green'; // Default theme
   String token = '';
   List<dynamic> bookings = [];
   Timer? refreshTimer;
@@ -29,12 +49,67 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   double? currentLat;
   double? currentLon;
 
+  // Predefined themes
+  final Map<String, AppTheme> themes = {
+    'green': AppTheme(
+      name: 'Green',
+      primaryColor: Colors.green,
+      accentColor: Colors.green.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'blue': AppTheme(
+      name: 'Blue',
+      primaryColor: Colors.blue,
+      accentColor: Colors.blue.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'purple': AppTheme(
+      name: 'Purple',
+      primaryColor: Colors.purple,
+      accentColor: Colors.purple.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'orange': AppTheme(
+      name: 'Orange',
+      primaryColor: Colors.orange,
+      accentColor: Colors.orange.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'teal': AppTheme(
+      name: 'Teal',
+      primaryColor: Colors.teal,
+      accentColor: Colors.teal.shade700,
+      backgroundColor: Colors.white,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+    'dark': AppTheme(
+      name: 'Dark',
+      primaryColor: Colors.grey.shade800,
+      accentColor: Colors.grey.shade900,
+      backgroundColor: Colors.grey.shade100,
+      textColor: Colors.black87,
+      buttonTextColor: Colors.white,
+    ),
+  };
+
+  AppTheme get selectedTheme => themes[currentTheme] ?? themes['green']!;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadDriverInfo();
     getLanguage();
+    _loadTheme();
     startAutoRefresh();
   }
 
@@ -51,6 +126,16 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
       if (status == 'Online' && currentLat != null && currentLon != null) {
         fetchNearbyBookings(currentLat!, currentLon!);
       }
+    }
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedTheme = prefs.getString('selectedTheme') ?? 'green';
+    if (mounted) {
+      setState(() {
+        currentTheme = savedTheme;
+      });
     }
   }
 
@@ -191,6 +276,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
     // Show Add Car button if license plate missing
     if (licensePlate.isEmpty) {
       return Scaffold(
+        backgroundColor: selectedTheme.backgroundColor,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -199,12 +285,18 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
               children: [
                 Text(
                   "${SimpleTranslations.get(langCodes, 'welcome')}, $name",
-                  style: const TextStyle(fontSize: 20),
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: selectedTheme.textColor,
+                  ),
                 ),
                 const SizedBox(height: 10),
-
                 const SizedBox(height: 20),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: selectedTheme.primaryColor,
+                    foregroundColor: selectedTheme.buttonTextColor,
+                  ),
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -225,6 +317,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
     }
 
     return Scaffold(
+      backgroundColor: selectedTheme.backgroundColor,
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -232,7 +325,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
           children: [
             Text(
               "${SimpleTranslations.get(langCodes, 'welcome')}, $name",
-              style: const TextStyle(fontSize: 20),
+              style: TextStyle(fontSize: 20, color: selectedTheme.textColor),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -258,7 +351,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                   children: [
                     const Icon(Icons.directions_car, color: Colors.black),
                     const SizedBox(width: 10),
-
                     Text(
                       licensePlate,
                       style: const TextStyle(
@@ -276,7 +368,10 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
               children: [
                 Text(
                   "${SimpleTranslations.get(langCodes, 'status')}: ",
-                  style: const TextStyle(fontSize: 16),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: selectedTheme.textColor,
+                  ),
                 ),
                 Text(
                   SimpleTranslations.get(langCodes, status.toLowerCase()),
@@ -287,6 +382,10 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                 ),
                 const Spacer(),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: selectedTheme.primaryColor,
+                    foregroundColor: selectedTheme.buttonTextColor,
+                  ),
                   onPressed: _toggleStatus,
                   child: Text(
                     status == 'Online'
@@ -296,10 +395,13 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                 ),
               ],
             ),
-            const Divider(height: 40),
+            Divider(
+              height: 40,
+              color: selectedTheme.textColor.withOpacity(0.3),
+            ),
             Text(
               SimpleTranslations.get(langCodes, 'my_bookings'),
-              style: const TextStyle(fontSize: 18),
+              style: TextStyle(fontSize: 18, color: selectedTheme.textColor),
             ),
             const SizedBox(height: 10),
             Expanded(
@@ -307,10 +409,17 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                   ? Center(
                       child: Text(
                         SimpleTranslations.get(langCodes, 'offline_message'),
+                        style: TextStyle(color: selectedTheme.textColor),
                       ),
                     )
                   : bookings.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          selectedTheme.primaryColor,
+                        ),
+                      ),
+                    )
                   : ListView.builder(
                       itemCount: bookings.length,
                       itemBuilder: (context, index) {
@@ -325,6 +434,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                         ).format(booking['payment_price']);
 
                         return Card(
+                          color: selectedTheme.backgroundColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -348,14 +458,21 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                               (booking['passenger_name'] ??
                                       booking['passenger_id'])
                                   .toString(),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w500,
+                                color: selectedTheme.textColor,
                               ),
                             ),
-                            subtitle: Text("Time: $formattedTime"),
-                            trailing: const Icon(
+                            subtitle: Text(
+                              "Time: $formattedTime",
+                              style: TextStyle(
+                                color: selectedTheme.textColor.withOpacity(0.7),
+                              ),
+                            ),
+                            trailing: Icon(
                               Icons.arrow_forward_ios,
                               size: 16,
+                              color: selectedTheme.primaryColor,
                             ),
                             onTap: () {
                               final updatedBooking = Map<String, dynamic>.from(
