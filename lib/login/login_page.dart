@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sabaicub/login/verifyOtp.dart';
+import 'package:sabaicub/login/VerifyOtpforgetpassPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -23,6 +24,7 @@ class _LoginPageState extends State<LoginPage> {
 
   bool rememberMe = false;
   bool loading = false;
+  bool _obscurePassword = true; // Added for password visibility toggle
   String msg = '';
   String currecntl = 'en';
 
@@ -165,8 +167,20 @@ class _LoginPageState extends State<LoginPage> {
             const SizedBox(height: 16),
             TextField(
               controller: passCtrl,
-              obscureText: true,
-              decoration: InputDecoration(labelText: _getText('password')),
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
+                labelText: _getText('password'),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             Row(
@@ -194,23 +208,54 @@ class _LoginPageState extends State<LoginPage> {
                 child: Text(msg, style: const TextStyle(color: Colors.red)),
               ),
             const SizedBox(height: 12),
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const VerifyOtpPage(),
+            // Register (left) and Forget Password (right) buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Register Button (left)
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const VerifyOtpPage(),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    _getText('register'),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.blue,
+                      decoration: TextDecoration.underline,
+                    ),
                   ),
-                );
-              },
-              child: Text(
-                _getText('register'),
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.blue,
-                  decoration: TextDecoration.underline,
                 ),
-              ),
+                // Separator
+                const Text(
+                  ' | ',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                // Forget Password Button (right)
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const VerifyOtpforgetpassPage(),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    _getText('forget password'),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.blue,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
