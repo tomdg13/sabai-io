@@ -305,8 +305,7 @@ class _BookingListPageState extends State<BookingListPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      SimpleTranslations.get(langCode, 'booking_history') ??
-                          'Booking History',
+                      SimpleTranslations.get(langCode, 'booking_history'),
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -314,8 +313,7 @@ class _BookingListPageState extends State<BookingListPage> {
                       ),
                     ),
                     Text(
-                      SimpleTranslations.get(langCode, 'grouped_by_status') ??
-                          'Grouped by status',
+                      SimpleTranslations.get(langCode, 'grouped_by_status'),
                       style: TextStyle(
                         fontSize: 14,
                         color: selectedTheme.buttonTextColor.withOpacity(0.9),
@@ -332,8 +330,7 @@ class _BookingListPageState extends State<BookingListPage> {
                   _loadLangAndBookings();
                 },
                 icon: Icon(Icons.refresh, color: selectedTheme.buttonTextColor),
-                tooltip:
-                    SimpleTranslations.get(langCode, 'refresh') ?? 'Refresh',
+                tooltip: SimpleTranslations.get(langCode, 'refresh'),
               ),
             ],
           ),
@@ -344,7 +341,7 @@ class _BookingListPageState extends State<BookingListPage> {
             children: [
               Expanded(
                 child: _buildStatusGroupCard(
-                  SimpleTranslations.get(langCode, 'pickup') ?? 'Pickup',
+                  SimpleTranslations.get(langCode, 'pickup'),
                   pickupBookings.toString(),
                   Icons.directions_car,
                   Colors.orange.shade600,
@@ -354,7 +351,7 @@ class _BookingListPageState extends State<BookingListPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: _buildStatusGroupCard(
-                  SimpleTranslations.get(langCode, 'completed') ?? 'Completed',
+                  SimpleTranslations.get(langCode, 'completed'),
                   completedBookings.toString(),
                   Icons.check_circle,
                   Colors.green.shade600,
@@ -364,7 +361,7 @@ class _BookingListPageState extends State<BookingListPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: _buildStatusGroupCard(
-                  SimpleTranslations.get(langCode, 'cancelled') ?? 'Cancelled',
+                  SimpleTranslations.get(langCode, 'cancelled'),
                   cancelledBookings.toString(),
                   Icons.cancel,
                   Colors.red.shade600,
@@ -397,7 +394,7 @@ class _BookingListPageState extends State<BookingListPage> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '${SimpleTranslations.get(langCode, 'total_bookings') ?? 'Total Bookings'}: ',
+                  '${SimpleTranslations.get(langCode, 'total_bookings')}: ',
                   style: TextStyle(
                     fontSize: 16,
                     color: selectedTheme.buttonTextColor.withOpacity(0.9),
@@ -502,7 +499,7 @@ class _BookingListPageState extends State<BookingListPage> {
           Icon(Icons.filter_list, color: selectedTheme.primaryColor, size: 16),
           const SizedBox(width: 8),
           Text(
-            '${SimpleTranslations.get(langCode, 'filtered_by') ?? 'Filtered by'}: ${translateStatus(selectedStatusFilter!)}',
+            '${SimpleTranslations.get(langCode, 'filtered_by')}: ${translateStatus(selectedStatusFilter!)}',
             style: TextStyle(
               color: selectedTheme.primaryColor,
               fontWeight: FontWeight.w500,
@@ -778,8 +775,8 @@ class _BookingListPageState extends State<BookingListPage> {
           const SizedBox(height: 24),
           Text(
             isFiltered
-                ? '${SimpleTranslations.get(langCode, 'no_bookings_filtered') ?? 'No bookings found'}'
-                : '${SimpleTranslations.get(langCode, 'no_bookings') ?? 'No Bookings Found'}',
+                ? '${SimpleTranslations.get(langCode, 'no_bookings_filtered')}'
+                : '${SimpleTranslations.get(langCode, 'no_bookings')}',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -789,8 +786,8 @@ class _BookingListPageState extends State<BookingListPage> {
           const SizedBox(height: 8),
           Text(
             isFiltered
-                ? '${SimpleTranslations.get(langCode, 'no_bookings_for_status') ?? 'No bookings with status'}: ${translateStatus(selectedStatusFilter!)}'
-                : '${SimpleTranslations.get(langCode, 'no_bookings_desc') ?? 'Your completed trips will appear here'}',
+                ? '${SimpleTranslations.get(langCode, 'no_bookings_for_status')}: ${translateStatus(selectedStatusFilter!)}'
+                : '${SimpleTranslations.get(langCode, 'no_bookings_desc')}',
             style: TextStyle(
               fontSize: 14,
               color: selectedTheme.textColor.withOpacity(0.6),
@@ -809,10 +806,7 @@ class _BookingListPageState extends State<BookingListPage> {
                 backgroundColor: selectedTheme.primaryColor,
                 foregroundColor: selectedTheme.buttonTextColor,
               ),
-              child: Text(
-                SimpleTranslations.get(langCode, 'clear_filter') ??
-                    'Clear Filter',
-              ),
+              child: Text(SimpleTranslations.get(langCode, 'clear_filter')),
             ),
           ],
         ],
