@@ -100,6 +100,7 @@ class _MenuPageState extends State<MenuPage> {
     return profile_ctrl.ProfilePage();
   }
 
+  // ignore: unused_element
   Widget _buildThemeSelector() {
     return Container(
       margin: const EdgeInsets.all(16),
