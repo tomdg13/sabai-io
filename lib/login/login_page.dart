@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-import '../l10n/app_localizations.dart';
 import '../config/config.dart';
 import '../utils/simple_translations.dart';
 
@@ -194,8 +193,7 @@ class _LoginPageState extends State<LoginPage> {
         arguments: {'role': role ?? 'unknown', 'token': token},
       );
     } else {
-      final errorMessage =
-          data['message'] ?? AppLocalizations.of(context)!.login_failed;
+      final errorMessage = data['message'] ?? _getText('login_failed');
       setState(() => msg = errorMessage);
     }
 

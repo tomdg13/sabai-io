@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:sabaicub/config/config.dart';
 import 'package:sabaicub/driver/BookingConfirmPage.dart';
-import 'package:sabaicub/car/CarAddPage.dart'; // Adjust import if needed
+import 'package:sabaicub/car/CarAddPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 
@@ -41,10 +41,11 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   String licensePlate = '';
   String status = 'Offline';
   String langCodes = 'en';
-  String currentTheme = 'green'; // Default theme
+  String currentTheme = 'green';
   String token = '';
   List<dynamic> bookings = [];
   Timer? refreshTimer;
+  bool isNavigatingAway = false; // Track navigation state
 
   double? currentLat;
   double? currentLon;
@@ -110,7 +111,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
     _loadDriverInfo();
     getLanguage();
     _loadTheme();
-    startAutoRefresh();
   }
 
   @override
@@ -122,10 +122,28 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      if (status == 'Online' && currentLat != null && currentLon != null) {
-        fetchNearbyBookings(currentLat!, currentLon!);
-      }
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App returned to foreground
+        isNavigatingAway = false;
+        if (status == 'Online' && currentLat != null && currentLon != null) {
+          fetchNearbyBookings(currentLat!, currentLon!);
+          startAutoRefresh(); // Restart auto-refresh
+        }
+        break;
+      case AppLifecycleState.paused:
+        // App went to background
+        break;
+      case AppLifecycleState.inactive:
+        // App is inactive (e.g., during navigation)
+        break;
+      case AppLifecycleState.detached:
+        // App is detached
+        refreshTimer?.cancel();
+        break;
+      case AppLifecycleState.hidden:
+        // App is hidden
+        break;
     }
   }
 
@@ -140,28 +158,46 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   }
 
   void startAutoRefresh() {
+    // Cancel existing timer
     refreshTimer?.cancel();
-    refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (status == 'Online' && currentLat != null && currentLon != null) {
-        fetchNearbyBookings(currentLat!, currentLon!);
-      }
-    });
+
+    // Only start if online and not navigating away
+    if (status == 'Online' && !isNavigatingAway) {
+      refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (status == 'Online' &&
+            currentLat != null &&
+            currentLon != null &&
+            mounted &&
+            !isNavigatingAway) {
+          fetchNearbyBookings(currentLat!, currentLon!);
+        }
+      });
+    }
+  }
+
+  void stopAutoRefresh() {
+    refreshTimer?.cancel();
+    refreshTimer = null;
   }
 
   Future<void> getLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      langCodes = prefs.getString('languageCode') ?? 'en';
-    });
+    if (mounted) {
+      setState(() {
+        langCodes = prefs.getString('languageCode') ?? 'en';
+      });
+    }
   }
 
   Future<void> _loadDriverInfo() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      phone = prefs.getString('user') ?? '';
-      status = prefs.getString('status') ?? 'Offline';
-      token = prefs.getString('access_token') ?? '';
-    });
+    if (mounted) {
+      setState(() {
+        phone = prefs.getString('user') ?? '';
+        status = prefs.getString('status') ?? 'Offline';
+        token = prefs.getString('access_token') ?? '';
+      });
+    }
 
     currentLat = 17.960895;
     currentLon = 102.620052;
@@ -170,6 +206,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
 
     if (status == 'Online' && currentLat != null && currentLon != null) {
       await fetchNearbyBookings(currentLat!, currentLon!);
+      startAutoRefresh();
     } else {
       setState(() {
         bookings = [];
@@ -197,18 +234,20 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
         final Map<String, dynamic> data = jsonDecode(response.body);
         final profile = data['data'] ?? {};
 
-        setState(() {
-          name = profile['name'] ?? 'Driver';
-          licensePlate = profile['license_plate'] ?? '';
-        });
+        if (mounted) {
+          setState(() {
+            name = profile['name'] ?? 'Driver';
+            licensePlate = profile['license_plate'] ?? '';
+          });
+        }
       }
     } catch (e) {
-      // Handle error if needed
+      print('Error getting driver profile: $e');
     }
   }
 
   Future<void> fetchNearbyBookings(double lat, double lon) async {
-    if (token.isEmpty) return;
+    if (token.isEmpty || isNavigatingAway) return;
 
     final url = AppConfig.api('/api/driver/nearby');
     final payload = {'lat': lat, 'lon': lon};
@@ -225,12 +264,14 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final List<dynamic> data = jsonDecode(response.body);
-        setState(() {
-          bookings = data;
-        });
+        if (mounted && !isNavigatingAway) {
+          setState(() {
+            bookings = data;
+          });
+        }
       }
     } catch (e) {
-      // Handle error if needed
+      print('Error fetching nearby bookings: $e');
     }
   }
 
@@ -252,22 +293,35 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('status', newStatus);
-        setState(() {
-          status = newStatus;
-        });
+
+        if (mounted) {
+          setState(() {
+            status = newStatus;
+          });
+        }
 
         if (newStatus == 'Online' && currentLat != null && currentLon != null) {
           await fetchNearbyBookings(currentLat!, currentLon!);
           startAutoRefresh();
         } else {
-          refreshTimer?.cancel();
-          setState(() {
-            bookings = [];
-          });
+          stopAutoRefresh();
+          if (mounted) {
+            setState(() {
+              bookings = [];
+            });
+          }
         }
       }
     } catch (e) {
-      // Handle error if needed
+      print('Error toggling status: $e');
+    }
+  }
+
+  // Method to refresh bookings when returning from navigation
+  Future<void> _refreshAfterNavigation() async {
+    if (status == 'Online' && currentLat != null && currentLon != null) {
+      await fetchNearbyBookings(currentLat!, currentLon!);
+      startAutoRefresh();
     }
   }
 
@@ -297,15 +351,20 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                     backgroundColor: selectedTheme.primaryColor,
                     foregroundColor: selectedTheme.buttonTextColor,
                   ),
-                  onPressed: () {
-                    Navigator.push(
+                  onPressed: () async {
+                    isNavigatingAway = true;
+                    stopAutoRefresh();
+
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const CarAddPage(),
                       ),
-                    ).then((_) {
-                      getDriverProfile();
-                    });
+                    );
+
+                    isNavigatingAway = false;
+                    await getDriverProfile();
+                    await _refreshAfterNavigation();
                   },
                   child: Text(SimpleTranslations.get(langCodes, 'add_car')),
                 ),
@@ -399,9 +458,30 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
               height: 40,
               color: selectedTheme.textColor.withOpacity(0.3),
             ),
-            Text(
-              SimpleTranslations.get(langCodes, 'my_bookings'),
-              style: TextStyle(fontSize: 18, color: selectedTheme.textColor),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  SimpleTranslations.get(langCodes, 'my_bookings'),
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: selectedTheme.textColor,
+                  ),
+                ),
+                if (status == 'Online')
+                  IconButton(
+                    icon: Icon(
+                      Icons.refresh,
+                      color: selectedTheme.primaryColor,
+                    ),
+                    onPressed: () async {
+                      if (currentLat != null && currentLon != null) {
+                        await fetchNearbyBookings(currentLat!, currentLon!);
+                      }
+                    },
+                    tooltip: 'Refresh bookings',
+                  ),
+              ],
             ),
             const SizedBox(height: 10),
             Expanded(
@@ -414,10 +494,23 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                     )
                   : bookings.isEmpty
                   ? Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          selectedTheme.primaryColor,
-                        ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              selectedTheme.primaryColor,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Searching for nearby customers...',
+                            style: TextStyle(
+                              color: selectedTheme.textColor,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
                     )
                   : ListView.builder(
@@ -474,7 +567,11 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                               size: 16,
                               color: selectedTheme.primaryColor,
                             ),
-                            onTap: () {
+                            onTap: () async {
+                              // Set navigation flag and stop auto-refresh
+                              isNavigatingAway = true;
+                              stopAutoRefresh();
+
                               final updatedBooking = Map<String, dynamic>.from(
                                 booking,
                               );
@@ -488,7 +585,8 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                               updatedBooking['driver_phone'] =
                                   booking['driver_phone'] ?? phone;
 
-                              Navigator.push(
+                              // Navigate to booking confirmation
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => BookingConfirmPage(
@@ -496,6 +594,10 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                                   ),
                                 ),
                               );
+
+                              // Reset navigation flag and restart auto-refresh
+                              isNavigatingAway = false;
+                              await _refreshAfterNavigation();
                             },
                           ),
                         );

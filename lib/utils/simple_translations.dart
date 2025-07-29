@@ -67,11 +67,6 @@ class SimpleTranslations {
       'UpdateUserInfo': 'Update User',
       'saveChanges': 'Save',
       'updateSuccess': 'Update Success',
-      // 'pictureId': 'ພາບລວມ',
-      // 'picture1': 'ປື້ມເຫຼືອງ',
-      // 'picture2': 'ຮູບທະບຽນ',
-      // 'picture3': 'ຮູບປະກັນໄພ',
-      // 'picture_Id': 'ດ້ານໜ້າ',
       'pictureId': 'Car Profile',
       'picture1': 'Yello book',
       'picture2': 'Driver license',
@@ -205,7 +200,7 @@ class SimpleTranslations {
 
       // "FailedToGetOtp": "Failed to get OTP. Please try again."
       'PasswordsDoNotMatch': 'Passwords Do Not Match',
-      'PleaseSelectSelfieAndID': 'ຮູບຕົນເອງ',
+      'PleaseSelectSelfieAndID': 'Selfie',
       'PasswordsMatch': 'Passwords Matched',
       'Register': 'Register',
 
@@ -283,6 +278,86 @@ class SimpleTranslations {
       'PasswordResetSuccess':
           'Password reset successfully! Redirecting to login...',
       'PasswordResetFailed': 'Failed to reset password',
+
+      // BookingListPage translations
+      'booking_history': 'Booking History',
+      'grouped_by_status': 'Grouped by status',
+      'total_bookings': 'Total Bookings',
+      'completed': 'Completed',
+      'filtered_by': 'Filtered by',
+      'no_bookings_filtered': 'No bookings found',
+      'no_bookings_for_status': 'No bookings with status',
+      'no_bookings_desc': 'Your completed trips will appear here',
+      'clear_filter': 'Clear Filter',
+      'refresh': 'Refresh',
+      'active': 'Active',
+      'total': 'Total',
+      'your_trip_history': 'Your trip history and earnings',
+      'payment_price': 'Payment Price',
+      'refresh_profile': 'Refresh Profile',
+      // ProfilePage
+      'account_no': 'Account Number',
+      'account_name': 'Account Name',
+      'bio': 'Bio',
+      'driver_status': 'Driver Status',
+      // MessagePage
+      'notifications': 'Notifications',
+      'unread': 'unread',
+      'mark_all_read': 'Mark all as read',
+      'no_messages': 'No Messages',
+      'no_messages_desc': 'You\'ll see your notifications and updates here',
+      'payment_completed': 'Payment Completed',
+      'payment_success': 'Your payment has been processed successfully',
+      'rate_trip': 'Rate Your Trip',
+      'please_rate': 'Please rate your recent trip experience',
+      'special_offer': 'Special Offer',
+      'discount_available': '20% discount on your next 5 rides',
+
+      // MyCarPage
+      'car_documents': 'Car Documents',
+      'car_photos': 'Car Photos',
+      'car_details': 'Car Details',
+      'car_status': 'Car Status',
+      'tap_to_add': 'Tap to add',
+      'no_car_found': 'No Car Found',
+      'add_car_desc': 'Add your car information to get started',
+      'noCarFound': 'No car found',
+
+      'logout_confirm': 'Are you sure you want to logout?',
+      'retry': 'Retry',
+
+      // General
+      'unknown': 'Unknown',
+      'id': 'ID',
+
+      // Time & Date
+      'time': 'Time',
+      'date': 'Date',
+      'today': 'Today',
+      'yesterday': 'Yesterday',
+
+      // Payment
+      'payment': 'Payment',
+      'amount': 'Amount',
+
+      // Driver & Passenger
+      'passenger_id': 'Passenger ID',
+
+      // Navigation & Actions
+      'next': 'Next',
+      'view_details': 'View Details',
+
+      // Settings
+      'settings': 'Settings',
+      'theme': 'Theme',
+
+      // Common Messages
+      'success': 'Success',
+      'failed': 'Failed',
+      'please_wait': 'Please wait...',
+      'try_again': 'Try again',
+      'connection_error': 'Connection error',
+      'server_error': 'Server error',
     },
     'la': {
       // ForgetPasswordPage translations
@@ -532,15 +607,6 @@ class SimpleTranslations {
       'offline': 'ປິດ',
       'addCar': 'ເພີມລົດ',
 
-      //----------drver confrim
-      // "booking_confirmation": "ຢືນຢັນການຈອງ",
-      // "pickup_location": "ສະຖານທີ່ຮັບຜິດຊອບ",
-      // "dropoff_location": "ສະຖານທີ່ສົ່ງມອບ",
-      // "price": "ລາຄາ",
-      // "suggested_price": "ລາຄາແນະນໍາ",
-      // "distance": "ໄລຍະທາງ",
-      // "confirm_booking": "ຢືນຢັນການຈອງ",
-      // "no_bookings_found": "ບໍ່ພົບການຈອງ",
       "no_cars_found": "ບໍ່ພົບຂໍ້ມູນລົດ",
       'no_bookings': 'ບໍ່ມີການຈອງ',
       'offline_message': 'ທ່ານຢູ່ອອຟໄລນ໌',
@@ -561,6 +627,91 @@ class SimpleTranslations {
       'car_province_id': 'ແຂວງ',
       'car_type_id': 'ປະເພດລົດ',
       'car_added_successfully': 'ເພີ່ມລົດສຳເລັດແລ້ວ',
+
+      // BookingConfirmedPage
+      'payment_price': 'ລາຄາການຈ່າຍ',
+      'refresh_profile': 'ໂຫຼດໂປຣໄຟລ์ໃໝ່',
+      'account_no': 'ເລກບັນຊີ',
+      'account_name': 'ຊື່ບັນຊີ',
+      'bio': 'ຂໍ້ມູນສ່ວນຕົວ',
+      'driver_status': 'ສະຖານະຄົນຂັບ',
+
+      // MessagePage
+      'notifications': 'ການແຈ້ງເຕືອນ',
+      'unread': 'ຍັງບໍ່ໄດ້ອ່ານ',
+      'mark_all_read': 'ໝາຍວ່າອ່ານແລ້ວທັງໝົດ',
+      'no_messages': 'ບໍ່ມີຂໍ້ຄວາມ',
+      'no_messages_desc': 'ການແຈ້ງເຕືອນແລະອັບເດດຂອງທ່ານຈະປາກົດທີ່ນີ້',
+      'payment_completed': 'ການຈ່າຍເງິນສຳເລັດ',
+      'payment_success': 'ການຈ່າຍເງິນຂອງທ່ານໄດ້ຮັບການດຳເນີນການສຳເລັດແລ້ວ',
+      'rate_trip': 'ໃຫ້ຄະແນນການເດີນທາງ',
+      'please_rate': 'ກະລຸນາໃຫ້ຄະແນນປະສົບການການເດີນທາງຂອງທ່ານ',
+      'special_offer': 'ຂໍ້ສະເໜີພິເສດ',
+      'discount_available': 'ສ່ວນຫຼຸດ 20% ສຳລັບ 5 ການເດີນທາງຕໍ່ໄປຂອງທ່ານ',
+
+      // MyCarPage
+      'car_documents': 'ເອກະສານລົດ',
+      'car_photos': 'ຮູບພາບລົດ',
+      'car_details': 'ລາຍລະອຽດລົດ',
+      'car_status': 'ສະຖານະລົດ',
+      'tap_to_add': 'ແຕະເພື່ອເພີ່ມ',
+      'no_car_found': 'ບໍ່ພົບລົດ',
+      'add_car_desc': 'ເພີ່ມຂໍ້ມູນລົດຂອງທ່ານເພື່ອເລີ່ມຕົ້ນ',
+      'noCarFound': 'ບໍ່ພົບລົດ',
+      'logout_confirm': 'ທ່ານແນ່ໃຈບໍວ່າຕ້ອງການອອກຈາກລະບົບ?',
+      'retry': 'ລອງໃໝ່',
+
+      // Booking History
+      'booking_history': 'ປະຫວັດການຈອງ',
+      'grouped_by_status': 'ຈັດກຸ່ມຕາມສະຖານະ',
+      'total_bookings': 'ການຈອງທັງໝົດ',
+      'refresh': 'ໂຫຼດໃໝ່',
+
+      // Status
+      'completed': 'ສຳເລັດ',
+
+      // Filter
+      'filtered_by': 'ກັ່ນຕອງໂດຍ',
+      'clear_filter': 'ລຶບຕົວກັ່ນຕອງ',
+
+      // Empty States
+      'no_bookings_desc': 'ການເດີນທາງທີ່ສຳເລັດແລ້ວຈະປາກົດທີ່ນີ້',
+      'no_bookings_filtered': 'ບໍ່ພົບການຈອງ',
+      'no_bookings_for_status': 'ບໍ່ມີການຈອງທີ່ມີສະຖານະ',
+
+      // General
+      'unknown': 'ບໍ່ຮູ້ຈັກ',
+      'id': 'ລະຫັດ',
+
+      // Time & Date
+      'time': 'ເວລາ',
+      'date': 'ວັນທີ',
+      'today': 'ມື້ນີ້',
+      'yesterday': 'ມື້ວານ',
+
+      // Payment
+      'payment': 'ການຈ່າຍເງິນ',
+      'amount': 'ຈຳນວນເງິນ',
+
+      // Driver & Passenger
+      'passenger_id': 'ລະຫັດຜູ້ໂດຍສານ',
+
+      // Navigation & Actions
+      'next': 'ຕໍ່ໄປ',
+      'view_details': 'ເບິ່ງລາຍລະອຽດ',
+
+      // Settings
+      'settings': 'ການຕັ້ງຄ່າ',
+
+      'theme': 'ຮູບແບບ',
+
+      // Common Messages
+      'success': 'ສຳເລັດ',
+      'failed': 'ລົ້ມເຫລວ',
+      'please_wait': 'ກະລຸນາລໍຖ້າ...',
+      'try_again': 'ລອງໃໝ່ອີກຄັ້ງ',
+      'connection_error': 'ຂໍ້ຜິດພາດການເຊື່ອມຕໍ່',
+      'server_error': 'ຂໍ້ຜິດພາດເຊີເວີ',
     },
   };
 

@@ -1,9 +1,0 @@
-{
-  "@@locale": "en",
-  "login_failed": "Login failed",
-  "login": "Login",
-  "username": "Username",
-  "phone": "Phone",
-  "password": "Password",
-  "remember_me": "Remember me"
-}

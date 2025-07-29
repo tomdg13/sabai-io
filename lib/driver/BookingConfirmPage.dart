@@ -794,6 +794,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
           Position? position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.high,
           );
+          // ignore: unnecessary_null_comparison
           if (position != null) {
             driverLat = position.latitude.toString();
             driverLon = position.longitude.toString();
@@ -889,10 +890,9 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     final bookingStatus = (booking['book_status'] ?? '')
         .toString()
         .toLowerCase();
-    final customerPhone =
-        booking['customer_phone']?.toString() ??
-        booking['passenger_phone']?.toString() ??
-        '';
+
+    // Use passenger_id as phone number
+    final customerPhone = booking['passenger_id']?.toString() ?? '';
 
     return Scaffold(
       backgroundColor: selectedTheme.backgroundColor,
