@@ -6,29 +6,12 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import '../config/config.dart';
+import '../config/theme.dart';
 import '../utils/simple_translations.dart';
-
-// Theme data class
-class AppTheme {
-  final String name;
-  final Color primaryColor;
-  final Color accentColor;
-  final Color backgroundColor;
-  final Color textColor;
-  final Color buttonTextColor;
-
-  AppTheme({
-    required this.name,
-    required this.primaryColor,
-    required this.accentColor,
-    required this.backgroundColor,
-    required this.textColor,
-    required this.buttonTextColor,
-  });
-}
 
 class LoginPage extends StatefulWidget {
   final Future<void> Function(Locale)? setLocale;
+
   const LoginPage({super.key, this.setLocale});
 
   @override
@@ -44,67 +27,13 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   String msg = '';
   String currecntl = 'en';
-  String currentTheme = 'green'; // Default theme
+  String currentTheme = ThemeConfig.defaultTheme;
 
   final Map<String, String> languages = {'en': '🇺🇸', 'la': '🇱🇦'};
-
-  // Predefined themes
-  final Map<String, AppTheme> themes = {
-    'green': AppTheme(
-      name: 'Green',
-      primaryColor: Colors.green,
-      accentColor: Colors.green.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'blue': AppTheme(
-      name: 'Blue',
-      primaryColor: Colors.blue,
-      accentColor: Colors.blue.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'purple': AppTheme(
-      name: 'Purple',
-      primaryColor: Colors.purple,
-      accentColor: Colors.purple.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'orange': AppTheme(
-      name: 'Orange',
-      primaryColor: Colors.orange,
-      accentColor: Colors.orange.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'teal': AppTheme(
-      name: 'Teal',
-      primaryColor: Colors.teal,
-      accentColor: Colors.teal.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'dark': AppTheme(
-      name: 'Dark',
-      primaryColor: Colors.grey.shade800,
-      accentColor: Colors.grey.shade900,
-      backgroundColor: Colors.grey.shade100,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-  };
 
   String _getText(String key) {
     return SimpleTranslations.get(currecntl, key);
   }
-
-  AppTheme get selectedTheme => themes[currentTheme] ?? themes['green']!;
 
   @override
   void initState() {
@@ -112,10 +41,29 @@ class _LoginPageState extends State<LoginPage> {
     _loadPrefs();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload theme when page becomes visible
+    _reloadTheme();
+  }
+
+  Future<void> _reloadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedTheme =
+        prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+    if (mounted && currentTheme != savedTheme) {
+      setState(() {
+        currentTheme = savedTheme;
+      });
+    }
+  }
+
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final savedLangCode = prefs.getString('languageCode') ?? 'en';
-    final savedTheme = prefs.getString('selectedTheme') ?? 'green';
+    final savedTheme =
+        prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
 
     userCtrl.text = prefs.getString('user') ?? '';
     rememberMe = prefs.getBool('remember') ?? false;
@@ -145,6 +93,10 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _saveTheme(String themeKey) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selectedTheme', themeKey);
+
+    setState(() {
+      currentTheme = themeKey;
+    });
   }
 
   String? _decodeRole(String token) {
@@ -201,80 +153,57 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _showThemeSelector() {
+    final availableThemes = ThemeConfig.getAvailableThemes();
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
             'Select Theme',
-            style: TextStyle(color: selectedTheme.textColor),
+            style: TextStyle(
+              color: Colors.black87,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           content: SizedBox(
             width: double.maxFinite,
-            child: ListView.builder(
+            child: GridView.builder(
               shrinkWrap: true,
-              itemCount: themes.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1,
+              ),
+              itemCount: availableThemes.length,
               itemBuilder: (context, index) {
-                final themeKey = themes.keys.elementAt(index);
-                final theme = themes[themeKey]!;
-                final isSelected = currentTheme == themeKey;
-
-                return Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  child: ListTile(
-                    leading: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: theme.primaryColor,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: theme.accentColor, width: 2),
-                      ),
-                      child: isSelected
-                          ? Icon(
-                              Icons.check,
-                              color: theme.buttonTextColor,
-                              size: 20,
-                            )
-                          : null,
-                    ),
-                    title: Text(
-                      theme.name,
-                      style: TextStyle(
-                        color: selectedTheme.textColor,
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    trailing: isSelected
-                        ? Icon(
-                            Icons.radio_button_checked,
-                            color: theme.primaryColor,
-                          )
-                        : Icon(
-                            Icons.radio_button_unchecked,
-                            color: Colors.grey,
-                          ),
-                    onTap: () async {
-                      setState(() {
-                        currentTheme = themeKey;
-                      });
-                      await _saveTheme(themeKey);
-                      Navigator.pop(context);
-                    },
-                  ),
-                );
+                return _buildThemeColorTile(availableThemes[index]);
               },
             ),
           ),
           actions: [
             TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: ThemeConfig.getPrimaryColor(
+                  currentTheme,
+                ).withOpacity(0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
               onPressed: () => Navigator.pop(context),
               child: Text(
                 'Cancel',
-                style: TextStyle(color: selectedTheme.primaryColor),
+                style: TextStyle(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -283,21 +212,69 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Widget _buildThemeColorTile(String themeKey) {
+    final isSelected = currentTheme == themeKey;
+    final primaryColor = ThemeConfig.getPrimaryColor(themeKey);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(themeKey);
+
+    return GestureDetector(
+      onTap: () async {
+        await _saveTheme(themeKey);
+        Navigator.pop(context);
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: primaryColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? Colors.black : Colors.grey.shade300,
+            width: isSelected ? 3 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: isSelected
+            ? Icon(Icons.check_circle, color: buttonTextColor, size: 28)
+            : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Get theme colors using ThemeConfig
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+
     return Scaffold(
-      backgroundColor: selectedTheme.backgroundColor,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: selectedTheme.primaryColor,
-        foregroundColor: selectedTheme.buttonTextColor,
+        backgroundColor: primaryColor,
+        foregroundColor: buttonTextColor,
+        elevation: 2,
         title: Text(
           _getText('loginTitle'),
-          style: TextStyle(color: selectedTheme.buttonTextColor),
+          style: TextStyle(color: buttonTextColor, fontWeight: FontWeight.w600),
         ),
         actions: [
           // Theme selector button
           IconButton(
-            icon: Icon(Icons.palette, color: selectedTheme.buttonTextColor),
+            icon: Icon(Icons.palette, color: buttonTextColor),
             onPressed: _showThemeSelector,
             tooltip: 'Select Theme',
           ),
@@ -306,18 +283,15 @@ class _LoginPageState extends State<LoginPage> {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: DropdownButton<String>(
               value: currecntl,
-              dropdownColor: selectedTheme.primaryColor,
+              dropdownColor: primaryColor,
               underline: const SizedBox(),
-              iconEnabledColor: selectedTheme.buttonTextColor,
+              iconEnabledColor: buttonTextColor,
               items: languages.entries.map((entry) {
                 return DropdownMenuItem<String>(
                   value: entry.key,
                   child: Text(
                     entry.value,
-                    style: TextStyle(
-                      color: selectedTheme.buttonTextColor,
-                      fontSize: 28,
-                    ),
+                    style: TextStyle(color: buttonTextColor, fontSize: 28),
                   ),
                 );
               }).toList(),
@@ -332,155 +306,258 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            TextField(
-              controller: userCtrl,
-              style: TextStyle(color: selectedTheme.textColor),
-              decoration: InputDecoration(
-                labelText: _getText('phone'),
-                labelStyle: TextStyle(color: selectedTheme.primaryColor),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: selectedTheme.primaryColor),
-                ),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(
-                    color: selectedTheme.primaryColor.withOpacity(0.5),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [backgroundColor, primaryColor.withOpacity(0.05)],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const SizedBox(height: 40),
+
+              // App logo/title area
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: primaryColor.withOpacity(0.2),
+                    width: 1,
                   ),
                 ),
+                child: Icon(Icons.local_taxi, size: 64, color: primaryColor),
               ),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: passCtrl,
-              obscureText: _obscurePassword,
-              style: TextStyle(color: selectedTheme.textColor),
-              decoration: InputDecoration(
-                labelText: _getText('password'),
-                labelStyle: TextStyle(color: selectedTheme.primaryColor),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: selectedTheme.primaryColor),
-                ),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(
-                    color: selectedTheme.primaryColor.withOpacity(0.5),
-                  ),
-                ),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                    color: selectedTheme.primaryColor,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    });
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Checkbox(
-                  value: rememberMe,
-                  activeColor: selectedTheme.primaryColor,
-                  onChanged: (v) => setState(() => rememberMe = v!),
-                ),
-                Text(
-                  _getText('rememberMe'),
-                  style: TextStyle(color: selectedTheme.textColor),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            loading
-                ? CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      selectedTheme.primaryColor,
+
+              const SizedBox(height: 40),
+
+              // Phone input
+              TextField(
+                controller: userCtrl,
+                style: TextStyle(color: textColor, fontSize: 16),
+                decoration: InputDecoration(
+                  labelText: _getText('phone'),
+                  labelStyle: TextStyle(color: primaryColor),
+                  prefixIcon: Icon(Icons.phone, color: primaryColor),
+                  filled: true,
+                  fillColor: backgroundColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: primaryColor.withOpacity(0.3),
                     ),
-                  )
-                : SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: selectedTheme.primaryColor,
-                        foregroundColor: selectedTheme.buttonTextColor,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: primaryColor, width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: primaryColor.withOpacity(0.3),
+                    ),
+                  ),
+                ),
+                keyboardType: TextInputType.phone,
+              ),
+
+              const SizedBox(height: 16),
+
+              // Password input
+              TextField(
+                controller: passCtrl,
+                obscureText: _obscurePassword,
+                style: TextStyle(color: textColor, fontSize: 16),
+                decoration: InputDecoration(
+                  labelText: _getText('password'),
+                  labelStyle: TextStyle(color: primaryColor),
+                  prefixIcon: Icon(Icons.lock, color: primaryColor),
+                  filled: true,
+                  fillColor: backgroundColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: primaryColor.withOpacity(0.3),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: primaryColor, width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: primaryColor.withOpacity(0.3),
+                    ),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      color: primaryColor,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Remember me checkbox
+              Row(
+                children: [
+                  Checkbox(
+                    value: rememberMe,
+                    activeColor: primaryColor,
+                    onChanged: (v) => setState(() => rememberMe = v!),
+                  ),
+                  Text(
+                    _getText('rememberMe'),
+                    style: TextStyle(color: textColor, fontSize: 14),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // Login button
+              loading
+                  ? Container(
+                      padding: const EdgeInsets.all(16),
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                      ),
+                    )
+                  : Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: buttonTextColor,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          onPressed: login,
+                          child: Text(
+                            _getText('login'),
+                            style: TextStyle(
+                              color: buttonTextColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
-                      onPressed: login,
-                      child: Text(
-                        _getText('login'),
-                        style: TextStyle(
-                          color: selectedTheme.buttonTextColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                    ),
+
+              // Error message
+              if (msg.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            msg,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 24),
+
+              // Register and Forget Password buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const VerifyOtpPage(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      _getText('register'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: primaryColor,
+                        decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
-            if (msg.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(msg, style: const TextStyle(color: Colors.red)),
+                  Text(
+                    ' | ',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: textColor.withOpacity(0.6),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const VerifyOtpforgetpassPage(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      _getText('forget password'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: primaryColor,
+                        decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            const SizedBox(height: 12),
-            // Register and Forget Password buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const VerifyOtpPage(),
-                      ),
-                    );
-                  },
-                  child: Text(
-                    _getText('register'),
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: selectedTheme.primaryColor,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ),
-                Text(
-                  ' | ',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: selectedTheme.textColor.withOpacity(0.6),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const VerifyOtpforgetpassPage(),
-                      ),
-                    );
-                  },
-                  child: Text(
-                    _getText('forget password'),
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: selectedTheme.primaryColor,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

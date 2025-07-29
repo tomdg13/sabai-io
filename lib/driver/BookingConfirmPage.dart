@@ -14,25 +14,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../utils/simple_translations.dart';
 import '../config/config.dart';
-
-// Theme data class
-class AppTheme {
-  final String name;
-  final Color primaryColor;
-  final Color accentColor;
-  final Color backgroundColor;
-  final Color textColor;
-  final Color buttonTextColor;
-
-  AppTheme({
-    required this.name,
-    required this.primaryColor,
-    required this.accentColor,
-    required this.backgroundColor,
-    required this.textColor,
-    required this.buttonTextColor,
-  });
-}
+import '../config/theme.dart';
 
 class BookingConfirmPage extends StatefulWidget {
   final Map<String, dynamic> booking;
@@ -46,7 +28,7 @@ class BookingConfirmPage extends StatefulWidget {
 class _BookingConfirmPageState extends State<BookingConfirmPage>
     with TickerProviderStateMixin {
   String langCodes = 'en';
-  String currentTheme = 'green'; // Default theme
+  String currentTheme = ThemeConfig.defaultTheme;
   GoogleMapController? _mapController;
   AnimationController? _countdownController;
   AnimationController? _pulseController;
@@ -62,70 +44,10 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
   Set<Marker> _markers = {};
   Set<Polyline> _polylines = {};
 
-  // Predefined themes
-  final Map<String, AppTheme> themes = {
-    'green': AppTheme(
-      name: 'Green',
-      primaryColor: Colors.green,
-      accentColor: Colors.green.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'blue': AppTheme(
-      name: 'Blue',
-      primaryColor: Colors.blue,
-      accentColor: Colors.blue.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'purple': AppTheme(
-      name: 'Purple',
-      primaryColor: Colors.purple,
-      accentColor: Colors.purple.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'orange': AppTheme(
-      name: 'Orange',
-      primaryColor: Colors.orange,
-      accentColor: Colors.orange.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'teal': AppTheme(
-      name: 'Teal',
-      primaryColor: Colors.teal,
-      accentColor: Colors.teal.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'dark': AppTheme(
-      name: 'Dark',
-      primaryColor: Colors.grey.shade800,
-      accentColor: Colors.grey.shade900,
-      backgroundColor: Colors.grey.shade100,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-  };
-
-  AppTheme get selectedTheme => themes[currentTheme] ?? themes['green']!;
-
   @override
   void initState() {
     super.initState();
-    getLanguage();
-    _loadTheme();
-    _setupAnimations();
-    _setupCountdown();
-    _setupMarkersAndRoute();
-    _getCurrentLocation();
-    _startBookingStatusPolling();
+    _initializePage();
   }
 
   @override
@@ -138,12 +60,32 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     super.dispose();
   }
 
+  Future<void> _initializePage() async {
+    await Future.wait([getLanguage(), _loadTheme()]);
+
+    _setupAnimations();
+    _setupCountdown();
+    _setupMarkersAndRoute();
+    _getCurrentLocation();
+    _startBookingStatusPolling();
+  }
+
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedTheme = prefs.getString('selectedTheme') ?? 'green';
+    final savedTheme =
+        prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     if (mounted) {
       setState(() {
         currentTheme = savedTheme;
+      });
+    }
+  }
+
+  Future<void> getLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        langCodes = prefs.getString('languageCode') ?? 'en';
       });
     }
   }
@@ -198,7 +140,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
           return;
         }
       } catch (e) {
-        print('Error parsing request_time: $e');
+        debugPrint('Error parsing request_time: $e');
         _totalCountdownSeconds = 300;
         _countdownSeconds = 300;
       }
@@ -273,7 +215,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
         }
       }
     } catch (e) {
-      print('Error checking booking status: $e');
+      debugPrint('Error checking booking status: $e');
     }
   }
 
@@ -297,7 +239,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
         _updateDriverLocationMarker();
       }
     } catch (e) {
-      print('Error getting location: $e');
+      debugPrint('Error getting location: $e');
     }
   }
 
@@ -320,7 +262,6 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
           ),
         );
       });
-      // Re-fit the map to include driver location
       _fitMarkersInView();
     }
   }
@@ -328,53 +269,14 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
   void _showTimeoutDialog() {
     if (!mounted) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: selectedTheme.backgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.timer_off, color: Colors.red, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  SimpleTranslations.get(langCodes, 'booking_timeout'),
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: selectedTheme.textColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            SimpleTranslations.get(langCodes, 'booking_timeout_message'),
-            style: TextStyle(fontSize: 16, color: selectedTheme.textColor),
-          ),
-          actions: [
-            TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: selectedTheme.primaryColor.withOpacity(0.1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text(
-                SimpleTranslations.get(langCodes, 'ok'),
-                style: TextStyle(color: selectedTheme.primaryColor),
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
+    _showEnhancedDialog(
+      icon: Icons.timer_off,
+      iconColor: Colors.red,
+      title: SimpleTranslations.get(langCodes, 'booking_timeout'),
+      content: SimpleTranslations.get(langCodes, 'booking_timeout_message'),
+      onConfirm: () {
+        Navigator.of(context).pop();
+        Navigator.of(context).pop();
       },
     );
   }
@@ -382,50 +284,85 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
   void _showBookingCancelledDialog() {
     if (!mounted) return;
 
+    _showEnhancedDialog(
+      icon: Icons.cancel,
+      iconColor: Colors.orange,
+      title: SimpleTranslations.get(langCodes, 'booking_cancelled'),
+      content: SimpleTranslations.get(langCodes, 'booking_cancelled_message'),
+      onConfirm: () {
+        Navigator.of(context).pop();
+        Navigator.of(context).pop();
+      },
+    );
+  }
+
+  void _showEnhancedDialog({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String content,
+    required VoidCallback onConfirm,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: selectedTheme.backgroundColor,
+          backgroundColor: ThemeConfig.getBackgroundColor(currentTheme),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
-          title: Row(
+          title: Column(
             children: [
-              Icon(Icons.cancel, color: Colors.orange, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  SimpleTranslations.get(langCodes, 'booking_cancelled'),
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: selectedTheme.textColor,
-                  ),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
                 ),
+                child: Icon(icon, color: iconColor, size: 32),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: ThemeConfig.getTextColor(currentTheme),
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
           content: Text(
-            SimpleTranslations.get(langCodes, 'booking_cancelled_message'),
-            style: TextStyle(fontSize: 16, color: selectedTheme.textColor),
+            content,
+            style: TextStyle(
+              fontSize: 16,
+              color: ThemeConfig.getTextColor(currentTheme),
+            ),
+            textAlign: TextAlign.center,
           ),
           actions: [
-            TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: selectedTheme.primaryColor.withOpacity(0.1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                  foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                onPressed: onConfirm,
+                child: Text(
+                  SimpleTranslations.get(langCodes, 'ok'),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              child: Text(
-                SimpleTranslations.get(langCodes, 'ok'),
-                style: TextStyle(color: selectedTheme.primaryColor),
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pop();
-              },
             ),
           ],
         );
@@ -467,20 +404,13 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       Polyline(
         polylineId: const PolylineId('route'),
         points: [LatLng(pickupLat, pickupLon), LatLng(dropoffLat, dropoffLon)],
-        color: selectedTheme.primaryColor,
+        color: ThemeConfig.getPrimaryColor(currentTheme),
         width: 4,
         patterns: [PatternItem.dash(20), PatternItem.gap(10)],
         endCap: Cap.roundCap,
         startCap: Cap.roundCap,
       ),
     };
-  }
-
-  Future<void> getLanguage() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      langCodes = prefs.getString('languageCode') ?? 'en';
-    });
   }
 
   double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -523,7 +453,6 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     double minLon = min(pickupLon, dropoffLon);
     double maxLon = max(pickupLon, dropoffLon);
 
-    // Include driver location if available
     if (_currentPosition != null) {
       minLat = min(minLat, _currentPosition!.latitude);
       maxLat = max(maxLat, _currentPosition!.latitude);
@@ -560,7 +489,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
         content: Text(message, style: const TextStyle(color: Colors.white)),
         backgroundColor: backgroundColor,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 3),
       ),
@@ -601,10 +530,10 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     final progress = _totalCountdownSeconds > 0
         ? _countdownSeconds / _totalCountdownSeconds
         : 0.0;
-    Color ringColor;
 
+    Color ringColor;
     if (progress > 0.6) {
-      ringColor = selectedTheme.primaryColor;
+      ringColor = ThemeConfig.getPrimaryColor(currentTheme);
     } else if (progress > 0.3) {
       ringColor = Colors.orange;
     } else {
@@ -670,7 +599,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
         statusText = SimpleTranslations.get(langCodes, 'waiting_confirmation');
         break;
       case 'pick up':
-        badgeColor = selectedTheme.primaryColor;
+        badgeColor = ThemeConfig.getPrimaryColor(currentTheme);
         badgeIcon = Icons.directions_car;
         statusText = SimpleTranslations.get(langCodes, 'driver_coming');
         break;
@@ -691,23 +620,23 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         color: badgeColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: badgeColor.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: badgeColor.withOpacity(0.3), width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(badgeIcon, size: 16, color: badgeColor),
-          const SizedBox(width: 6),
+          Icon(badgeIcon, size: 18, color: badgeColor),
+          const SizedBox(width: 8),
           Text(
             statusText,
             style: TextStyle(
               color: badgeColor,
               fontWeight: FontWeight.w600,
-              fontSize: 14,
+              fontSize: 16,
             ),
           ),
         ],
@@ -718,28 +647,47 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
   Widget _driverRow(IconData icon, String text, {VoidCallback? onTap}) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: onTap != null
+              ? ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.05)
+              : Colors.transparent,
+        ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: selectedTheme.textColor.withOpacity(0.7),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: ThemeConfig.getPrimaryColor(
+                  currentTheme,
+                ).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+              ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 text,
-                style: TextStyle(fontSize: 15, color: selectedTheme.textColor),
+                style: TextStyle(
+                  fontSize: 15,
+                  color: ThemeConfig.getTextColor(currentTheme),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
             if (onTap != null)
               Icon(
                 Icons.chevron_right,
                 size: 20,
-                color: selectedTheme.textColor.withOpacity(0.5),
+                color: ThemeConfig.getPrimaryColor(currentTheme),
               ),
           ],
         ),
@@ -774,11 +722,9 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       final bookingId = widget.booking['book_id'];
       final carIdString = widget.booking['car_id'];
 
-      // Convert driver_id and car_id to integers
       final driverId = int.tryParse(driverIdString) ?? 0;
       final carId = int.tryParse(carIdString.toString()) ?? 0;
 
-      // Get current location for driver location fields
       String driverLocation = "";
       String driverLat = "";
       String driverLon = "";
@@ -789,20 +735,17 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
         driverLocation =
             "${_currentPosition!.latitude}, ${_currentPosition!.longitude}";
       } else {
-        // Try to get current location if not available
         try {
           Position? position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.high,
           );
-          // ignore: unnecessary_null_comparison
           if (position != null) {
             driverLat = position.latitude.toString();
             driverLon = position.longitude.toString();
             driverLocation = "${position.latitude}, ${position.longitude}";
           }
         } catch (e) {
-          print('Error getting current location: $e');
-          // Use default or fallback location if needed
+          debugPrint('Error getting current location: $e');
           driverLat = "0.0";
           driverLon = "0.0";
           driverLocation = "0.0, 0.0";
@@ -817,12 +760,12 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'driver_id': driverId, // Now as integer
-          'car_id': carId, // Now as integer
+          'driver_id': driverId,
+          'car_id': carId,
           'book_status': 'Pick up',
-          'driver_location': driverLocation, // Format: "lat, lon"
-          'driver_lat': driverLat, // As string
-          'driver_lon': driverLon, // As string
+          'driver_location': driverLocation,
+          'driver_lat': driverLat,
+          'driver_lon': driverLon,
         }),
       );
 
@@ -832,10 +775,9 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
         HapticFeedback.lightImpact();
         _showSnackBar(
           'Booking confirmed successfully!',
-          selectedTheme.primaryColor,
+          ThemeConfig.getPrimaryColor(currentTheme),
         );
 
-        // Cancel timers before navigation
         _countdownTimer?.cancel();
         _bookingStatusTimer?.cancel();
 
@@ -858,7 +800,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       }
     } catch (e) {
       _showSnackBar('Network error occurred', Colors.red);
-      print('Error confirming booking: $e');
+      debugPrint('Error confirming booking: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -890,19 +832,20 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     final bookingStatus = (booking['book_status'] ?? '')
         .toString()
         .toLowerCase();
-
-    // Use passenger_id as phone number
     final customerPhone = booking['passenger_id']?.toString() ?? '';
 
     return Scaffold(
-      backgroundColor: selectedTheme.backgroundColor,
+      backgroundColor: ThemeConfig.getBackgroundColor(currentTheme),
       appBar: AppBar(
         title: Text(
           SimpleTranslations.get(langCodes, 'booking_confirmation'),
-          style: TextStyle(color: selectedTheme.buttonTextColor),
+          style: TextStyle(
+            color: ThemeConfig.getButtonTextColor(currentTheme),
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        backgroundColor: selectedTheme.primaryColor,
-        foregroundColor: selectedTheme.buttonTextColor,
+        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         elevation: 0,
         actions: [
           Padding(
@@ -922,22 +865,24 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
               child: Center(child: _buildStatusBadge()),
             ),
 
-            // Enhanced Map with route
+            // Enhanced Map
             Container(
               height: 280,
               margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: ThemeConfig.getPrimaryColor(
+                      currentTheme,
+                    ).withOpacity(0.1),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
                 child: GoogleMap(
                   onMapCreated: _onMapCreated,
                   initialCameraPosition: CameraPosition(
@@ -967,9 +912,11 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                       icon: Icons.payments,
                       label: SimpleTranslations.get(langCodes, 'price'),
                       value: "₭ $formattedPrice",
-                      color: selectedTheme.primaryColor,
-                      backgroundColor: selectedTheme.backgroundColor,
-                      textColor: selectedTheme.textColor,
+                      color: ThemeConfig.getPrimaryColor(currentTheme),
+                      backgroundColor: ThemeConfig.getBackgroundColor(
+                        currentTheme,
+                      ),
+                      textColor: ThemeConfig.getTextColor(currentTheme),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -978,9 +925,11 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                       icon: Icons.place,
                       label: SimpleTranslations.get(langCodes, 'distance'),
                       value: formattedDistance,
-                      color: selectedTheme.accentColor,
-                      backgroundColor: selectedTheme.backgroundColor,
-                      textColor: selectedTheme.textColor,
+                      color: ThemeConfig.getPrimaryColor(currentTheme),
+                      backgroundColor: ThemeConfig.getBackgroundColor(
+                        currentTheme,
+                      ),
+                      textColor: ThemeConfig.getTextColor(currentTheme),
                     ),
                   ),
                 ],
@@ -989,16 +938,18 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
 
             const SizedBox(height: 20),
 
-            // Enhanced Driver Info Card
+            // Enhanced Customer Info Card
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Card(
-                color: selectedTheme.backgroundColor,
+                color: ThemeConfig.getBackgroundColor(currentTheme),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 elevation: 4,
-                shadowColor: Colors.black.withOpacity(0.1),
+                shadowColor: ThemeConfig.getPrimaryColor(
+                  currentTheme,
+                ).withOpacity(0.1),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -1007,42 +958,75 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: selectedTheme.primaryColor.withOpacity(
-                                0.1,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
+                              color: ThemeConfig.getPrimaryColor(
+                                currentTheme,
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: Icon(
                               Icons.local_taxi,
-                              color: selectedTheme.primaryColor,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              size: 24,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: Text(
-                              "${SimpleTranslations.get(langCodes, 'suggested_price')} ₭ $formattedSuggestPrice",
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: selectedTheme.textColor,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  SimpleTranslations.get(
+                                    langCodes,
+                                    'suggested_price',
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: ThemeConfig.getTextColor(
+                                      currentTheme,
+                                    ).withOpacity(0.7),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "₭ $formattedSuggestPrice",
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: ThemeConfig.getPrimaryColor(
+                                      currentTheme,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       Container(
                         width: double.infinity,
                         height: 1,
-                        color: selectedTheme.textColor.withOpacity(0.2),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              ThemeConfig.getTextColor(
+                                currentTheme,
+                              ).withOpacity(0.2),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       _driverRow(
                         Icons.person,
                         "${SimpleTranslations.get(langCodes, 'customer_name')}: ${booking['customer_name'] ?? booking['passenger_name'] ?? '-'}",
                       ),
+                      const SizedBox(height: 8),
                       _driverRow(
                         Icons.phone,
                         "${SimpleTranslations.get(langCodes, 'phone')}: ${customerPhone.isNotEmpty ? customerPhone : '-'}",
@@ -1050,6 +1034,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                             ? () => _makePhoneCall(customerPhone)
                             : null,
                       ),
+                      const SizedBox(height: 8),
                       _driverRow(
                         Icons.directions_car,
                         "${SimpleTranslations.get(langCodes, 'vehicle_type')}: ${booking['vehicle_type'] ?? booking['car_type'] ?? '-'}",
@@ -1068,26 +1053,41 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      colors: _isConfirming
+                          ? [Colors.grey, Colors.grey]
+                          : [
+                              ThemeConfig.getPrimaryColor(currentTheme),
+                              ThemeConfig.getPrimaryColor(
+                                currentTheme,
+                              ).withOpacity(0.8),
+                            ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: selectedTheme.primaryColor.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
+                        color: ThemeConfig.getPrimaryColor(
+                          currentTheme,
+                        ).withOpacity(0.3),
+                        blurRadius: 15,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
                   child: SizedBox(
                     width: double.infinity,
-                    height: 60,
+                    height: 64,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isConfirming
-                            ? Colors.grey
-                            : selectedTheme.primaryColor,
-                        foregroundColor: selectedTheme.buttonTextColor,
+                        backgroundColor: Colors.transparent,
+                        foregroundColor: ThemeConfig.getButtonTextColor(
+                          currentTheme,
+                        ),
+                        shadowColor: Colors.transparent,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                         elevation: 0,
                       ),
@@ -1098,11 +1098,11 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  selectedTheme.buttonTextColor,
+                                  ThemeConfig.getButtonTextColor(currentTheme),
                                 ),
                               ),
                             )
-                          : const Icon(Icons.check_circle_outline, size: 24),
+                          : const Icon(Icons.check_circle_outline, size: 28),
                       label: Text(
                         _isConfirming
                             ? SimpleTranslations.get(langCodes, 'confirming')
@@ -1113,7 +1113,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: selectedTheme.buttonTextColor,
+                          color: ThemeConfig.getButtonTextColor(currentTheme),
                         ),
                       ),
                       onPressed: _isConfirming ? null : _confirmBooking,
@@ -1132,56 +1132,26 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                 child: Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          side: BorderSide(
-                            color: selectedTheme.primaryColor.withOpacity(0.5),
-                          ),
+                      child: _buildActionButton(
+                        icon: Icons.navigation,
+                        label: SimpleTranslations.get(
+                          langCodes,
+                          'navigate_pickup',
                         ),
-                        icon: Icon(
-                          Icons.navigation,
-                          size: 20,
-                          color: selectedTheme.primaryColor,
-                        ),
-                        label: Text(
-                          SimpleTranslations.get(langCodes, 'navigate_pickup'),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: selectedTheme.primaryColor,
-                          ),
-                        ),
+                        color: ThemeConfig.getPrimaryColor(currentTheme),
                         onPressed: () => _openMaps(pickupLat, pickupLon),
                       ),
                     ),
                     const SizedBox(width: 12),
                     if (customerPhone.isNotEmpty)
                       Expanded(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            side: BorderSide(
-                              color: Colors.green.withOpacity(0.5),
-                            ),
+                        child: _buildActionButton(
+                          icon: Icons.phone,
+                          label: SimpleTranslations.get(
+                            langCodes,
+                            'call_customer',
                           ),
-                          icon: const Icon(
-                            Icons.phone,
-                            size: 20,
-                            color: Colors.green,
-                          ),
-                          label: Text(
-                            SimpleTranslations.get(langCodes, 'call_customer'),
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.green,
-                            ),
-                          ),
+                          color: Colors.green,
                           onPressed: () => _makePhoneCall(customerPhone),
                         ),
                       ),
@@ -1193,48 +1163,70 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Card(
-                color: selectedTheme.backgroundColor,
+                color: ThemeConfig.getBackgroundColor(currentTheme),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                elevation: 2,
+                elevation: 3,
+                shadowColor: ThemeConfig.getPrimaryColor(
+                  currentTheme,
+                ).withOpacity(0.1),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        SimpleTranslations.get(langCodes, 'trip_details'),
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: selectedTheme.textColor,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: ThemeConfig.getPrimaryColor(
+                                currentTheme,
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.info_outline,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            SimpleTranslations.get(langCodes, 'trip_details'),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: ThemeConfig.getTextColor(currentTheme),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       _buildDetailRow(
                         Icons.radio_button_checked,
                         SimpleTranslations.get(langCodes, 'pickup'),
                         booking['pickup_address'] ?? 'N/A',
                         Colors.green,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       _buildDetailRow(
                         Icons.location_on,
                         SimpleTranslations.get(langCodes, 'dropoff'),
                         booking['dropoff_address'] ?? 'N/A',
                         Colors.red,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       _buildDetailRow(
                         Icons.access_time,
                         SimpleTranslations.get(langCodes, 'booking_time'),
                         _formatBookingTime(booking['request_time']),
-                        selectedTheme.primaryColor,
+                        ThemeConfig.getPrimaryColor(currentTheme),
                       ),
                       if (booking['passenger_note'] != null &&
                           booking['passenger_note'].toString().isNotEmpty) ...[
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         _buildDetailRow(
                           Icons.note,
                           SimpleTranslations.get(langCodes, 'passenger_note'),
@@ -1244,7 +1236,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
                       ],
                       if (booking['payment_method'] != null &&
                           booking['payment_method'].toString().isNotEmpty) ...[
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         _buildDetailRow(
                           Icons.payment,
                           SimpleTranslations.get(langCodes, 'payment_method'),
@@ -1265,6 +1257,46 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     );
   }
 
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3)),
+        color: color.withOpacity(0.05),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            child: Column(
+              children: [
+                Icon(icon, size: 24, color: color),
+                const SizedBox(height: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDetailRow(
     IconData icon,
     String label,
@@ -1275,14 +1307,14 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, size: 16, color: color),
+          child: Icon(icon, size: 18, color: color),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1290,18 +1322,20 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 12,
-                  color: selectedTheme.textColor.withOpacity(0.6),
+                  fontSize: 13,
+                  color: ThemeConfig.getTextColor(
+                    currentTheme,
+                  ).withOpacity(0.6),
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 value,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: selectedTheme.textColor,
+                  color: ThemeConfig.getTextColor(currentTheme),
                 ),
               ),
             ],
@@ -1362,22 +1396,26 @@ class _EnhancedInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       color: backgroundColor,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 3,
-      shadowColor: Colors.black.withOpacity(0.1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      elevation: 4,
+      shadowColor: color.withOpacity(0.1),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(icon, color: color, size: 32),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
               label,
               style: TextStyle(
@@ -1386,11 +1424,11 @@ class _EnhancedInfoCard extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               value,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),

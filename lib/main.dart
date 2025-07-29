@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sabaicub/config/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login/login_page.dart';
 import 'menu/menu_page.dart';
@@ -15,89 +16,85 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
-  String currentTheme = 'green'; // Default theme
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  String currentTheme = ThemeConfig.defaultTheme;
   Locale currentLocale = const Locale('en');
-
-  // Theme colors mapping (same as in LoginPage)
-  final Map<String, Map<String, Color>> themeColors = {
-    'green': {
-      'primary': Colors.green,
-      'accent': Colors.green,
-      'background': Colors.white,
-      'text': Colors.black87,
-      'buttonText': Colors.white,
-    },
-    'blue': {
-      'primary': Colors.blue,
-      'accent': Colors.blue,
-      'background': Colors.white,
-      'text': Colors.black87,
-      'buttonText': Colors.white,
-    },
-    'purple': {
-      'primary': Colors.purple,
-      'accent': Colors.purple,
-      'background': Colors.white,
-      'text': Colors.black87,
-      'buttonText': Colors.white,
-    },
-    'orange': {
-      'primary': Colors.orange,
-      'accent': Colors.orange,
-      'background': Colors.white,
-      'text': Colors.black87,
-      'buttonText': Colors.white,
-    },
-    'teal': {
-      'primary': Colors.teal,
-      'accent': Colors.teal,
-      'background': Colors.white,
-      'text': Colors.black87,
-      'buttonText': Colors.white,
-    },
-    'dark': {
-      'primary': Colors.grey.shade800,
-      'accent': Colors.grey.shade800,
-      'background': Colors.grey.shade100,
-      'text': Colors.black87,
-      'buttonText': Colors.white,
-    },
-  };
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadSavedPreferences();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Reload theme when app resumes
+      _loadSavedPreferences();
+    }
   }
 
   Future<void> _loadSavedPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedTheme = prefs.getString('selectedTheme') ?? 'green';
+    final savedTheme =
+        prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     final savedLangCode = prefs.getString('languageCode') ?? 'en';
 
-    setState(() {
-      currentTheme = savedTheme;
-      currentLocale = Locale(savedLangCode);
-    });
+    if (mounted) {
+      setState(() {
+        currentTheme = savedTheme;
+        currentLocale = Locale(savedLangCode);
+      });
+    }
   }
 
   Future<void> setLocale(Locale locale) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('languageCode', locale.languageCode);
-    setState(() {
-      currentLocale = locale;
-    });
+    if (mounted) {
+      setState(() {
+        currentLocale = locale;
+      });
+    }
   }
 
+  // Add theme changing functionality
+  Future<void> setTheme(String themeName) async {
+    if (!ThemeConfig.isValidTheme(themeName)) {
+      return; // Invalid theme, don't change
+    }
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selectedTheme', themeName);
+    
+    if (mounted) {
+      setState(() {
+        currentTheme = themeName;
+      });
+    }
+  }
+
+  // Get current theme info for UI components
+  String getCurrentTheme() => currentTheme;
+
   ThemeData _buildTheme() {
-    final colors = themeColors[currentTheme] ?? themeColors['green']!;
-    final primaryColor = colors['primary']!;
-    final buttonTextColor = colors['buttonText']!;
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
 
     return ThemeData(
       primarySwatch: _createMaterialColor(primaryColor),
       primaryColor: primaryColor,
+      
+      // AppBar theme
       appBarTheme: AppBarTheme(
         backgroundColor: primaryColor,
         elevation: 2,
@@ -109,31 +106,144 @@ class _MyAppState extends State<MyApp> {
         iconTheme: IconThemeData(color: buttonTextColor),
         actionsIconTheme: IconThemeData(color: buttonTextColor),
       ),
+      
+      // Button themes
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
           foregroundColor: buttonTextColor,
-          textStyle: const TextStyle(fontSize: 16),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       ),
-      checkboxTheme: CheckboxThemeData(
-        fillColor: MaterialStateProperty.all(primaryColor),
+      
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primaryColor,
+          side: BorderSide(color: primaryColor, width: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
       ),
+      
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primaryColor,
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+      ),
+      
+      // Input decoration theme
+      inputDecorationTheme: InputDecorationTheme(
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: primaryColor, width: 2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Colors.red),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Colors.red, width: 2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        floatingLabelStyle: TextStyle(color: primaryColor),
+      ),
+      
+      // Other component themes
+      checkboxTheme: CheckboxThemeData(
+        fillColor: MaterialStateProperty.resolveWith((states) {
+          if (states.contains(MaterialState.selected)) {
+            return primaryColor;
+          }
+          return Colors.transparent;
+        }),
+        checkColor: MaterialStateProperty.all(buttonTextColor),
+      ),
+      
+      radioTheme: RadioThemeData(
+        fillColor: MaterialStateProperty.resolveWith((states) {
+          if (states.contains(MaterialState.selected)) {
+            return primaryColor;
+          }
+          return Colors.grey;
+        }),
+      ),
+      
+      switchTheme: SwitchThemeData(
+        thumbColor: MaterialStateProperty.resolveWith((states) {
+          if (states.contains(MaterialState.selected)) {
+            return primaryColor;
+          }
+          return Colors.grey;
+        }),
+        trackColor: MaterialStateProperty.resolveWith((states) {
+          if (states.contains(MaterialState.selected)) {
+            return primaryColor.withOpacity(0.3);
+          }
+          return Colors.grey.withOpacity(0.3);
+        }),
+      ),
+      
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: primaryColor,
         foregroundColor: buttonTextColor,
+        elevation: 6,
       ),
+      
       progressIndicatorTheme: ProgressIndicatorThemeData(color: primaryColor),
-      scaffoldBackgroundColor: colors['background'],
+      
+      // Scaffold and text themes
+      scaffoldBackgroundColor: backgroundColor,
+      
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(color: textColor),
+        bodyMedium: TextStyle(color: textColor),
+        bodySmall: TextStyle(color: textColor),
+        headlineLarge: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+        headlineMedium: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+        headlineSmall: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+        titleLarge: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+        titleMedium: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+        titleSmall: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+      ),
+      
+      // Color scheme
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryColor,
         brightness: Brightness.light,
+        background: backgroundColor,
+        surface: backgroundColor,
+      ).copyWith(
+        primary: primaryColor,
+        secondary: ThemeConfig.getThemeColors(currentTheme)['accent'],
+      ),
+      
+      // Card theme
+      cardTheme: CardThemeData(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      
+      // Divider theme
+      dividerTheme: DividerThemeData(
+        color: Colors.grey.shade300,
+        thickness: 1,
       ),
     );
   }
 
-  // Helper method to create MaterialColor from Color
   MaterialColor _createMaterialColor(Color color) {
     final List<double> strengths = <double>[.05];
     final swatch = <int, Color>{};
@@ -168,8 +278,11 @@ class _MyAppState extends State<MyApp> {
           final args =
               ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
           final role = args?['role'] ?? 'customer';
-
-          return MenuPage(role: role);
+          return MenuPage(
+            role: role,
+            setTheme: setTheme,
+            getCurrentTheme: getCurrentTheme,
+          );
         },
       },
     );

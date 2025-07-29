@@ -12,7 +12,6 @@ import 'package:crypto/crypto.dart';
 
 // Import your CameraWithOverlayPage (make sure path is correct)
 // ignore: unused_import
-import 'camera_with_overlay_page.dart';
 
 class RegisterUserPage extends StatefulWidget {
   final String phone;

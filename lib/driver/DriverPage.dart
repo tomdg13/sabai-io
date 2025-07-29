@@ -4,29 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:sabaicub/config/config.dart';
+import 'package:sabaicub/config/theme.dart';
 import 'package:sabaicub/driver/BookingConfirmPage.dart';
 import 'package:sabaicub/car/CarAddPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
-
-// Theme data class
-class AppTheme {
-  final String name;
-  final Color primaryColor;
-  final Color accentColor;
-  final Color backgroundColor;
-  final Color textColor;
-  final Color buttonTextColor;
-
-  AppTheme({
-    required this.name,
-    required this.primaryColor,
-    required this.accentColor,
-    required this.backgroundColor,
-    required this.textColor,
-    required this.buttonTextColor,
-  });
-}
 
 class DriverPage extends StatefulWidget {
   const DriverPage({Key? key}) : super(key: key);
@@ -41,68 +23,14 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   String licensePlate = '';
   String status = 'Offline';
   String langCodes = 'en';
-  String currentTheme = 'green';
+  String currentTheme = ThemeConfig.defaultTheme;
   String token = '';
   List<dynamic> bookings = [];
   Timer? refreshTimer;
-  bool isNavigatingAway = false; // Track navigation state
+  bool isNavigatingAway = false;
 
   double? currentLat;
   double? currentLon;
-
-  // Predefined themes
-  final Map<String, AppTheme> themes = {
-    'green': AppTheme(
-      name: 'Green',
-      primaryColor: Colors.green,
-      accentColor: Colors.green.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'blue': AppTheme(
-      name: 'Blue',
-      primaryColor: Colors.blue,
-      accentColor: Colors.blue.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'purple': AppTheme(
-      name: 'Purple',
-      primaryColor: Colors.purple,
-      accentColor: Colors.purple.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'orange': AppTheme(
-      name: 'Orange',
-      primaryColor: Colors.orange,
-      accentColor: Colors.orange.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'teal': AppTheme(
-      name: 'Teal',
-      primaryColor: Colors.teal,
-      accentColor: Colors.teal.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'dark': AppTheme(
-      name: 'Dark',
-      primaryColor: Colors.grey.shade800,
-      accentColor: Colors.grey.shade900,
-      backgroundColor: Colors.grey.shade100,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-  };
-
-  AppTheme get selectedTheme => themes[currentTheme] ?? themes['green']!;
 
   @override
   void initState() {
@@ -110,6 +38,13 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _loadDriverInfo();
     getLanguage();
+    _loadTheme();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload theme when page becomes visible
     _loadTheme();
   }
 
@@ -124,33 +59,30 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
-        // App returned to foreground
         isNavigatingAway = false;
+        _loadTheme(); // Reload theme when app resumes
         if (status == 'Online' && currentLat != null && currentLon != null) {
           fetchNearbyBookings(currentLat!, currentLon!);
-          startAutoRefresh(); // Restart auto-refresh
+          startAutoRefresh();
         }
         break;
       case AppLifecycleState.paused:
-        // App went to background
         break;
       case AppLifecycleState.inactive:
-        // App is inactive (e.g., during navigation)
         break;
       case AppLifecycleState.detached:
-        // App is detached
         refreshTimer?.cancel();
         break;
       case AppLifecycleState.hidden:
-        // App is hidden
         break;
     }
   }
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedTheme = prefs.getString('selectedTheme') ?? 'green';
-    if (mounted) {
+    final savedTheme =
+        prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+    if (mounted && currentTheme != savedTheme) {
       setState(() {
         currentTheme = savedTheme;
       });
@@ -158,10 +90,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
   }
 
   void startAutoRefresh() {
-    // Cancel existing timer
     refreshTimer?.cancel();
-
-    // Only start if online and not navigating away
     if (status == 'Online' && !isNavigatingAway) {
       refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (status == 'Online' &&
@@ -317,7 +246,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
     }
   }
 
-  // Method to refresh bookings when returning from navigation
   Future<void> _refreshAfterNavigation() async {
     if (status == 'Online' && currentLat != null && currentLon != null) {
       await fetchNearbyBookings(currentLat!, currentLon!);
@@ -327,10 +255,16 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // Get theme colors using ThemeConfig
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+
     // Show Add Car button if license plate missing
     if (licensePlate.isEmpty) {
       return Scaffold(
-        backgroundColor: selectedTheme.backgroundColor,
+        backgroundColor: backgroundColor,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -339,17 +273,14 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
               children: [
                 Text(
                   "${SimpleTranslations.get(langCodes, 'welcome')}, $name",
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: selectedTheme.textColor,
-                  ),
+                  style: TextStyle(fontSize: 20, color: textColor),
                 ),
                 const SizedBox(height: 10),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: selectedTheme.primaryColor,
-                    foregroundColor: selectedTheme.buttonTextColor,
+                    backgroundColor: primaryColor,
+                    foregroundColor: buttonTextColor,
                   ),
                   onPressed: () async {
                     isNavigatingAway = true;
@@ -376,7 +307,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
     }
 
     return Scaffold(
-      backgroundColor: selectedTheme.backgroundColor,
+      backgroundColor: backgroundColor,
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -384,7 +315,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
           children: [
             Text(
               "${SimpleTranslations.get(langCodes, 'welcome')}, $name",
-              style: TextStyle(fontSize: 20, color: selectedTheme.textColor),
+              style: TextStyle(fontSize: 20, color: textColor),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -427,10 +358,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
               children: [
                 Text(
                   "${SimpleTranslations.get(langCodes, 'status')}: ",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: selectedTheme.textColor,
-                  ),
+                  style: TextStyle(fontSize: 16, color: textColor),
                 ),
                 Text(
                   SimpleTranslations.get(langCodes, status.toLowerCase()),
@@ -442,8 +370,8 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                 const Spacer(),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: selectedTheme.primaryColor,
-                    foregroundColor: selectedTheme.buttonTextColor,
+                    backgroundColor: primaryColor,
+                    foregroundColor: buttonTextColor,
                   ),
                   onPressed: _toggleStatus,
                   child: Text(
@@ -454,26 +382,17 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                 ),
               ],
             ),
-            Divider(
-              height: 40,
-              color: selectedTheme.textColor.withOpacity(0.3),
-            ),
+            Divider(height: 40, color: textColor.withOpacity(0.3)),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   SimpleTranslations.get(langCodes, 'my_bookings'),
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: selectedTheme.textColor,
-                  ),
+                  style: TextStyle(fontSize: 18, color: textColor),
                 ),
                 if (status == 'Online')
                   IconButton(
-                    icon: Icon(
-                      Icons.refresh,
-                      color: selectedTheme.primaryColor,
-                    ),
+                    icon: Icon(Icons.refresh, color: primaryColor),
                     onPressed: () async {
                       if (currentLat != null && currentLon != null) {
                         await fetchNearbyBookings(currentLat!, currentLon!);
@@ -489,7 +408,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                   ? Center(
                       child: Text(
                         SimpleTranslations.get(langCodes, 'offline_message'),
-                        style: TextStyle(color: selectedTheme.textColor),
+                        style: TextStyle(color: textColor),
                       ),
                     )
                   : bookings.isEmpty
@@ -499,16 +418,13 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                         children: [
                           CircularProgressIndicator(
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              selectedTheme.primaryColor,
+                              primaryColor,
                             ),
                           ),
                           const SizedBox(height: 16),
                           Text(
                             'Searching for nearby customers...',
-                            style: TextStyle(
-                              color: selectedTheme.textColor,
-                              fontSize: 14,
-                            ),
+                            style: TextStyle(color: textColor, fontSize: 14),
                           ),
                         ],
                       ),
@@ -527,7 +443,7 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                         ).format(booking['payment_price']);
 
                         return Card(
-                          color: selectedTheme.backgroundColor,
+                          color: backgroundColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -553,22 +469,21 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                                   .toString(),
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color: selectedTheme.textColor,
+                                color: textColor,
                               ),
                             ),
                             subtitle: Text(
                               "Time: $formattedTime",
                               style: TextStyle(
-                                color: selectedTheme.textColor.withOpacity(0.7),
+                                color: textColor.withOpacity(0.7),
                               ),
                             ),
                             trailing: Icon(
                               Icons.arrow_forward_ios,
                               size: 16,
-                              color: selectedTheme.primaryColor,
+                              color: primaryColor,
                             ),
                             onTap: () async {
-                              // Set navigation flag and stop auto-refresh
                               isNavigatingAway = true;
                               stopAutoRefresh();
 
@@ -585,7 +500,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                               updatedBooking['driver_phone'] =
                                   booking['driver_phone'] ?? phone;
 
-                              // Navigate to booking confirmation
                               await Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -595,7 +509,6 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                                 ),
                               );
 
-                              // Reset navigation flag and restart auto-refresh
                               isNavigatingAway = false;
                               await _refreshAfterNavigation();
                             },
