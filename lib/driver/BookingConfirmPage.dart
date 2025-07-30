@@ -95,7 +95,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    _pulseController!.repeat();
+    _pulseController?.repeat();
   }
 
   void _setupCountdown() {
@@ -158,8 +158,9 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
   }
 
   void _startCountdown() {
+    // Fixed: Added null check before using !
     if (_countdownController != null && !_isExpired) {
-      _countdownController!.forward();
+      _countdownController?.forward();
     }
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -244,15 +245,14 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
   }
 
   void _updateDriverLocationMarker() {
-    if (_currentPosition != null) {
+    // Fixed: Added proper null check
+    final currentPos = _currentPosition;
+    if (currentPos != null) {
       setState(() {
         _markers.add(
           Marker(
             markerId: const MarkerId('driver'),
-            position: LatLng(
-              _currentPosition!.latitude,
-              _currentPosition!.longitude,
-            ),
+            position: LatLng(currentPos.latitude, currentPos.longitude),
             icon: BitmapDescriptor.defaultMarkerWithHue(
               BitmapDescriptor.hueOrange,
             ),
@@ -435,10 +435,12 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
   }
 
   void _fitMarkersInView() {
-    if (_mapController == null || _markers.isEmpty) return;
+    // Fixed: Added null check before using map controller
+    final mapController = _mapController;
+    if (mapController == null || _markers.isEmpty) return;
 
     final bounds = _calculateBounds();
-    _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 100.0));
+    mapController.animateCamera(CameraUpdate.newLatLngBounds(bounds, 100.0));
   }
 
   LatLngBounds _calculateBounds() {
@@ -453,11 +455,13 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
     double minLon = min(pickupLon, dropoffLon);
     double maxLon = max(pickupLon, dropoffLon);
 
-    if (_currentPosition != null) {
-      minLat = min(minLat, _currentPosition!.latitude);
-      maxLat = max(maxLat, _currentPosition!.latitude);
-      minLon = min(minLon, _currentPosition!.longitude);
-      maxLon = max(maxLon, _currentPosition!.longitude);
+    // Fixed: Proper null check for current position
+    final currentPos = _currentPosition;
+    if (currentPos != null) {
+      minLat = min(minLat, currentPos.latitude);
+      maxLat = max(maxLat, currentPos.latitude);
+      minLon = min(minLon, currentPos.longitude);
+      maxLon = max(maxLon, currentPos.longitude);
     }
 
     return LatLngBounds(
@@ -540,12 +544,53 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       ringColor = Colors.red;
     }
 
+    // Fixed: Added null check for pulse controller
+    final pulseController = _pulseController;
+    if (pulseController == null) {
+      return Container(
+        width: 80,
+        height: 80,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 80,
+              height: 80,
+              child: CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 6,
+                backgroundColor: Colors.grey[300],
+                valueColor: AlwaysStoppedAnimation<Color>(ringColor),
+              ),
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${(_countdownSeconds ~/ 60).toString().padLeft(2, '0')}:${(_countdownSeconds % 60).toString().padLeft(2, '0')}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: ringColor,
+                  ),
+                ),
+                Text(
+                  SimpleTranslations.get(langCodes, 'remaining'),
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
     return AnimatedBuilder(
-      animation: _pulseController!,
+      animation: pulseController,
       builder: (context, child) {
         return Container(
-          width: 80 + (progress < 0.3 ? _pulseController!.value * 10 : 0),
-          height: 80 + (progress < 0.3 ? _pulseController!.value * 10 : 0),
+          width: 80 + (progress < 0.3 ? pulseController.value * 10 : 0),
+          height: 80 + (progress < 0.3 ? pulseController.value * 10 : 0),
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -729,17 +774,17 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
       String driverLat = "";
       String driverLon = "";
 
-      if (_currentPosition != null) {
-        driverLat = _currentPosition!.latitude.toString();
-        driverLon = _currentPosition!.longitude.toString();
-        driverLocation =
-            "${_currentPosition!.latitude}, ${_currentPosition!.longitude}";
+      // Fixed: Proper null handling for current position
+      final currentPos = _currentPosition;
+      if (currentPos != null) {
+        driverLat = currentPos.latitude.toString();
+        driverLon = currentPos.longitude.toString();
+        driverLocation = "${currentPos.latitude}, ${currentPos.longitude}";
       } else {
         try {
           Position? position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.high,
           );
-          // ignore: unnecessary_null_comparison
           if (position != null) {
             driverLat = position.latitude.toString();
             driverLon = position.longitude.toString();
