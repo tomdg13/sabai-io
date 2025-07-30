@@ -3,29 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sabaicub/config/config.dart';
+import 'package:sabaicub/config/theme.dart'; // Use main ThemeConfig
 import 'package:sabaicub/car/carAddPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 import 'package:image_picker/image_picker.dart';
-
-// Theme data class
-class AppTheme {
-  final String name;
-  final Color primaryColor;
-  final Color accentColor;
-  final Color backgroundColor;
-  final Color textColor;
-  final Color buttonTextColor;
-
-  AppTheme({
-    required this.name,
-    required this.primaryColor,
-    required this.accentColor,
-    required this.backgroundColor,
-    required this.textColor,
-    required this.buttonTextColor,
-  });
-}
 
 class MyCarPage extends StatefulWidget {
   const MyCarPage({super.key});
@@ -41,7 +23,7 @@ class _MyCarPageState extends State<MyCarPage> {
   String? token;
   String? phone;
   Map<String, dynamic>? carData;
-  String currentTheme = 'green'; // Default theme
+  String currentTheme = ThemeConfig.defaultTheme; // Use ThemeConfig default
 
   int _selectedIndex = 0;
 
@@ -49,60 +31,6 @@ class _MyCarPageState extends State<MyCarPage> {
   File? _picture1;
   File? _picture2;
   File? _picture3;
-
-  // Predefined themes
-  final Map<String, AppTheme> themes = {
-    'green': AppTheme(
-      name: 'Green',
-      primaryColor: Colors.green,
-      accentColor: Colors.green.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'blue': AppTheme(
-      name: 'Blue',
-      primaryColor: Colors.blue,
-      accentColor: Colors.blue.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'purple': AppTheme(
-      name: 'Purple',
-      primaryColor: Colors.purple,
-      accentColor: Colors.purple.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'orange': AppTheme(
-      name: 'Orange',
-      primaryColor: Colors.orange,
-      accentColor: Colors.orange.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'teal': AppTheme(
-      name: 'Teal',
-      primaryColor: Colors.teal,
-      accentColor: Colors.teal.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'dark': AppTheme(
-      name: 'Dark',
-      primaryColor: Colors.grey.shade800,
-      accentColor: Colors.grey.shade900,
-      backgroundColor: Colors.grey.shade100,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-  };
-
-  AppTheme get selectedTheme => themes[currentTheme] ?? themes['green']!;
 
   @override
   void initState() {
@@ -113,7 +41,8 @@ class _MyCarPageState extends State<MyCarPage> {
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedTheme = prefs.getString('selectedTheme') ?? 'green';
+    final savedTheme =
+        prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     if (mounted) {
       setState(() {
         currentTheme = savedTheme;
@@ -223,6 +152,10 @@ class _MyCarPageState extends State<MyCarPage> {
       imageProvider = NetworkImage(imageUrl);
     }
 
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+
     return Column(
       children: [
         GestureDetector(
@@ -234,12 +167,12 @@ class _MyCarPageState extends State<MyCarPage> {
               shape: isCircular ? BoxShape.circle : BoxShape.rectangle,
               borderRadius: isCircular ? null : BorderRadius.circular(12),
               border: Border.all(
-                color: selectedTheme.primaryColor.withOpacity(0.3),
+                color: primaryColor.withOpacity(0.3),
                 width: 2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: selectedTheme.primaryColor.withOpacity(0.1),
+                  color: primaryColor.withOpacity(0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -247,7 +180,7 @@ class _MyCarPageState extends State<MyCarPage> {
               image: imageProvider != null
                   ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
                   : null,
-              color: selectedTheme.backgroundColor,
+              color: backgroundColor,
             ),
             child: imageProvider == null
                 ? Column(
@@ -256,14 +189,14 @@ class _MyCarPageState extends State<MyCarPage> {
                       Icon(
                         Icons.add_a_photo,
                         size: size * 0.3,
-                        color: selectedTheme.primaryColor.withOpacity(0.6),
+                        color: primaryColor.withOpacity(0.6),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         SimpleTranslations.get(langCode, 'tap_to_add'),
                         style: TextStyle(
                           fontSize: 10,
-                          color: selectedTheme.textColor.withOpacity(0.6),
+                          color: textColor.withOpacity(0.6),
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -288,7 +221,7 @@ class _MyCarPageState extends State<MyCarPage> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: selectedTheme.textColor,
+            color: textColor,
           ),
           textAlign: TextAlign.center,
         ),
@@ -297,18 +230,19 @@ class _MyCarPageState extends State<MyCarPage> {
   }
 
   Widget _buildReadOnlyField({required String label, required String value}) {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: selectedTheme.backgroundColor,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: selectedTheme.primaryColor.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: primaryColor.withOpacity(0.2), width: 1),
         boxShadow: [
           BoxShadow(
-            color: selectedTheme.primaryColor.withOpacity(0.05),
+            color: primaryColor.withOpacity(0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -319,7 +253,7 @@ class _MyCarPageState extends State<MyCarPage> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(
-            color: selectedTheme.primaryColor,
+            color: primaryColor,
             fontWeight: FontWeight.w500,
           ),
           border: OutlineInputBorder(
@@ -327,19 +261,21 @@ class _MyCarPageState extends State<MyCarPage> {
             borderSide: BorderSide.none,
           ),
           filled: true,
-          fillColor: selectedTheme.backgroundColor,
+          fillColor: backgroundColor,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 16,
           ),
         ),
-        style: TextStyle(color: selectedTheme.textColor, fontSize: 16),
+        style: TextStyle(color: textColor, fontSize: 16),
         readOnly: true,
       ),
     );
   }
 
   Widget _buildLicensePlate() {
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
@@ -349,7 +285,7 @@ class _MyCarPageState extends State<MyCarPage> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: selectedTheme.textColor,
+              color: textColor,
             ),
           ),
           const SizedBox(height: 12),
@@ -411,8 +347,13 @@ class _MyCarPageState extends State<MyCarPage> {
   Widget _buildCarInfo() {
     if (carData == null) return const SizedBox();
 
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+
     return Container(
-      color: selectedTheme.backgroundColor,
+      color: backgroundColor,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -426,15 +367,12 @@ class _MyCarPageState extends State<MyCarPage> {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    selectedTheme.primaryColor,
-                    selectedTheme.accentColor,
-                  ],
+                  colors: [primaryColor, primaryColor.withOpacity(0.8)],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: selectedTheme.primaryColor.withOpacity(0.3),
+                    color: primaryColor.withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -442,25 +380,21 @@ class _MyCarPageState extends State<MyCarPage> {
               ),
               child: Column(
                 children: [
-                  Icon(
-                    Icons.directions_car,
-                    size: 48,
-                    color: selectedTheme.buttonTextColor,
-                  ),
+                  Icon(Icons.directions_car, size: 48, color: buttonTextColor),
                   const SizedBox(height: 8),
                   Text(
                     SimpleTranslations.get(langCode, 'my_car'),
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: selectedTheme.buttonTextColor,
+                      color: buttonTextColor,
                     ),
                   ),
                   Text(
                     '${carData!['brand'] ?? ''} ${carData!['model'] ?? ''}',
                     style: TextStyle(
                       fontSize: 16,
-                      color: selectedTheme.buttonTextColor.withOpacity(0.9),
+                      color: buttonTextColor.withOpacity(0.9),
                     ),
                   ),
                 ],
@@ -473,15 +407,15 @@ class _MyCarPageState extends State<MyCarPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: selectedTheme.backgroundColor,
+                color: backgroundColor,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: selectedTheme.primaryColor.withOpacity(0.2),
+                  color: primaryColor.withOpacity(0.2),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: selectedTheme.primaryColor.withOpacity(0.1),
+                    color: primaryColor.withOpacity(0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -494,7 +428,7 @@ class _MyCarPageState extends State<MyCarPage> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
-                      color: selectedTheme.textColor,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -516,15 +450,15 @@ class _MyCarPageState extends State<MyCarPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: selectedTheme.backgroundColor,
+                color: backgroundColor,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: selectedTheme.primaryColor.withOpacity(0.2),
+                  color: primaryColor.withOpacity(0.2),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: selectedTheme.primaryColor.withOpacity(0.1),
+                    color: primaryColor.withOpacity(0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -537,7 +471,7 @@ class _MyCarPageState extends State<MyCarPage> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
-                      color: selectedTheme.textColor,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -581,15 +515,15 @@ class _MyCarPageState extends State<MyCarPage> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: selectedTheme.backgroundColor,
+                color: backgroundColor,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: selectedTheme.primaryColor.withOpacity(0.2),
+                  color: primaryColor.withOpacity(0.2),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: selectedTheme.primaryColor.withOpacity(0.1),
+                    color: primaryColor.withOpacity(0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -600,18 +534,14 @@ class _MyCarPageState extends State<MyCarPage> {
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: selectedTheme.primaryColor,
-                        size: 24,
-                      ),
+                      Icon(Icons.info_outline, color: primaryColor, size: 24),
                       const SizedBox(width: 8),
                       Text(
                         SimpleTranslations.get(langCode, 'car_details'),
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: selectedTheme.textColor,
+                          color: textColor,
                         ),
                       ),
                     ],
@@ -665,23 +595,23 @@ class _MyCarPageState extends State<MyCarPage> {
                   });
                   _fetchCarData();
                 },
-                icon: Icon(Icons.refresh, color: selectedTheme.buttonTextColor),
+                icon: Icon(Icons.refresh, color: buttonTextColor),
                 label: Text(
                   SimpleTranslations.get(langCode, 'refresh'),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: selectedTheme.buttonTextColor,
+                    color: buttonTextColor,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: selectedTheme.primaryColor,
-                  foregroundColor: selectedTheme.buttonTextColor,
+                  backgroundColor: primaryColor,
+                  foregroundColor: buttonTextColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   elevation: 4,
-                  shadowColor: selectedTheme.primaryColor.withOpacity(0.4),
+                  shadowColor: primaryColor.withOpacity(0.4),
                 ),
               ),
             ),
@@ -692,24 +622,30 @@ class _MyCarPageState extends State<MyCarPage> {
   }
 
   Widget _buildProfilePage() {
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+
     return Container(
-      color: selectedTheme.backgroundColor,
+      color: backgroundColor,
       child: Center(
         child: Text(
           SimpleTranslations.get(langCode, 'profilePage'),
-          style: TextStyle(color: selectedTheme.textColor),
+          style: TextStyle(color: textColor),
         ),
       ),
     );
   }
 
   Widget _buildSettingsPage() {
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+
     return Container(
-      color: selectedTheme.backgroundColor,
+      color: backgroundColor,
       child: Center(
         child: Text(
           SimpleTranslations.get(langCode, 'settingsPage'),
-          style: TextStyle(color: selectedTheme.textColor),
+          style: TextStyle(color: textColor),
         ),
       ),
     );
@@ -717,22 +653,25 @@ class _MyCarPageState extends State<MyCarPage> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+
     Widget bodyContent;
 
     if (loading) {
       bodyContent = Container(
-        color: selectedTheme.backgroundColor,
+        color: backgroundColor,
         child: Center(
           child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(
-              selectedTheme.primaryColor,
-            ),
+            valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
           ),
         ),
       );
     } else if (error != null) {
       bodyContent = Container(
-        color: selectedTheme.backgroundColor,
+        color: backgroundColor,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -740,13 +679,13 @@ class _MyCarPageState extends State<MyCarPage> {
               Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: selectedTheme.primaryColor.withOpacity(0.1),
+                  color: primaryColor.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.directions_car_outlined,
                   size: 64,
-                  color: selectedTheme.primaryColor.withOpacity(0.6),
+                  color: primaryColor.withOpacity(0.6),
                 ),
               ),
               const SizedBox(height: 24),
@@ -755,7 +694,7 @@ class _MyCarPageState extends State<MyCarPage> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: selectedTheme.textColor,
+                  color: textColor,
                 ),
               ),
               const SizedBox(height: 8),
@@ -763,7 +702,7 @@ class _MyCarPageState extends State<MyCarPage> {
                 SimpleTranslations.get(langCode, 'add_car_desc'),
                 style: TextStyle(
                   fontSize: 14,
-                  color: selectedTheme.textColor.withOpacity(0.6),
+                  color: textColor.withOpacity(0.6),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -777,22 +716,18 @@ class _MyCarPageState extends State<MyCarPage> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  backgroundColor: selectedTheme.primaryColor,
-                  foregroundColor: selectedTheme.buttonTextColor,
+                  backgroundColor: primaryColor,
+                  foregroundColor: buttonTextColor,
                   elevation: 4,
-                  shadowColor: selectedTheme.primaryColor.withOpacity(0.4),
+                  shadowColor: primaryColor.withOpacity(0.4),
                 ),
-                icon: Icon(
-                  Icons.add,
-                  color: selectedTheme.buttonTextColor,
-                  size: 24,
-                ),
+                icon: Icon(Icons.add, color: buttonTextColor, size: 24),
                 label: Text(
                   SimpleTranslations.get(langCode, 'addCar'),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: selectedTheme.buttonTextColor,
+                    color: buttonTextColor,
                   ),
                 ),
                 onPressed: () {
@@ -828,9 +763,6 @@ class _MyCarPageState extends State<MyCarPage> {
       }
     }
 
-    return Scaffold(
-      backgroundColor: selectedTheme.backgroundColor,
-      body: bodyContent,
-    );
+    return Scaffold(backgroundColor: backgroundColor, body: bodyContent);
   }
 }

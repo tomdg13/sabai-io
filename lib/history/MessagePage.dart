@@ -1,25 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sabaicub/config/theme.dart'; // Use main ThemeConfig
 import '../utils/simple_translations.dart';
-
-// Theme data class
-class AppTheme {
-  final String name;
-  final Color primaryColor;
-  final Color accentColor;
-  final Color backgroundColor;
-  final Color textColor;
-  final Color buttonTextColor;
-
-  AppTheme({
-    required this.name,
-    required this.primaryColor,
-    required this.accentColor,
-    required this.backgroundColor,
-    required this.textColor,
-    required this.buttonTextColor,
-  });
-}
 
 class MessagePage extends StatefulWidget {
   const MessagePage({Key? key}) : super(key: key);
@@ -30,62 +12,8 @@ class MessagePage extends StatefulWidget {
 
 class _MessagePageState extends State<MessagePage> {
   String langCode = 'en';
-  String currentTheme = 'green'; // Default theme
+  String currentTheme = ThemeConfig.defaultTheme; // Use ThemeConfig default
   List<Map<String, dynamic>> messages = [];
-
-  // Predefined themes
-  final Map<String, AppTheme> themes = {
-    'green': AppTheme(
-      name: 'Green',
-      primaryColor: Colors.green,
-      accentColor: Colors.green.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'blue': AppTheme(
-      name: 'Blue',
-      primaryColor: Colors.blue,
-      accentColor: Colors.blue.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'purple': AppTheme(
-      name: 'Purple',
-      primaryColor: Colors.purple,
-      accentColor: Colors.purple.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'orange': AppTheme(
-      name: 'Orange',
-      primaryColor: Colors.orange,
-      accentColor: Colors.orange.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'teal': AppTheme(
-      name: 'Teal',
-      primaryColor: Colors.teal,
-      accentColor: Colors.teal.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'dark': AppTheme(
-      name: 'Dark',
-      primaryColor: Colors.grey.shade800,
-      accentColor: Colors.grey.shade900,
-      backgroundColor: Colors.grey.shade100,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-  };
-
-  AppTheme get selectedTheme => themes[currentTheme] ?? themes['green']!;
 
   @override
   void initState() {
@@ -96,7 +24,8 @@ class _MessagePageState extends State<MessagePage> {
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedTheme = prefs.getString('selectedTheme') ?? 'green';
+    final savedTheme =
+        prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     if (mounted) {
       setState(() {
         currentTheme = savedTheme;
@@ -156,11 +85,13 @@ class _MessagePageState extends State<MessagePage> {
   }
 
   Color _getMessageTypeColor(String type) {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+
     switch (type) {
       case 'success':
         return Colors.green;
       case 'info':
-        return selectedTheme.primaryColor;
+        return primaryColor;
       case 'promotion':
         return Colors.orange;
       case 'warning':
@@ -168,7 +99,7 @@ class _MessagePageState extends State<MessagePage> {
       case 'error':
         return Colors.red;
       default:
-        return selectedTheme.primaryColor;
+        return primaryColor;
     }
   }
 
@@ -192,16 +123,19 @@ class _MessagePageState extends State<MessagePage> {
   Widget _buildMessageCard(Map<String, dynamic> message, int index) {
     final messageColor = _getMessageTypeColor(message['type'] ?? 'info');
     final isRead = message['isRead'] ?? true;
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
-        color: selectedTheme.backgroundColor,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isRead
-              ? selectedTheme.primaryColor.withOpacity(0.1)
-              : selectedTheme.primaryColor.withOpacity(0.3),
+              ? primaryColor.withOpacity(0.1)
+              : primaryColor.withOpacity(0.3),
           width: isRead ? 1 : 2,
         ),
         boxShadow: [
@@ -257,7 +191,7 @@ class _MessagePageState extends State<MessagePage> {
                                 fontWeight: isRead
                                     ? FontWeight.w500
                                     : FontWeight.w700,
-                                color: selectedTheme.textColor,
+                                color: textColor,
                               ),
                             ),
                           ),
@@ -277,7 +211,7 @@ class _MessagePageState extends State<MessagePage> {
                         message['body'],
                         style: TextStyle(
                           fontSize: 14,
-                          color: selectedTheme.textColor.withOpacity(0.7),
+                          color: textColor.withOpacity(0.7),
                           height: 1.3,
                         ),
                         maxLines: 2,
@@ -296,7 +230,7 @@ class _MessagePageState extends State<MessagePage> {
                     Text(
                       message['time'],
                       style: TextStyle(
-                        color: selectedTheme.textColor.withOpacity(0.5),
+                        color: textColor.withOpacity(0.5),
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                       ),
@@ -318,6 +252,9 @@ class _MessagePageState extends State<MessagePage> {
   }
 
   Widget _buildEmptyState() {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -325,13 +262,13 @@ class _MessagePageState extends State<MessagePage> {
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: selectedTheme.primaryColor.withOpacity(0.1),
+              color: primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.message_outlined,
               size: 64,
-              color: selectedTheme.primaryColor.withOpacity(0.6),
+              color: primaryColor.withOpacity(0.6),
             ),
           ),
           const SizedBox(height: 24),
@@ -340,16 +277,13 @@ class _MessagePageState extends State<MessagePage> {
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
-              color: selectedTheme.textColor,
+              color: textColor,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             SimpleTranslations.get(langCode, 'no_messages_desc'),
-            style: TextStyle(
-              fontSize: 14,
-              color: selectedTheme.textColor.withOpacity(0.6),
-            ),
+            style: TextStyle(fontSize: 14, color: textColor.withOpacity(0.6)),
             textAlign: TextAlign.center,
           ),
         ],
@@ -359,14 +293,16 @@ class _MessagePageState extends State<MessagePage> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+
     return Container(
-      color: selectedTheme.backgroundColor,
+      color: backgroundColor,
       child: messages.isEmpty
           ? Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  selectedTheme.primaryColor,
-                ),
+                valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
               ),
             )
           : Column(
@@ -379,15 +315,12 @@ class _MessagePageState extends State<MessagePage> {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        selectedTheme.primaryColor,
-                        selectedTheme.accentColor,
-                      ],
+                      colors: [primaryColor, primaryColor.withOpacity(0.8)],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: selectedTheme.primaryColor.withOpacity(0.3),
+                        color: primaryColor.withOpacity(0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -397,7 +330,7 @@ class _MessagePageState extends State<MessagePage> {
                     children: [
                       Icon(
                         Icons.notifications_active,
-                        color: selectedTheme.buttonTextColor,
+                        color: buttonTextColor,
                         size: 24,
                       ),
                       const SizedBox(width: 12),
@@ -410,15 +343,14 @@ class _MessagePageState extends State<MessagePage> {
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: selectedTheme.buttonTextColor,
+                                color: buttonTextColor,
                               ),
                             ),
                             Text(
                               '${messages.where((m) => !(m['isRead'] ?? true)).length} ${SimpleTranslations.get(langCode, 'unread')}',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: selectedTheme.buttonTextColor
-                                    .withOpacity(0.9),
+                                color: buttonTextColor.withOpacity(0.9),
                               ),
                             ),
                           ],
@@ -433,10 +365,7 @@ class _MessagePageState extends State<MessagePage> {
                             }
                           });
                         },
-                        icon: Icon(
-                          Icons.done_all,
-                          color: selectedTheme.buttonTextColor,
-                        ),
+                        icon: Icon(Icons.done_all, color: buttonTextColor),
                         tooltip: SimpleTranslations.get(
                           langCode,
                           'mark_all_read',

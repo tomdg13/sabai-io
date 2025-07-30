@@ -2,28 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sabaicub/config/config.dart';
+import 'package:sabaicub/config/theme.dart'; // Use main ThemeConfig
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 import 'ImagePreviewPage.dart';
-
-// Theme data class
-class AppTheme {
-  final String name;
-  final Color primaryColor;
-  final Color accentColor;
-  final Color backgroundColor;
-  final Color textColor;
-  final Color buttonTextColor;
-
-  AppTheme({
-    required this.name,
-    required this.primaryColor,
-    required this.accentColor,
-    required this.backgroundColor,
-    required this.textColor,
-    required this.buttonTextColor,
-  });
-}
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -38,61 +20,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String? error;
   String langCode = 'en';
   String? token;
-  String currentTheme = 'green'; // Default theme
-
-  // Predefined themes
-  final Map<String, AppTheme> themes = {
-    'green': AppTheme(
-      name: 'Green',
-      primaryColor: Colors.green,
-      accentColor: Colors.green.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'blue': AppTheme(
-      name: 'Blue',
-      primaryColor: Colors.blue,
-      accentColor: Colors.blue.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'purple': AppTheme(
-      name: 'Purple',
-      primaryColor: Colors.purple,
-      accentColor: Colors.purple.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'orange': AppTheme(
-      name: 'Orange',
-      primaryColor: Colors.orange,
-      accentColor: Colors.orange.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'teal': AppTheme(
-      name: 'Teal',
-      primaryColor: Colors.teal,
-      accentColor: Colors.teal.shade700,
-      backgroundColor: Colors.white,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-    'dark': AppTheme(
-      name: 'Dark',
-      primaryColor: Colors.grey.shade800,
-      accentColor: Colors.grey.shade900,
-      backgroundColor: Colors.grey.shade100,
-      textColor: Colors.black87,
-      buttonTextColor: Colors.white,
-    ),
-  };
-
-  AppTheme get selectedTheme => themes[currentTheme] ?? themes['green']!;
+  String currentTheme = ThemeConfig.defaultTheme; // Use ThemeConfig default
 
   @override
   void initState() {
@@ -103,7 +31,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedTheme = prefs.getString('selectedTheme') ?? 'green';
+    final savedTheme =
+        prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     if (mounted) {
       setState(() {
         currentTheme = savedTheme;
@@ -195,18 +124,21 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildProfileHeader() {
     final imageUrl = profileData?['profile_image_url'];
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [selectedTheme.primaryColor, selectedTheme.accentColor],
+          colors: [primaryColor, primaryColor.withOpacity(0.8)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: selectedTheme.primaryColor.withOpacity(0.3),
+            color: primaryColor.withOpacity(0.3),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -237,10 +169,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: selectedTheme.buttonTextColor,
-                      width: 4,
-                    ),
+                    border: Border.all(color: buttonTextColor, width: 4),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.2),
@@ -251,7 +180,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   child: CircleAvatar(
                     radius: 60,
-                    backgroundColor: selectedTheme.buttonTextColor,
+                    backgroundColor: buttonTextColor,
                     child: ClipOval(
                       child: Image.network(
                         imageUrl ?? '',
@@ -274,16 +203,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: selectedTheme.buttonTextColor,
+                      color: buttonTextColor,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: selectedTheme.primaryColor,
-                        width: 2,
-                      ),
+                      border: Border.all(color: primaryColor, width: 2),
                     ),
                     child: Icon(
                       Icons.camera_alt,
-                      color: selectedTheme.primaryColor,
+                      color: primaryColor,
                       size: 16,
                     ),
                   ),
@@ -297,7 +223,7 @@ class _ProfilePageState extends State<ProfilePage> {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: selectedTheme.buttonTextColor,
+              color: buttonTextColor,
             ),
           ),
           const SizedBox(height: 4),
@@ -305,7 +231,7 @@ class _ProfilePageState extends State<ProfilePage> {
             profileData?['email'] ?? '',
             style: TextStyle(
               fontSize: 16,
-              color: selectedTheme.buttonTextColor.withOpacity(0.9),
+              color: buttonTextColor.withOpacity(0.9),
             ),
           ),
         ],
@@ -318,18 +244,19 @@ class _ProfilePageState extends State<ProfilePage> {
       return const SizedBox.shrink();
     }
 
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
-        color: selectedTheme.backgroundColor,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: selectedTheme.primaryColor.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: primaryColor.withOpacity(0.2), width: 1),
         boxShadow: [
           BoxShadow(
-            color: selectedTheme.primaryColor.withOpacity(0.1),
+            color: primaryColor.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -340,16 +267,16 @@ class _ProfilePageState extends State<ProfilePage> {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: selectedTheme.primaryColor.withOpacity(0.1),
+            color: primaryColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: selectedTheme.primaryColor, size: 24),
+          child: Icon(icon, color: primaryColor, size: 24),
         ),
         title: Text(
           label,
           style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: selectedTheme.textColor,
+            color: textColor,
             fontSize: 16,
           ),
         ),
@@ -357,10 +284,7 @@ class _ProfilePageState extends State<ProfilePage> {
           padding: const EdgeInsets.only(top: 4),
           child: Text(
             value.toString(),
-            style: TextStyle(
-              color: selectedTheme.textColor.withOpacity(0.7),
-              fontSize: 15,
-            ),
+            style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 15),
           ),
         ),
       ),
@@ -372,19 +296,20 @@ class _ProfilePageState extends State<ProfilePage> {
     final isOnline =
         profileData?['online']?.toString().toLowerCase() == 'online';
 
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: selectedTheme.backgroundColor,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: selectedTheme.primaryColor.withOpacity(0.2),
-          width: 2,
-        ),
+        border: Border.all(color: primaryColor.withOpacity(0.2), width: 2),
         boxShadow: [
           BoxShadow(
-            color: selectedTheme.primaryColor.withOpacity(0.1),
+            color: primaryColor.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -415,7 +340,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   SimpleTranslations.get(langCode, 'driver_status'),
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: selectedTheme.textColor,
+                    color: textColor,
                     fontSize: 16,
                   ),
                 ),
@@ -443,7 +368,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     Text(
                       '• ${status ?? 'Active'}',
                       style: TextStyle(
-                        color: selectedTheme.textColor.withOpacity(0.7),
+                        color: textColor.withOpacity(0.7),
                         fontSize: 14,
                       ),
                     ),
@@ -459,14 +384,16 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+
     if (loading) {
       return Container(
-        color: selectedTheme.backgroundColor,
+        color: backgroundColor,
         child: Center(
           child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(
-              selectedTheme.primaryColor,
-            ),
+            valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
           ),
         ),
       );
@@ -474,7 +401,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (error != null) {
       return Container(
-        color: selectedTheme.backgroundColor,
+        color: backgroundColor,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -495,11 +422,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   });
                   _loadLangAndProfile();
                 },
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+                icon: Icon(Icons.refresh, color: buttonTextColor),
+                label: Text('Retry', style: TextStyle(color: buttonTextColor)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: selectedTheme.primaryColor,
-                  foregroundColor: selectedTheme.buttonTextColor,
+                  backgroundColor: primaryColor,
+                  foregroundColor: buttonTextColor,
                 ),
               ),
             ],
@@ -513,7 +440,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final provinceName = getLocalizedValue('pr_name', 'pr_name_en');
 
     return Container(
-      color: selectedTheme.backgroundColor,
+      color: backgroundColor,
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -575,26 +502,23 @@ class _ProfilePageState extends State<ProfilePage> {
                 height: 50,
                 child: ElevatedButton.icon(
                   onPressed: _refreshProfile,
-                  icon: Icon(
-                    Icons.refresh,
-                    color: selectedTheme.buttonTextColor,
-                  ),
+                  icon: Icon(Icons.refresh, color: buttonTextColor),
                   label: Text(
                     SimpleTranslations.get(langCode, 'refresh_profile'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: selectedTheme.buttonTextColor,
+                      color: buttonTextColor,
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: selectedTheme.primaryColor,
-                    foregroundColor: selectedTheme.buttonTextColor,
+                    backgroundColor: primaryColor,
+                    foregroundColor: buttonTextColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                     elevation: 4,
-                    shadowColor: selectedTheme.primaryColor.withOpacity(0.4),
+                    shadowColor: primaryColor.withOpacity(0.4),
                   ),
                 ),
               ),

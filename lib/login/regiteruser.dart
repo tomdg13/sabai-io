@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sabaicub/config/config.dart';
+import 'package:sabaicub/config/theme.dart'; // Add theme import
 import 'package:sabaicub/login/CameraWithOverlayPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
@@ -34,6 +35,7 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
   final _accountNameController = TextEditingController();
 
   String langCodes = 'en';
+  String currentTheme = ThemeConfig.defaultTheme; // Add theme state
 
   bool _isPasswordStrong = false;
   double _passwordStrength = 0.0;
@@ -94,6 +96,7 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
     });
 
     getLanguage();
+    _loadTheme(); // Load current theme
     _fetchBanks();
     _fetchProvinces();
   }
@@ -116,6 +119,15 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       langCodes = prefs.getString('languageCode') ?? 'en';
+    });
+  }
+
+  // Add method to load current theme
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      currentTheme =
+          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     });
   }
 
@@ -382,6 +394,7 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
                     'UserRegisteredSuccessfully',
                   ),
                 ),
+                backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
               ),
             );
             // Navigate to login page after successful registration
@@ -409,7 +422,8 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: const TextStyle(color: Colors.red)),
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: Colors.red.shade700,
       ),
     );
   }
@@ -417,11 +431,27 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: ThemeConfig.getBackgroundColor(
+        currentTheme,
+      ), // Use theme background
       appBar: AppBar(
-        title: Text(SimpleTranslations.get(langCodes, 'RegisterPage')),
+        title: Text(
+          SimpleTranslations.get(langCodes, 'RegisterPage'),
+          style: TextStyle(color: ThemeConfig.getButtonTextColor(currentTheme)),
+        ),
+        backgroundColor: ThemeConfig.getPrimaryColor(
+          currentTheme,
+        ), // Use theme primary color
+        iconTheme: IconThemeData(
+          color: ThemeConfig.getButtonTextColor(currentTheme),
+        ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+              ),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Form(
@@ -531,6 +561,18 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: _loading ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: ThemeConfig.getPrimaryColor(
+                                currentTheme,
+                              ),
+                              foregroundColor: ThemeConfig.getButtonTextColor(
+                                currentTheme,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
                             child: Text(
                               SimpleTranslations.get(langCodes, 'Register'),
                             ),
@@ -540,6 +582,20 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
                         Expanded(
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: ThemeConfig.getPrimaryColor(
+                                currentTheme,
+                              ),
+                              side: BorderSide(
+                                color: ThemeConfig.getPrimaryColor(
+                                  currentTheme,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
                             child: Text(
                               SimpleTranslations.get(langCodes, 'Back'),
                             ),
@@ -562,8 +618,34 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
         children: [
           TextFormField(
             controller: _passwordController,
+            style: TextStyle(color: ThemeConfig.getTextColor(currentTheme)),
             decoration: InputDecoration(
               labelText: SimpleTranslations.get(langCodes, 'password'),
+              labelStyle: TextStyle(
+                color: ThemeConfig.getTextColor(currentTheme),
+              ),
+              prefixIcon: Icon(
+                Icons.lock,
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+              ),
+              border: OutlineInputBorder(
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(
+                    currentTheme,
+                  ).withOpacity(0.5),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                  width: 2,
+                ),
+              ),
             ),
             obscureText: true,
             validator: (v) {
@@ -604,8 +686,34 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
         children: [
           TextFormField(
             controller: _confirmPasswordController,
+            style: TextStyle(color: ThemeConfig.getTextColor(currentTheme)),
             decoration: InputDecoration(
               labelText: SimpleTranslations.get(langCodes, 'ConfirmPassword'),
+              labelStyle: TextStyle(
+                color: ThemeConfig.getTextColor(currentTheme),
+              ),
+              prefixIcon: Icon(
+                Icons.lock_outline,
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+              ),
+              border: OutlineInputBorder(
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(
+                    currentTheme,
+                  ).withOpacity(0.5),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                  width: 2,
+                ),
+              ),
             ),
             obscureText: true,
             validator: (v) {
@@ -652,8 +760,26 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextFormField(
         controller: controller,
+        style: TextStyle(color: ThemeConfig.getTextColor(currentTheme)),
         decoration: InputDecoration(
           labelText: SimpleTranslations.get(langCodes, labelKey),
+          labelStyle: TextStyle(color: ThemeConfig.getTextColor(currentTheme)),
+          border: OutlineInputBorder(
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.5),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+              width: 2,
+            ),
+          ),
         ),
         obscureText: isPassword,
         readOnly: readOnly,
@@ -682,9 +808,29 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: DropdownButtonFormField<int>(
         value: selected,
+        style: TextStyle(color: ThemeConfig.getTextColor(currentTheme)),
         decoration: InputDecoration(
           labelText: SimpleTranslations.get(langCodes, labelKey),
+          labelStyle: TextStyle(color: ThemeConfig.getTextColor(currentTheme)),
+          border: OutlineInputBorder(
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.5),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+              width: 2,
+            ),
+          ),
         ),
+        dropdownColor: ThemeConfig.getBackgroundColor(currentTheme),
+        iconEnabledColor: ThemeConfig.getPrimaryColor(currentTheme),
         items: items.map<DropdownMenuItem<int>>((item) {
           int value;
           String name;
@@ -711,7 +857,13 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
               name = item['name'];
           }
 
-          return DropdownMenuItem<int>(value: value, child: Text(name));
+          return DropdownMenuItem<int>(
+            value: value,
+            child: Text(
+              name,
+              style: TextStyle(color: ThemeConfig.getTextColor(currentTheme)),
+            ),
+          );
         }).toList(),
         onChanged: onChanged,
         validator: (v) => v == null
@@ -736,24 +888,43 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              shape: isSquare ? BoxShape.rectangle : BoxShape.rectangle,
+              color: file != null
+                  ? Colors.grey.shade300
+                  : ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1),
+              border: Border.all(
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(8),
+              shape: BoxShape.rectangle,
               image: file != null
                   ? DecorationImage(image: FileImage(file), fit: BoxFit.cover)
                   : null,
             ),
             child: file == null
-                ? Icon(Icons.camera_alt, color: Colors.white70, size: 30)
+                ? Icon(
+                    Icons.camera_alt,
+                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                    size: 30,
+                  )
                 : null,
           ),
         ),
         const SizedBox(height: 6),
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: ThemeConfig.getTextColor(currentTheme),
+          ),
+        ),
         RichText(
           textAlign: TextAlign.center,
           text: TextSpan(
             children: [TextSpan(text: subtitle)],
-            style: const TextStyle(color: Colors.black),
+            style: TextStyle(
+              color: ThemeConfig.getTextColor(currentTheme).withOpacity(0.7),
+            ),
           ),
         ),
       ],

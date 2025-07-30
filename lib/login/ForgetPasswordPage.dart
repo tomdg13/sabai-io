@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
+import 'package:sabaicub/config/theme.dart'; // Add theme import
 import '../config/config.dart';
 import '../utils/simple_translations.dart';
 // Import your LoginPage here
@@ -29,6 +30,7 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
   String? errorMessage;
   String? successMessage;
   String langCode = 'en';
+  String currentTheme = ThemeConfig.defaultTheme; // Add theme state
 
   // Password strength variables
   bool _isPasswordStrong = false;
@@ -45,6 +47,7 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
   void initState() {
     super.initState();
     _loadLang();
+    _loadTheme(); // Load current theme
     _newPasswordController.addListener(_onPasswordChanged);
     _confirmPasswordController.addListener(_onConfirmPasswordChanged);
   }
@@ -53,6 +56,15 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       langCode = prefs.getString('languageCode') ?? 'en';
+    });
+  }
+
+  // Add method to load current theme
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      currentTheme =
+          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     });
   }
 
@@ -255,12 +267,20 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
           TextFormField(
             controller: _newPasswordController,
             obscureText: _obscureNewPassword,
+            style: TextStyle(color: ThemeConfig.getTextColor(currentTheme)),
             decoration: InputDecoration(
               labelText: SimpleTranslations.get(langCode, 'NewPassword'),
-              prefixIcon: const Icon(Icons.lock),
+              labelStyle: TextStyle(
+                color: ThemeConfig.getTextColor(currentTheme),
+              ),
+              prefixIcon: Icon(
+                Icons.lock,
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+              ),
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscureNewPassword ? Icons.visibility : Icons.visibility_off,
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
                 ),
                 onPressed: () {
                   setState(() {
@@ -270,6 +290,24 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(
+                    currentTheme,
+                  ).withOpacity(0.5),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                  width: 2,
+                ),
               ),
             ),
             validator: (value) {
@@ -313,14 +351,22 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
           TextFormField(
             controller: _confirmPasswordController,
             obscureText: _obscureConfirmPassword,
+            style: TextStyle(color: ThemeConfig.getTextColor(currentTheme)),
             decoration: InputDecoration(
               labelText: SimpleTranslations.get(langCode, 'ConfirmPassword'),
-              prefixIcon: const Icon(Icons.lock_outline),
+              labelStyle: TextStyle(
+                color: ThemeConfig.getTextColor(currentTheme),
+              ),
+              prefixIcon: Icon(
+                Icons.lock_outline,
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+              ),
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscureConfirmPassword
                       ? Icons.visibility
                       : Icons.visibility_off,
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
                 ),
                 onPressed: () {
                   setState(() {
@@ -330,6 +376,24 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(
+                    currentTheme,
+                  ).withOpacity(0.5),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                  width: 2,
+                ),
               ),
             ),
             validator: (v) {
@@ -369,9 +433,20 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: ThemeConfig.getBackgroundColor(
+        currentTheme,
+      ), // Use theme background
       appBar: AppBar(
-        title: Text(SimpleTranslations.get(langCode, 'ResetPassword')),
-        backgroundColor: Colors.blue,
+        title: Text(
+          SimpleTranslations.get(langCode, 'ResetPassword'),
+          style: TextStyle(color: ThemeConfig.getButtonTextColor(currentTheme)),
+        ),
+        backgroundColor: ThemeConfig.getPrimaryColor(
+          currentTheme,
+        ), // Use theme primary color
+        iconTheme: IconThemeData(
+          color: ThemeConfig.getButtonTextColor(currentTheme),
+        ),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -381,25 +456,51 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
               borderRadius: BorderRadius.circular(16),
             ),
             elevation: 6,
+            color: ThemeConfig.getBackgroundColor(
+              currentTheme,
+            ), // Use theme background for card
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.lock_reset, size: 60, color: Colors.blue),
+                  Icon(
+                    Icons.lock_reset,
+                    size: 60,
+                    color: ThemeConfig.getPrimaryColor(
+                      currentTheme,
+                    ), // Use theme primary color
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     SimpleTranslations.get(langCode, 'CreateNewPassword'),
-                    style: theme.textTheme.titleMedium,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: ThemeConfig.getTextColor(
+                        currentTheme,
+                      ), // Use theme text color
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    '${SimpleTranslations.get(langCode, 'phone')}: ${widget.phone}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                    textAlign: TextAlign.center,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.phone,
+                        color: ThemeConfig.getPrimaryColor(currentTheme),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${SimpleTranslations.get(langCode, 'phone')}: ${widget.phone}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: ThemeConfig.getTextColor(
+                            currentTheme,
+                          ).withOpacity(0.7),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 20),
                   Form(
@@ -417,20 +518,32 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       icon: isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
-                                color: Colors.white,
+                                color: ThemeConfig.getButtonTextColor(
+                                  currentTheme,
+                                ),
                                 strokeWidth: 2,
                               ),
                             )
-                          : const Icon(Icons.check),
+                          : Icon(
+                              Icons.check,
+                              color: ThemeConfig.getButtonTextColor(
+                                currentTheme,
+                              ),
+                            ),
                       label: Text(
                         SimpleTranslations.get(langCode, 'UpdatePassword'),
+                        style: TextStyle(
+                          color: ThemeConfig.getButtonTextColor(currentTheme),
+                        ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: ThemeConfig.getPrimaryColor(
+                          currentTheme,
+                        ), // Use theme primary color
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -442,19 +555,65 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
                   if (errorMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 16),
-                      child: Text(
-                        errorMessage!,
-                        style: const TextStyle(color: Colors.red),
-                        textAlign: TextAlign.center,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          border: Border.all(color: Colors.red.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: Colors.red.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                errorMessage!,
+                                style: TextStyle(
+                                  color: Colors.red.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   if (successMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 16),
-                      child: Text(
-                        successMessage!,
-                        style: const TextStyle(color: Colors.green),
-                        textAlign: TextAlign.center,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          border: Border.all(color: Colors.green.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              color: Colors.green.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                successMessage!,
+                                style: TextStyle(
+                                  color: Colors.green.shade700,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                 ],
