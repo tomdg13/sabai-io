@@ -170,7 +170,7 @@ class _CarListPageState extends State<CarListPage> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.yellow,
+                            color: Colors.yellowAccent,
                             border: Border.all(color: Colors.black, width: 1.5),
                             borderRadius: BorderRadius.circular(6),
                           ),

@@ -358,8 +358,10 @@ class SimpleTranslations {
       'try_again': 'Try again',
       'connection_error': 'Connection error',
       'server_error': 'Server error',
+      'searching_nearby_customers': 'Searching for nearby customers...',
     },
     'la': {
+      'searching_nearby_customers': 'ກໍາລັງຊອກຫາລູກຄ້າໃກ້ຄຽງ...',
       // ForgetPasswordPage translations
       'ResetPassword': 'ຣີເຊັດລະຫັດຜ່ານ',
       'CreateNewPassword': 'ສ້າງລະຫັດຜ່ານໃໝ່',

@@ -423,7 +423,10 @@ class _DriverPageState extends State<DriverPage> with WidgetsBindingObserver {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Searching for nearby customers...',
+                            SimpleTranslations.get(
+                              langCodes,
+                              'searching_nearby_customers',
+                            ),
                             style: TextStyle(color: textColor, fontSize: 14),
                           ),
                         ],

@@ -785,6 +785,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage>
           Position? position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.high,
           );
+          // ignore: unnecessary_null_comparison
           if (position != null) {
             driverLat = position.latitude.toString();
             driverLon = position.longitude.toString();
