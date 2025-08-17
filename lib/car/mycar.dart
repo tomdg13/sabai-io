@@ -292,12 +292,12 @@ class _MyCarPageState extends State<MyCarPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.yellow.shade100,
+              color: Colors.yellowAccent,
               border: Border.all(color: Colors.black, width: 2),
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.yellow.withOpacity(0.3),
+                  color: const Color.fromARGB(255, 75, 67, 2).withOpacity(0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sabaicub/config/config.dart';
 import 'package:sabaicub/driver/BookingConfirmPage.dart';
+// import 'package:sabaicub/config/theme_config.dart'; // Add this import
+import 'package:sabaicub/config/theme.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
@@ -19,6 +21,7 @@ class _BookingListPageState extends State<BookingListPage> {
   bool loading = true;
   String? error;
   String langCode = 'en';
+  String currentTheme = 'green'; // Add theme variable
 
   @override
   void initState() {
@@ -29,9 +32,11 @@ class _BookingListPageState extends State<BookingListPage> {
   Future<void> _loadLangAndBookings() async {
     final prefs = await SharedPreferences.getInstance();
     langCode = prefs.getString('languageCode') ?? 'en';
+    currentTheme = prefs.getString('selectedTheme') ?? 'green'; // Load theme
     final driverId = prefs.getString('user');
 
     print('🌐 Language: $langCode');
+    print('🎨 Theme: $currentTheme'); // Add theme logging
     print('👤 Driver ID: $driverId');
 
     if (driverId != null) {
@@ -133,37 +138,64 @@ class _BookingListPageState extends State<BookingListPage> {
   }
 
   Color statusColor(String status) {
+    // Use theme colors instead of hardcoded colors
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+
     switch (status.toLowerCase()) {
       case 'pickup':
-        return Colors.green.shade700;
+        return primaryColor; // Use primary theme color for pickup
       case 'completed':
-        return Colors.blue.shade700;
+        return primaryColor.withOpacity(
+          0.8,
+        ); // Slightly transparent primary for completed
       case 'cancelled':
-        return Colors.red.shade700;
+        return Colors.red.shade700; // Keep red for cancelled (error state)
       default:
-        return Colors.grey.shade600;
+        return Colors.grey.shade600; // Keep grey for unknown status
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: ThemeConfig.getBackgroundColor(
+        currentTheme,
+      ), // Use theme background
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(
+                color: ThemeConfig.getPrimaryColor(
+                  currentTheme,
+                ), // Use theme color
+              ),
+            )
           : error != null
           ? Center(
-              child: Text(error!, style: const TextStyle(color: Colors.red)),
+              child: Text(
+                error!,
+                style: const TextStyle(
+                  color: Colors.red,
+                ), // Keep red for errors
+              ),
             )
           : bookings.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.car_crash, size: 60, color: Colors.grey),
+                  Icon(
+                    Icons.car_crash,
+                    size: 60,
+                    color: Colors.grey, // Keep grey for empty state
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     SimpleTranslations.get(langCode, 'no_data_found'),
-                    style: const TextStyle(color: Colors.black87),
+                    style: TextStyle(
+                      color: ThemeConfig.getTextColor(
+                        currentTheme,
+                      ), // Use theme text color
+                    ),
                   ),
                 ],
               ),
@@ -205,21 +237,44 @@ class _BookingListPageState extends State<BookingListPage> {
                         leading: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.payments, color: Colors.green),
+                            Icon(
+                              // Remove 'const' here
+                              Icons.payments,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                            ),
                             Text(
                               "₭ $formattedPrice",
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
+                                color: ThemeConfig.getTextColor(currentTheme),
                               ),
                             ),
                           ],
                         ),
                         title: Text(
                           " ${booking['passenger_id']}",
-                          style: const TextStyle(fontWeight: FontWeight.w500),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: ThemeConfig.getTextColor(
+                              currentTheme,
+                            ), // Use theme text color
+                          ),
                         ),
-                        subtitle: Text("Time: $formattedTime"),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        subtitle: Text(
+                          "Time: $formattedTime",
+                          style: TextStyle(
+                            color: ThemeConfig.getTextColor(
+                              currentTheme,
+                            ).withOpacity(0.7), // Lighter theme text
+                          ),
+                        ),
+                        trailing: Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: ThemeConfig.getPrimaryColor(
+                            currentTheme,
+                          ), // Use theme color
+                        ),
                         onTap: () {
                           print('📲 Booking tapped: ${booking['book_id']}');
                           Navigator.push(
@@ -245,8 +300,10 @@ class _BookingListPageState extends State<BookingListPage> {
                           ),
                           child: Text(
                             translatedStatus,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: ThemeConfig.getButtonTextColor(
+                                currentTheme,
+                              ), // Use theme button text color
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),

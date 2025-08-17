@@ -9,7 +9,7 @@ android {
     namespace = "com.example.sabaicub"
     // compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
-    compileSdk = 35
+    compileSdk = 36
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -33,8 +33,8 @@ android {
         // minSdk.set(21)
         // targetSdk.set(34)
         applicationId = "com.example.sabaicub"
-        minSdk = 21
-        targetSdk = 35
+        minSdkVersion(flutter.minSdkVersion)
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
     }
