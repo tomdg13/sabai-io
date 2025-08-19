@@ -73,6 +73,11 @@ class _LoginPageState extends State<LoginPage> {
       passCtrl.text = '';
     }
 
+    // Set default company_id if not already set
+    if (!prefs.containsKey('company_id')) {
+      await prefs.setInt('company_id', 1);
+    }
+
     setState(() {
       currecntl = savedLangCode;
       currentTheme = savedTheme;
@@ -87,6 +92,9 @@ class _LoginPageState extends State<LoginPage> {
       await prefs.setString('pass', passCtrl.text);
     } else {
       await prefs.remove('pass');
+
+        // Save company_id preference
+    await prefs.setInt('company_id', 1);
     }
   }
 
@@ -118,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
       msg = '';
     });
 
-    final url = AppConfig.api('/api/auth/loginDriver');
+    final url = AppConfig.api('/api/auth/loginIOuser');
 
     final response = await http.post(
       url,
@@ -130,6 +138,9 @@ class _LoginPageState extends State<LoginPage> {
     );
 
     final data = jsonDecode(response.body);
+
+  //  print(data);
+
     final code = data['responseCode'];
     final token = data['data']?['access_token'];
 

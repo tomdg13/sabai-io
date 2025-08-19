@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-// import 'package:sabaicub/car/CarListPage.dart';
 import 'package:sabaicub/car/mycar.dart' as mycar_ctrl;
 import 'package:sabaicub/driver/DriverPage.dart' as driver_ctrl;
-import 'package:sabaicub/history/ProfilePage.dart' as profile_ctrl;
 import 'package:sabaicub/history/bookingListPage.dart' as booklist_ctrl;
 import 'package:sabaicub/history/MessagePage.dart' as message_ctrl;
-// import 'package:sabaicub/car/CarListPage.dart';
 import 'package:sabaicub/config/theme.dart';
+import 'package:sabaicub/menu/MenuSettingsPage.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 
@@ -38,19 +37,35 @@ class _TabItem {
 class _MenuPageState extends State<MenuPage> {
   int _idx = 0;
   List<_TabItem> tabs = [];
-  String langCodes = '';
+  String langCode = 'en'; // Fixed: consistent variable naming
   String currentTheme = ThemeConfig.defaultTheme;
+  bool isLoading = true;
 
-  Future<void> getLanguage() async {
+  @override
+  void initState() {
+    super.initState();
+    _initializeMenuPage();
+  }
+
+  Future<void> _initializeMenuPage() async {
+    await _loadTheme();
+    await _getLanguage();
+    _buildTabs();
+    setState(() {
+      _idx = widget.tabIndex;
+      isLoading = false;
+    });
+  }
+
+  Future<void> _getLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    langCodes = prefs.getString('languageCode') ?? 'en';
-    debugPrint('Language code: $langCodes');
+    langCode = prefs.getString('languageCode') ?? 'en';
+    debugPrint('Language code: $langCode');
   }
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedTheme =
-        prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+    final savedTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     if (mounted) {
       setState(() {
         currentTheme = savedTheme;
@@ -58,149 +73,46 @@ class _MenuPageState extends State<MenuPage> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadTheme();
-    getLanguage().then((_) {
-      setState(() {
-        tabs = [_homeTab(), ..._getTabs(widget.role)];
-        _idx = widget.tabIndex;
-      });
+  void _buildTabs() {
+    setState(() {
+      tabs = [_homeTab(), ..._getTabs(widget.role)];
     });
   }
 
   _TabItem _homeTab() {
     return _TabItem(
-      SimpleTranslations.get(langCodes, 'history'),
+      SimpleTranslations.get(langCode, 'history'),
       Icons.history,
-      booklist_ctrl.BookingListPage(),
+      const booklist_ctrl.BookingListPage(), // Fixed: added const
     );
   }
 
   List<_TabItem> _getTabs(String role) {
-    final t = (String key) => SimpleTranslations.get(langCodes, key);
+    final t = (String key) => SimpleTranslations.get(langCode, key);
 
     switch (role.toLowerCase()) {
       case 'driver':
       default:
         return [
-          _TabItem(t('driver_dashboard'), Icons.home, driver_ctrl.DriverPage()),
-          _TabItem(t('message'), Icons.message, message_ctrl.MessagePage()),
-          // _TabItem(t('my_car'), Icons.directions_car, CarListPage()),
-          // _TabItem(t('my_car'), Icons.directions_car, const CarListPage()),
-          _TabItem(t('car'), Icons.directions_car, mycar_ctrl.MyCarPage()),
-          _TabItem(t('setting'), Icons.settings, _buildProfilePage()),
+          _TabItem(t('driver_dashboard'), Icons.home, const driver_ctrl.DriverPage()), // Fixed: added const
+          _TabItem(t('message'), Icons.message, const message_ctrl.MessagePage()), // Fixed: added const
+          _TabItem(t('car'), Icons.directions_car, const mycar_ctrl.MyCarPage()), // Fixed: added const
+          _TabItem(t('setting'), Icons.settings, const MenuSettingsPage()), // Fixed: proper instantiation
         ];
     }
   }
 
-  // Enhanced ProfilePage with theme selector
-  Widget _buildProfilePage() {
-    return profile_ctrl.ProfilePage();
-  }
-
-  // ignore: unused_element
-  Widget _buildThemeSelector() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: ThemeConfig.getBackgroundColor(currentTheme),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.palette,
-                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                  size: 24,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  SimpleTranslations.get(langCodes, 'theme'),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: ThemeConfig.getTextColor(currentTheme),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          ...ThemeConfig.getAvailableThemes().map((themeName) {
-            return ListTile(
-              leading: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: ThemeConfig.getPrimaryColor(themeName),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: currentTheme == themeName
-                        ? ThemeConfig.getPrimaryColor(currentTheme)
-                        : Colors.grey.shade300,
-                    width: currentTheme == themeName ? 3 : 1,
-                  ),
-                ),
-                child: currentTheme == themeName
-                    ? Icon(
-                        Icons.check,
-                        color: ThemeConfig.getButtonTextColor(themeName),
-                        size: 16,
-                      )
-                    : null,
-              ),
-              title: Text(
-                ThemeConfig.getThemeDisplayName(themeName),
-                style: TextStyle(
-                  color: ThemeConfig.getTextColor(currentTheme),
-                  fontWeight: currentTheme == themeName
-                      ? FontWeight.w600
-                      : FontWeight.normal,
-                ),
-              ),
-              subtitle: Text(
-                ThemeConfig.getThemeCategory(themeName),
-                style: TextStyle(
-                  color: ThemeConfig.getTextColor(
-                    currentTheme,
-                  ).withOpacity(0.6),
-                  fontSize: 12,
-                ),
-              ),
-              trailing: currentTheme == themeName
-                  ? Icon(
-                      Icons.check_circle,
-                      color: ThemeConfig.getPrimaryColor(currentTheme),
-                    )
-                  : null,
-              onTap: () async {
-                if (widget.setTheme != null) {
-                  await widget.setTheme!(themeName);
-                }
-                setState(() {
-                  currentTheme = themeName;
-                });
-              },
-            );
-          }).toList(),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
+  Future<void> _updateTheme(String themeName) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selectedTheme', themeName);
+    
+    if (widget.setTheme != null) {
+      await widget.setTheme!(themeName);
+    }
+    
+    setState(() {
+      currentTheme = themeName;
+    });
   }
 
   Future<void> _showLogoutDialog() async {
@@ -208,8 +120,14 @@ class _MenuPageState extends State<MenuPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
+        final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+        final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+        final textColor = ThemeConfig.getTextColor(currentTheme);
+        // ignore: unused_local_variable
+        final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+
         return AlertDialog(
-          backgroundColor: ThemeConfig.getBackgroundColor(currentTheme),
+          backgroundColor: backgroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -217,37 +135,33 @@ class _MenuPageState extends State<MenuPage> {
             children: [
               Icon(
                 Icons.logout,
-                color: ThemeConfig.getPrimaryColor(currentTheme),
+                color: primaryColor,
                 size: 24,
               ),
               const SizedBox(width: 8),
               Text(
-                SimpleTranslations.get(langCodes, 'logout'),
+                SimpleTranslations.get(langCode, 'logout'),
                 style: TextStyle(
-                  color: ThemeConfig.getTextColor(currentTheme),
+                  color: textColor,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
           content: Text(
-            SimpleTranslations.get(langCodes, 'logout_confirm'),
+            SimpleTranslations.get(langCode, 'logout_confirm'),
             style: TextStyle(
-              color: ThemeConfig.getTextColor(currentTheme),
+              color: textColor,
               fontSize: 16,
             ),
           ),
           actions: <Widget>[
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
               child: Text(
-                SimpleTranslations.get(langCodes, 'cancel'),
+                SimpleTranslations.get(langCode, 'cancel'),
                 style: TextStyle(
-                  color: ThemeConfig.getTextColor(
-                    currentTheme,
-                  ).withOpacity(0.7),
+                  color: textColor.withOpacity(0.7),
                 ),
               ),
             ),
@@ -255,20 +169,19 @@ class _MenuPageState extends State<MenuPage> {
               onPressed: () async {
                 Navigator.of(context).pop();
                 final prefs = await SharedPreferences.getInstance();
-                await prefs.remove('access_token');
-                if (!mounted) return;
-                Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil('/', (r) => false);
+                await prefs.clear(); // Clear all stored data
+                if (mounted) {
+                  Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
+                }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: Text(SimpleTranslations.get(langCodes, 'logout')),
+              child: Text(SimpleTranslations.get(langCode, 'logout')),
             ),
           ],
         );
@@ -280,151 +193,163 @@ class _MenuPageState extends State<MenuPage> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: ThemeConfig.getBackgroundColor(currentTheme),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.palette,
-                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Select Theme',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: ThemeConfig.getTextColor(currentTheme),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 400),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: ThemeConfig.getAvailableThemes().map((themeName) {
-                    return ListTile(
-                      leading: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: ThemeConfig.getPrimaryColor(themeName),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: currentTheme == themeName
-                                ? ThemeConfig.getPrimaryColor(currentTheme)
-                                : Colors.grey.shade300,
-                            width: currentTheme == themeName ? 3 : 1,
-                          ),
-                        ),
-                        child: currentTheme == themeName
-                            ? Icon(
-                                Icons.check,
-                                color: ThemeConfig.getButtonTextColor(
-                                  themeName,
-                                ),
-                                size: 18,
-                              )
-                            : null,
-                      ),
-                      title: Text(
-                        ThemeConfig.getThemeDisplayName(themeName),
-                        style: TextStyle(
-                          color: ThemeConfig.getTextColor(currentTheme),
-                          fontWeight: currentTheme == themeName
-                              ? FontWeight.w600
-                              : FontWeight.normal,
-                        ),
-                      ),
-                      subtitle: Text(
-                        ThemeConfig.getThemeCategory(themeName),
-                        style: TextStyle(
-                          color: ThemeConfig.getTextColor(
-                            currentTheme,
-                          ).withOpacity(0.6),
-                          fontSize: 12,
-                        ),
-                      ),
-                      trailing: currentTheme == themeName
-                          ? Icon(
-                              Icons.check_circle,
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                            )
-                          : null,
-                      onTap: () async {
-                        if (widget.setTheme != null) {
-                          await widget.setTheme!(themeName);
-                        }
-                        setState(() {
-                          currentTheme = themeName;
-                        });
-                        Navigator.pop(context);
-                      },
-                    );
-                  }).toList(),
+      isScrollControlled: true,
+      builder: (context) {
+        final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+        final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+        final textColor = ThemeConfig.getTextColor(currentTheme);
+
+        return Container(
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
+              
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.palette,
+                      color: primaryColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      SimpleTranslations.get(langCode, 'select_theme'),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const Divider(height: 1),
+              
+              // Theme list
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 400),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: ThemeConfig.getAvailableThemes().map((themeName) {
+                      final isSelected = currentTheme == themeName;
+                      return ListTile(
+                        leading: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: ThemeConfig.getPrimaryColor(themeName),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected
+                                  ? primaryColor
+                                  : Colors.grey.shade300,
+                              width: isSelected ? 3 : 1,
+                            ),
+                          ),
+                          child: isSelected
+                              ? Icon(
+                                  Icons.check,
+                                  color: ThemeConfig.getButtonTextColor(themeName),
+                                  size: 18,
+                                )
+                              : null,
+                        ),
+                        title: Text(
+                          ThemeConfig.getThemeDisplayName(themeName),
+                          style: TextStyle(
+                            color: textColor,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        subtitle: Text(
+                          ThemeConfig.getThemeCategory(themeName),
+                          style: TextStyle(
+                            color: textColor.withOpacity(0.6),
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? Icon(
+                                Icons.check_circle,
+                                color: primaryColor,
+                              )
+                            : null,
+                        onTap: () async {
+                          await _updateTheme(themeName);
+                          Navigator.pop(context);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (tabs.isEmpty) {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+
+    if (isLoading || tabs.isEmpty) {
       return Scaffold(
-        backgroundColor: ThemeConfig.getBackgroundColor(currentTheme),
+        backgroundColor: backgroundColor,
         appBar: AppBar(
-          title: const Text('Loading...'),
-          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-          foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+          title: Text(
+            'Loading...',
+            style: TextStyle(color: buttonTextColor),
+          ),
+          backgroundColor: primaryColor,
+          foregroundColor: buttonTextColor,
           elevation: 0,
         ),
         body: Center(
           child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(
-              ThemeConfig.getPrimaryColor(currentTheme),
-            ),
+            valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
           ),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: ThemeConfig.getBackgroundColor(currentTheme),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: Text(
           tabs[_idx].label,
           style: TextStyle(
-            color: ThemeConfig.getButtonTextColor(currentTheme),
+            color: buttonTextColor,
             fontWeight: FontWeight.w600,
           ),
         ),
-        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+        backgroundColor: primaryColor,
+        foregroundColor: buttonTextColor,
         elevation: 0,
         actions: [
           // Theme selector button
@@ -434,21 +359,20 @@ class _MenuPageState extends State<MenuPage> {
               icon: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: ThemeConfig.getButtonTextColor(
-                    currentTheme,
-                  ).withOpacity(0.1),
+                  color: buttonTextColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.palette,
-                  color: ThemeConfig.getButtonTextColor(currentTheme),
+                  color: buttonTextColor,
                   size: 20,
                 ),
               ),
-              tooltip: 'Change Theme',
+              tooltip: SimpleTranslations.get(langCode, 'change_theme'),
               onPressed: _showThemeSelector,
             ),
           ),
+          
           // Logout button
           Container(
             margin: const EdgeInsets.only(right: 8),
@@ -456,32 +380,30 @@ class _MenuPageState extends State<MenuPage> {
               icon: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: ThemeConfig.getButtonTextColor(
-                    currentTheme,
-                  ).withOpacity(0.1),
+                  color: buttonTextColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.logout,
-                  color: ThemeConfig.getButtonTextColor(currentTheme),
+                  color: buttonTextColor,
                   size: 20,
                 ),
               ),
-              tooltip: SimpleTranslations.get(langCodes, 'logout'),
+              tooltip: SimpleTranslations.get(langCode, 'logout'),
               onPressed: _showLogoutDialog,
             ),
           ),
         ],
       ),
       body: Container(
-        color: ThemeConfig.getBackgroundColor(currentTheme),
+        color: backgroundColor,
         child: tabs[_idx].widget ?? const SizedBox.shrink(),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1),
+              color: primaryColor.withOpacity(0.1),
               blurRadius: 8,
               offset: const Offset(0, -2),
             ),
@@ -492,20 +414,18 @@ class _MenuPageState extends State<MenuPage> {
           onTap: (i) {
             setState(() => _idx = i);
           },
-          selectedItemColor: ThemeConfig.getPrimaryColor(currentTheme),
-          unselectedItemColor: ThemeConfig.getTextColor(
-            currentTheme,
-          ).withOpacity(0.5),
-          backgroundColor: ThemeConfig.getBackgroundColor(currentTheme),
+          selectedItemColor: primaryColor,
+          unselectedItemColor: textColor.withOpacity(0.5),
+          backgroundColor: backgroundColor,
           selectedLabelStyle: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 12,
-            color: ThemeConfig.getPrimaryColor(currentTheme),
+            color: primaryColor,
           ),
           unselectedLabelStyle: TextStyle(
             fontWeight: FontWeight.w500,
             fontSize: 12,
-            color: ThemeConfig.getTextColor(currentTheme).withOpacity(0.5),
+            color: textColor.withOpacity(0.5),
           ),
           items: tabs
               .map(
@@ -518,17 +438,15 @@ class _MenuPageState extends State<MenuPage> {
                     ),
                   ),
                   activeIcon: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
                     decoration: BoxDecoration(
-                      color: ThemeConfig.getPrimaryColor(
-                        currentTheme,
-                      ).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       t.icon,
                       size: 26,
-                      color: ThemeConfig.getPrimaryColor(currentTheme),
+                      color: primaryColor,
                     ),
                   ),
                   label: t.label,

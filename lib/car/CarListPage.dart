@@ -1,111 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:sabaicub/car/CarAddPage.dart';
-import 'package:sabaicub/car/carInfoPage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sabaicub/business/UserAdd.dart';
+import 'package:sabaicub/business/UserEdit.dart';
+import 'package:sabaicub/config/config.dart';
 import 'dart:convert';
-
-import '../config/config.dart'; // Ensure this has AppConfig.api
 import '../utils/simple_translations.dart';
-// import 'carInfoPage.dart';
-// import 'CarAddPage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class CarListPage extends StatefulWidget {
-  const CarListPage({Key? key}) : super(key: key);
+class userpage extends StatefulWidget {
+  const userpage({Key? key}) : super(key: key);
 
   @override
-  State<CarListPage> createState() => _CarListPageState();
+  State<userpage> createState() => _userpageState();
 }
 
-class _CarListPageState extends State<CarListPage> {
-  List<Car> cars = [];
-  List<Car> filteredCars = [];
+String langCode = 'en';
+
+class _userpageState extends State<userpage> {
+  List<User> users = [];
+  List<User> filteredUsers = [];
   bool loading = true;
   String? error;
-  String langCode = 'en';
+
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    debugPrint('Language code: $langCode');
+
     _loadLangCode();
-    fetchCars();
+    fetchUsersByRole('Admin');
     _searchController.addListener(() {
-      filterCars(_searchController.text);
+      filterUsers(_searchController.text);
     });
   }
 
-  Future<void> _loadLangCode() async {
+  void _loadLangCode() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      langCode = prefs.getString('languageCode') ?? 'en';
+      langCode = prefs.getString('langCode') ?? 'en';
     });
-  }
-
-  Future<void> fetchCars() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
-    final role = prefs.getString('role') ?? 'Driver';
-
-    final url = AppConfig.api('/api/car/carRole');
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'role': role}),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          final List raw = data['data'];
-          setState(() {
-            cars = raw.map((e) => Car.fromJson(e)).toList();
-            filteredCars = cars;
-            loading = false;
-          });
-        } else {
-          setState(() {
-            error = data['message'];
-            loading = false;
-          });
-        }
-      } else {
-        setState(() {
-          error = 'Error ${response.statusCode}';
-          loading = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        error = e.toString();
-        loading = false;
-      });
-    }
-  }
-
-  void filterCars(String query) {
-    final q = query.toLowerCase();
-    setState(() {
-      filteredCars = cars.where((car) {
-        return car.license_plate.toLowerCase().contains(q) ||
-            car.car_type_la.toLowerCase().contains(q) ||
-            car.model.toLowerCase().contains(q);
-      }).toList();
-    });
-  }
-
-  void _onAddCar() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const CarAddPage()),
-    );
-    if (result == true) {
-      fetchCars();
-    }
   }
 
   @override
@@ -114,23 +49,301 @@ class _CarListPageState extends State<CarListPage> {
     super.dispose();
   }
 
+  void filterUsers(String query) {
+    final lowerQuery = query.toLowerCase();
+    setState(() {
+      filteredUsers = users.where((user) {
+        final nameLower = user.name.toLowerCase();
+        final phoneLower = user.phone.toLowerCase();
+        return nameLower.contains(lowerQuery) ||
+            phoneLower.contains(lowerQuery);
+      }).toList();
+    });
+  }
+
+  Future<void> fetchUsersByRole(String role) async {
+    if (!mounted) return;
+    setState(() {
+      loading = true;
+      error = null;
+    });
+
+    final url = AppConfig.api('/api/iouser/iouserRole');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${token}',
+        },
+        body: jsonEncode({'role': role}),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'success') {
+          final List<dynamic> rawUsers = data['data'] ?? [];
+          users = rawUsers.map((e) => User.fromJson(e)).toList();
+          filteredUsers = users;
+          setState(() => loading = false);
+        } else {
+          setState(() {
+            loading = false;
+            error = data['message'] ?? 'Unknown error';
+          });
+        }
+      } else {
+        setState(() {
+          loading = false;
+          error = 'Server error: ${response.statusCode}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        loading = false;
+        error = 'Failed to load data: $e';
+      });
+    }
+  }
+
+  void _onAddUser() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => UserAddPage()),
+    );
+
+    if (result == true) {
+      fetchUsersByRole('Admin');
+    }
+  }
+
+  Widget _buildUserCard(User user) {
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => UserEditPage(
+                userData: {
+                  'username': user.username,
+                  'phone': user.phone,
+                  'email': user.email,
+                  'name': user.name,
+                  'photo': user.photo,
+                  'photo_id': user.photo_id,
+                  'document_id': user.documentId ?? '',
+                  'bank_name': user.bankName ?? '',
+                  'province_name': user.provinceName ?? '',
+                  'district_name': user.districtName ?? '',
+                  'village_name': user.villageName ?? '',
+                  'account_no': user.accountNo ?? '',
+                  'account_name': user.accountName ?? '',
+                },
+              ),
+            ),
+          );
+
+          if (result == true) {
+            fetchUsersByRole('Admin');
+          }
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // User Avatar
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: CircleAvatar(
+                  radius: 24,
+                  backgroundImage: user.photo.isNotEmpty
+                      ? NetworkImage(user.photo)
+                      : const AssetImage('assets/images/default_user.png') as ImageProvider,
+                  backgroundColor: Colors.blue.withOpacity(0.2),
+                  child: user.photo.isEmpty
+                      ? Icon(Icons.person, color: Colors.blue, size: 24)
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // User Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.phone, size: 16, color: Colors.grey[600]),
+                        const SizedBox(width: 4),
+                        Text(
+                          user.phone,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (user.email.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(Icons.email, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              user.email,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // Edit Icon
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.blue,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddUserCard() {
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: _onAddUser,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.add, color: Colors.green, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  SimpleTranslations.get(langCode, 'add_user'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.green,
+                  size: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Center(child: CircularProgressIndicator());
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(SimpleTranslations.get(langCode, 'users')),
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     if (error != null) {
-      return Center(
-        child: Text(error!, style: const TextStyle(color: Colors.red)),
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(SimpleTranslations.get(langCode, 'users')),
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(error!, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => fetchUsersByRole('Admin'),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
     return Scaffold(
+      appBar: AppBar(
+        title: Text(SimpleTranslations.get(langCode, 'users')),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+      ),
       body: Column(
         children: [
+          // Search Field
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -142,138 +355,85 @@ class _CarListPageState extends State<CarListPage> {
               ),
             ),
           ),
+          
+          // Users List
           Expanded(
-            child: filteredCars.isEmpty
+            child: filteredUsers.isEmpty && users.isNotEmpty
                 ? Center(
                     child: Text(
-                      SimpleTranslations.get(langCode, 'no_cars_found'),
+                      SimpleTranslations.get(langCode, 'no_users_found'),
                     ),
                   )
                 : ListView.builder(
-                    itemCount: filteredCars.length,
-                    itemBuilder: (ctx, i) {
-                      final car = filteredCars[i];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: car.picture1.isNotEmpty
-                              ? NetworkImage(car.picture1)
-                              : const AssetImage(
-                                      'assets/images/default_car.png',
-                                    )
-                                    as ImageProvider,
-                        ),
-                        title: Text(car.car_type_la),
-                        subtitle: Text(car.model),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.yellowAccent,
-                            border: Border.all(color: Colors.black, width: 1.5),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            car.license_plate_no,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                              letterSpacing: 0.6,
-                            ),
-                          ),
-                        ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => carInfoPage(
-                                carData: {
-                                  'brand': car.brand,
-                                  'model': car.model,
-                                  'license_plate': car.license_plate,
-                                  'pr_name': car.pr_name,
-                                  'car_type_id': car.car_type_la,
-                                  'picture1': car.picture1,
-                                  'picture2': car.picture2,
-                                  'picture3': car.picture3,
-                                  'picture_id': car.picture_id,
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      );
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: filteredUsers.length + 1, // +1 for add user card
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        // First item is always the "Add User" card
+                        return _buildAddUserCard();
+                      } else {
+                        // Other items are user cards
+                        final userIndex = index - 1;
+                        if (userIndex < filteredUsers.length) {
+                          return _buildUserCard(filteredUsers[userIndex]);
+                        }
+                        return Container(); // Fallback
+                      }
                     },
                   ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _onAddCar,
-        backgroundColor: Colors.blue,
-        tooltip: SimpleTranslations.get(langCode, 'add_car'),
-        child: const Icon(Icons.add),
-      ),
     );
   }
 }
 
-class Car {
-  final int carId;
-  final String license_plate;
-  final String model;
-  final String brand;
-  final String car_type;
-  final String license_plate_no;
-  final String pr_name;
-  final String car_type_la;
-  final String picture1;
-  final String picture2;
-  final String picture3;
-  final String picture_id;
-
-  Car({
-    required this.carId,
-    required this.license_plate,
-    required this.model,
-    required this.brand,
-    required this.car_type,
-    required this.license_plate_no,
-    required this.pr_name,
-    required this.car_type_la,
-    required this.picture1,
-    required this.picture2,
-    required this.picture3,
-    required this.picture_id,
+class User {
+  final String username;
+  final String name;
+  final String email;
+  final String phone;
+  final String photo;
+  final String photo_id;
+  final String? documentId;
+  final String? bankName;
+  final String? provinceName;
+  final String? districtName;
+  final String? villageName;
+  final String? accountNo;
+  final String? accountName;
+  
+  User({
+    required this.username,
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.photo,
+    required this.photo_id,
+    this.documentId,
+    this.bankName,
+    this.provinceName,
+    this.districtName,
+    this.villageName,
+    this.accountNo,
+    this.accountName,
   });
-
-  factory Car.fromJson(Map<String, dynamic> json) {
-    return Car(
-      carId: json['car_id'] ?? 0,
-      license_plate: json['license_plate'] ?? '',
-      model: json['model'] ?? '',
-      brand: json['brand'] ?? '',
-      car_type: json['car_type'] ?? '',
-      license_plate_no: json['license_plate_no'] ?? '',
-      pr_name: json['pr_name'] ?? '',
-      car_type_la: json['car_type_la'] ?? '',
-      picture1: json['picture1'] ?? '',
-      picture2: json['picture2'] ?? '',
-      picture3: json['picture3'] ?? '',
-      picture_id: json['picture_id'] ?? '',
+  
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      username: json['username'] ?? '',
+      name: json['name'] ?? '',
+      email: json['email'] ?? '',
+      phone: json['phone'] ?? '',
+      photo: json['photo'] ?? '',
+      photo_id: json['photo_id'] ?? '',
+      documentId: json['document_id'],
+      bankName: json['bank_name'],
+      provinceName: json['province_name'],
+      districtName: json['district_name'],
+      villageName: json['village_name'],
+      accountNo: json['account_no'],
+      accountName: json['account_name'],
     );
   }
-
-  Map<String, dynamic> toJson() => {
-    'car_id': carId,
-    'license_plate': license_plate,
-    'model': model,
-    'picture1': picture1,
-    'picture2': picture2,
-    'picture3': picture3,
-    'picture_id': picture_id,
-  };
 }
