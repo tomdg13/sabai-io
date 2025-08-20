@@ -464,6 +464,135 @@ class SimpleTranslations {
       "unit_measure_hint": "piece, kg, liter, etc.",
       "description_hint": "Product description...",
       "notes_hint": "Additional notes about the product...",
+      // Authentication & Loading
+      'auth_token_not_found': 'Authentication token not found. Please login again.',
+      'session_expired': 'Session expired. Please login again.',
+      'failed_to_load_inventory': 'Failed to load inventory',
+      
+      // Page Title & Navigation
+      'add_stock': 'Add Stock',
+      'create_new': 'Create New',
+      'add_to_existing': 'Add to Existing',
+      
+      // Form Labels - Basic Info
+      'product_id': 'Product ID',
+      'location_id': 'Location ID',
+      'cost_price_lak': 'Cost Price (LAK)',
+      'unit_price_lak': 'Unit Price (LAK)',
+      'reserved_quantity_optional': 'Reserved Quantity (Optional)',
+      'batch_number_optional': 'Batch Number (Optional)',
+      'block_location': 'Block Location',
+      'expire_date': 'Expire Date',
+      
+      // Form Labels - Dropdowns
+      'currency': 'Currency',
+      'reserved': 'Reserved',
+      
+      // Sections & Headers
+      'create_new_inventory_item': 'Create New Inventory Item',
+      'add_stock_to_existing_item': 'Add Stock to Existing Item',
+      'select_inventory_item': 'Select Inventory Item',
+      'selected_item_details': 'Selected Item Details',
+      'product_location_info': 'Product & Location Information',
+      'stock_info': 'Stock Information',
+      'pricing_info': 'Pricing Information',
+      'additional_info': 'Additional Information',
+      
+      // Form Actions & Buttons
+      'create_inventory_item': 'Create Inventory Item',
+      'quantity_to_add': 'Quantity to Add',
+      'reason_for_stock_addition': 'Reason for Stock Addition',
+      'add_stock_button': 'Add Stock',
+      'clear_form': 'Clear Form',
+      'reset': 'Reset',
+      
+      // Success Messages
+      'inventory_created_success': 'Inventory item created successfully!',
+      'stock_added_success': 'Stock added successfully!',
+      'form_submitted_success': 'Form submitted successfully!',
+      'data_saved_success': 'Data saved successfully!',
+      
+      // Error Messages - API
+      'failed_to_create_inventory': 'Failed to create inventory',
+      'failed_to_add_stock': 'Failed to add stock',
+      'error_creating_inventory': 'Error creating inventory',
+      'error_adding_stock': 'Error adding stock',
+      'api_error': 'API error occurred',
+      
+      // Error Messages - Validation
+      'fill_all_required_fields': 'Please fill all required fields',
+      'enter_valid_number': 'Please enter a valid number',
+      'enter_valid_price': 'Please enter a valid price',
+      'enter_valid_email': 'Please enter a valid email',
+      'enter_valid_phone': 'Please enter a valid phone number',
+      'invalid_phone_format': 'Invalid phone format',
+      'password_too_short': 'Password is too short',
+      'passwords_dont_match': 'Passwords don\'t match',
+      
+      // Inventory Related Terms
+      'location': 'Location',
+      'current_stock': 'Current Stock',
+      'available': 'Available',
+      'available_quantity': 'Available Quantity',
+      'total_stock': 'Total Stock',
+      'in_stock': 'In Stock',
+      'out_of_stock': 'Out of Stock',
+      'inventory': 'Inventory',
+      'warehouse': 'Warehouse',
+      'supplier': 'Supplier',
+      'batch': 'Batch',
+      'expiry': 'Expiry',
+      
+      // Dropdown Hints & Placeholders
+      'select_inventory_item_hint': 'Select an inventory item',
+      'select_product': 'Select Product',
+      'select_location': 'Select Location',
+      'select_supplier': 'Select Supplier',
+      'choose_option': 'Choose an option',
+      'no_options_available': 'No options available',
+      
+      // General UI Text
+      'filter': 'Filter',
+      'sort': 'Sort',
+      'view': 'View',
+      'details': 'Details',
+      'information': 'Information',
+      'profile': 'Profile',
+
+      
+      // Date & Time
+      'last_week': 'Last Week',
+      'last_month': 'Last Month',
+      'date_format': 'MM/dd/yyyy',
+      
+      // Confirmation Messages
+      'are_you_sure': 'Are you sure?',
+      'confirm_logout': 'Are you sure you want to logout?',
+      'yes': 'Yes',
+      'no': 'No',
+      'ok': 'OK',
+      
+      // Status Messages
+      'processing': 'Processing...',
+      'operation_completed': 'Operation completed',
+      'operation_failed': 'Operation failed',
+      'no_results': 'No results found',
+
+      
+  
+ 
+      
+      
+      // Barcode Scanner
+      'scan_barcode': 'Scan Barcode',
+      'scan_instruction': 'Point your camera at a barcode to scan',
+      'camera_permission_denied': 'Camera permission denied. Please enable camera access in settings.',
+      'product_found_success': 'Product found successfully!',
+      'product_not_found': 'Product not found with this barcode',
+      'failed_to_lookup_product': 'Failed to lookup product',
+      'error_looking_up_product': 'Error looking up product',
+      'scanned_product': 'Scanned Product',
+
     },
     'la': {
       'searching_nearby_customers': 'ກໍາລັງຊອກຫາລູກຄ້າໃກ້ຄຽງ...',
@@ -925,6 +1054,131 @@ class SimpleTranslations {
       "description_hint": "ລາຍລະອຽດສິນຄ້າ...",
       "notes_hint": "ໝາຍເຫດເພີ່ມເຕີມກ່ຽວກັບສິນຄ້າ...",
 
+   // Authentication & Loading
+      'auth_token_not_found': 'ບໍ່ພົບໂທເຄນການເຂົ້າສູ່ລະບົບ. ກະລຸນາເຂົ້າສູ່ລະບົບອີກຄັ້ງ.',
+      'session_expired': 'ໝົດອາຍຸການເຂົ້າສູ່ລະບົບ. ກະລຸນາເຂົ້າສູ່ລະບົບອີກຄັ້ງ.',
+      'failed_to_load_inventory': 'ໂຫຼດຂໍ້ມູນສິນຄ້າບໍ່ສຳເລັດ',
+      
+      // Page Title & Navigation
+      'add_stock': 'ເພີ່ມສິນຄ້າ',
+      'create_new': 'ສ້າງໃໝ່',
+      'add_to_existing': 'ເພີ່ມໃສ່ທີ່ມີຢູ່',
+      
+      // Form Labels - Basic Info
+      'product_id': 'ລະຫັດສິນຄ້າ',
+      'location_id': 'ລະຫັດສະຖານທີ່',
+      'cost_price_lak': 'ລາຄາຕົ້ນທຶນ (ກີບ)',
+      'unit_price_lak': 'ລາຄາຂາຍ (ກີບ)',
+      'reserved_quantity_optional': 'ຈຳນວນສຳຮອງ (ທາງເລືອກ)',
+      'batch_number_optional': 'ເລກລອດ (ທາງເລືອກ)',
+      'block_location': 'ບ່ອນເກັບ',
+      'expire_date': 'ວັນໝົດອາຍຸ',
+      
+      // Form Labels - Dropdowns
+      'currency': 'ສະກຸນເງິນ',
+      'reserved': 'ສຳຮອງ',
+      
+      // Sections & Headers
+      'create_new_inventory_item': 'ສ້າງລາຍການສິນຄ້າໃໝ່',
+      'add_stock_to_existing_item': 'ເພີ່ມສິນຄ້າໃສ່ລາຍການທີ່ມີຢູ່',
+      'select_inventory_item': 'ເລືອກລາຍການສິນຄ້າ',
+      'selected_item_details': 'ລາຍລະອຽດລາຍການທີ່ເລືອກ',
+      'product_location_info': 'ຂໍ້ມູນສິນຄ້າ ແລະ ສະຖານທີ່',
+      'stock_info': 'ຂໍ້ມູນສິນຄ້າ',
+      'pricing_info': 'ຂໍ້ມູນລາຄາ',
+      'additional_info': 'ຂໍ້ມູນເພີ່ມເຕີມ',
+      
+      // Form Actions & Buttons
+      'create_inventory_item': 'ສ້າງລາຍການສິນຄ້າ',
+      'quantity_to_add': 'ຈຳນວນທີ່ຈະເພີ່ມ',
+      'reason_for_stock_addition': 'ເຫດຜົນການເພີ່ມສິນຄ້າ',
+      'add_stock_button': 'ເພີ່ມສິນຄ້າ',
+      'clear_form': 'ລຶບຂໍ້ມູນ',
+      'reset': 'ຣີເຊັດ',
+      
+      // Success Messages
+      'inventory_created_success': 'ສ້າງລາຍການສິນຄ້າສຳເລັດແລ້ວ!',
+      'stock_added_success': 'ເພີ່ມສິນຄ້າສຳເລັດແລ້ວ!',
+      'form_submitted_success': 'ສົ່ງຟອມສຳເລັດແລ້ວ!',
+      'data_saved_success': 'ບັນທຶກຂໍ້ມູນສຳເລັດແລ້ວ!',
+      
+      // Error Messages - API
+      'failed_to_create_inventory': 'ສ້າງລາຍການສິນຄ້າບໍ່ສຳເລັດ',
+      'failed_to_add_stock': 'ເພີ່ມສິນຄ້າບໍ່ສຳເລັດ',
+      'error_creating_inventory': 'ເກີດຂໍ້ຜິດພາດໃນການສ້າງລາຍການສິນຄ້າ',
+      'error_adding_stock': 'ເກີດຂໍ້ຜິດພາດໃນການເພີ່ມສິນຄ້າ',
+      'api_error': 'ເກີດຂໍ້ຜິດພາດ API',
+      
+      // Error Messages - Validation
+      'fill_all_required_fields': 'ກະລຸນາປ້ອນຂໍ້ມູນທີ່ຈຳເປັນໃຫ້ຄົບ',
+      'enter_valid_number': 'ກະລຸນາປ້ອນຕົວເລກທີ່ຖືກຕ້ອງ',
+      'enter_valid_price': 'ກະລຸນາປ້ອນລາຄາທີ່ຖືກຕ້ອງ',
+      'enter_valid_email': 'ກະລຸນາປ້ອນອີເມວທີ່ຖືກຕ້ອງ',
+      'enter_valid_phone': 'ກະລຸນາປ້ອນເບີໂທທີ່ຖືກຕ້ອງ',
+      'invalid_phone_format': 'ຮູບແບບເບີໂທບໍ່ຖືກຕ້ອງ',
+      'password_too_short': 'ລະຫັດຜ່ານສັ້ນເກີນໄປ',
+      'passwords_dont_match': 'ລະຫັດຜ່ານບໍ່ກົງກັນ',
+      
+      // Inventory Related Terms
+      'location': 'ສະຖານທີ່',
+      'current_stock': 'ສະຕ໋ອກປັດຈຸບັນ',
+      'available': 'ມີໃຫ້',
+      'available_quantity': 'ຈຳນວນທີ່ມີ',
+      'total_stock': 'ສະຕ໋ອກທັງໝົດ',
+      'in_stock': 'ມີສິນຄ້າ',
+      'out_of_stock': 'ໝົດສິນຄ້າ',
+      'inventory': 'ສິນຄ້າຄົງຄັງ',
+      'warehouse': 'ສາງເກັບສິນຄ້າ',
+      'supplier': 'ຜູ້ສະໜອງ',
+      'batch': 'ລອດ',
+      'expiry': 'ໝົດອາຍຸ',
+      
+      // Dropdown Hints & Placeholders
+      'select_inventory_item_hint': 'ເລືອກລາຍການສິນຄ້າ',
+      'select_product': 'ເລືອກສິນຄ້າ',
+      'select_location': 'ເລືອກສະຖານທີ່',
+      'select_supplier': 'ເລືອກຜູ້ສະໜອງ',
+      'choose_option': 'ເລືອກຕົວເລືອກ',
+      'no_options_available': 'ບໍ່ມີຕົວເລືອກ',
+      
+      // General UI Text
+
+      'filter': 'ຕອງ',
+      'sort': 'ຈັດຮຽງ',
+      'view': 'ເບິ່ງ',
+      'details': 'ລາຍລະອຽດ',
+      'information': 'ຂໍ້ມູນ',
+      'profile': 'ໂປຣໄຟລ໌',
+
+      
+      // Date & Time
+      'last_week': 'ອາທິດແລ້ວ',
+      'last_month': 'ເດືອນແລ້ວ',
+      'date_format': 'ວັນ/ເດືອນ/ປີ',
+      
+      // Confirmation Messages
+      'are_you_sure': 'ທ່ານແນ່ໃຈບໍ?',
+      'confirm_logout': 'ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການອອກຈາກລະບົບ?',
+      'yes': 'ແມ່ນ',
+      'no': 'ບໍ່',
+      'ok': 'ຕົກລົງ',
+      
+      // Status Messages
+      'processing': 'ກຳລັງປະມວນຜົນ...',
+
+      'operation_completed': 'ດຳເນີນການສຳເລັດ',
+      'operation_failed': 'ດຳເນີນການບໍ່ສຳເລັດ',
+
+      'no_results': 'ບໍ່ພົບຜົນການຄົ້ນຫາ',
+       'scan_barcode': 'ສະແກນບາໂຄດ',
+      'scan_instruction': 'ຊີ້ກ້ອງຂອງທ່ານໃສ່ບາໂຄດເພື່ອສະແກນ',
+      'camera_permission_denied': 'ການອະນຸຍາດກ້ອງຖືກປະຕິເສດ. ກະລຸນາເປີດການເຂົ້າເຖິງກ້ອງໃນການຕັ້ງຄ່າ.',
+      'product_found_success': 'ພົບສິນຄ້າສຳເລັດແລ້ວ!',
+      'product_not_found': 'ບໍ່ພົບສິນຄ້າດ້ວຍບາໂຄດນີ້',
+      'failed_to_lookup_product': 'ຄົ້ນຫາສິນຄ້າບໍ່ສຳເລັດ',
+      'error_looking_up_product': 'ເກີດຂໍ້ຜິດພາດໃນການຄົ້ນຫາສິນຄ້າ',
+      'scanned_product': 'ສິນຄ້າທີ່ສະແກນ',
+   
       
     },
   };

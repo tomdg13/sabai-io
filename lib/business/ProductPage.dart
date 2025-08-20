@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:sabaicub/business/ProductAdd.dart';
+import 'package:sabaicub/business/ProductAdd.dart'; // Make sure this import is correct
 import 'package:sabaicub/business/ProductEdit.dart';
 import 'package:sabaicub/config/config.dart';
 import 'package:sabaicub/config/theme.dart';
@@ -141,7 +141,6 @@ class _ProductPageState extends State<ProductPage> {
 
         if (data['status'] == 'success') {
           final List<dynamic> rawProducts = data['data'] ?? [];
-          Product._parseCount = 0;
           products = rawProducts.map((e) => Product.fromJson(e)).toList();
 
           _updateCategories();
@@ -231,11 +230,12 @@ class _ProductPageState extends State<ProductPage> {
     }
   }
 
+  // FIXED: Use the local companyId variable instead of widget.companyId
   void _onAddProduct() async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ProductAddPage(companyId: companyId),
+        builder: (context) => ProductAddPage(companyId: companyId), // Fixed here
       ),
     );
 
@@ -245,138 +245,432 @@ class _ProductPageState extends State<ProductPage> {
   }
 
   Widget _buildFilterRow() {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+    
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: ThemeConfig.getBackgroundColor(currentTheme),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           // Category Filter
           Expanded(
             flex: 2,
-            child: DropdownButtonFormField<String>(
-              value: selectedCategory,
-              decoration: InputDecoration(
-                labelText: SimpleTranslations.get(langCode, 'category'),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                    width: 2,
-                  ),
-                ),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: primaryColor.withOpacity(0.2)),
               ),
-              items: categories.map((category) {
-                return DropdownMenuItem(value: category, child: Text(category));
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedCategory = value!;
-                });
-                filterProducts(_searchController.text);
-              },
+              child: DropdownButtonFormField<String>(
+                value: selectedCategory,
+                style: TextStyle(color: textColor, fontSize: 14),
+                dropdownColor: ThemeConfig.getBackgroundColor(currentTheme),
+                decoration: InputDecoration(
+                  labelText: SimpleTranslations.get(langCode, 'category'),
+                  labelStyle: TextStyle(color: textColor.withOpacity(0.7)),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  prefixIcon: Icon(Icons.category, color: primaryColor, size: 20),
+                ),
+                items: categories.map((category) {
+                  return DropdownMenuItem(
+                    value: category, 
+                    child: Text(
+                      category,
+                      style: TextStyle(color: textColor),
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedCategory = value!;
+                  });
+                  filterProducts(_searchController.text);
+                },
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          // Status Filter
-          // Expanded(
-          //   flex: 1,
-          //   child: DropdownButtonFormField<String>(
-          //     value: selectedStatus,
-          //     decoration: InputDecoration(
-          //       labelText: SimpleTranslations.get(langCode, 'status'),
-          //       border: OutlineInputBorder(
-          //         borderRadius: BorderRadius.circular(8),
-          //       ),
-          //       contentPadding: const EdgeInsets.symmetric(
-          //         horizontal: 12,
-          //         vertical: 8,
-          //       ),
-          //       focusedBorder: OutlineInputBorder(
-          //         borderRadius: BorderRadius.circular(8),
-          //         borderSide: BorderSide(
-          //           color: ThemeConfig.getPrimaryColor(currentTheme),
-          //           width: 2,
-          //         ),
-          //       ),
-          //     ),
-          //     items: [
-          //       DropdownMenuItem(
-          //         value: 'all',
-          //         child: Text(SimpleTranslations.get(langCode, 'all')),
-          //       ),
-          //       DropdownMenuItem(
-          //         value: 'active',
-          //         child: Text(SimpleTranslations.get(langCode, 'active')),
-          //       ),
-          //       DropdownMenuItem(
-          //         value: 'inactive',
-          //         child: Text(SimpleTranslations.get(langCode, 'inactive')),
-          //       ),
-          //       DropdownMenuItem(
-          //         value: 'discontinued',
-          //         child: Text(SimpleTranslations.get(langCode, 'discontinued')),
-          //       ),
-          //     ],
-          //     onChanged: (value) {
-          //       setState(() {
-          //         selectedStatus = value!;
-          //       });
-          //       filterProducts(_searchController.text);
-          //     },
-          //   ),
-          // ),
-       
+          const SizedBox(width: 16),
+          
+          // Quick actions
+          Container(
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  selectedCategory = 'All';
+                  selectedStatus = 'active';
+                });
+                filterProducts('');
+              },
+              icon: Icon(Icons.clear_all, color: primaryColor),
+              tooltip: SimpleTranslations.get(langCode, 'clear_filters'),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (loading) {
-      return Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(
-              ThemeConfig.getPrimaryColor(currentTheme),
+  Widget _buildSearchBar() {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: primaryColor.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: primaryColor.withOpacity(0.2)),
+        ),
+        child: TextField(
+          controller: _searchController,
+          style: TextStyle(color: textColor),
+          decoration: InputDecoration(
+            labelText: SimpleTranslations.get(langCode, 'search'),
+            labelStyle: TextStyle(color: textColor.withOpacity(0.7)),
+            hintText: SimpleTranslations.get(langCode, 'search_hint'),
+            hintStyle: TextStyle(color: textColor.withOpacity(0.5)),
+            prefixIcon: Icon(Icons.search, color: primaryColor),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: Icon(Icons.clear, color: textColor.withOpacity(0.7)),
+                    onPressed: () {
+                      _searchController.clear();
+                      filterProducts('');
+                    },
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductCard(Product product) {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(color: primaryColor.withOpacity(0.1)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProductEditPage(
+                  productData: {
+                    'product_code': product.productCode,
+                    'product_name': product.productName,
+                    'sku': product.sku,
+                    'description': product.description,
+                    'category': product.category,
+                    'brand': product.brand,
+                    'weight': product.weight,
+                    'dimensions': product.dimensions,
+                    'barcode': product.barcode,
+                    'supplier_id': product.supplierId,
+                    'status': product.status,
+                    'notes': product.notes,
+                  },
+                ),
+              ),
+            );
+
+            if (result == true || result == 'deleted') {
+              fetchProductsByCompany();
+
+              if (result == 'deleted') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      SimpleTranslations.get(
+                        langCode,
+                        'product_discontinued_successfully',
+                      ),
+                    ),
+                    backgroundColor: ThemeConfig.getThemeColors(
+                      currentTheme,
+                    )['success'],
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                );
+              }
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Product Icon
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(product.status).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _getStatusColor(product.status).withOpacity(0.3),
+                    ),
+                  ),
+                  child: Icon(
+                    _getProductIcon(product.category),
+                    color: _getStatusColor(product.status),
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                
+                // Product Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Product Name
+                      Text(
+                        product.productName,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      // Product Code and Category
+                      if (product.productCode != null || product.category != null)
+                        Text(
+                          [
+                            if (product.productCode != null) product.productCode!,
+                            if (product.category != null) product.category!,
+                          ].join(' • '),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: textColor.withOpacity(0.6),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      const SizedBox(height: 8),
+                      
+                      // Stock and Status Row
+                      Row(
+                        children: [
+                          // Stock Info
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getStockColor(product.stockQuantity).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.inventory,
+                                  size: 14,
+                                  color: _getStockColor(product.stockQuantity),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${SimpleTranslations.get(langCode, 'Stock')}: ${product.stockQuantity ?? 0}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: _getStockColor(product.stockQuantity),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          
+                          // Status Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(product.status).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _getStatusText(product.status),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: _getStatusColor(product.status),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Arrow Icon
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: textColor.withOpacity(0.3),
+                ),
+              ],
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    if (error != null) {
+  Widget _buildStatsRow() {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    ThemeConfig.getTextColor(currentTheme);
+    
+    final totalProducts = products.length;
+    final activeProducts = products.where((p) => p.status == 'active').length;
+    final lowStockProducts = products.where((p) => (p.stockQuantity ?? 0) <= 5).length;
+    
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            primaryColor.withOpacity(0.1),
+            primaryColor.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: primaryColor.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildStatItem(
+              icon: Icons.inventory_2,
+              label: 'Total',
+              value: '$totalProducts',
+              color: primaryColor,
+            ),
+          ),
+          Container(width: 1, height: 40, color: primaryColor.withOpacity(0.2)),
+          Expanded(
+            child: _buildStatItem(
+              icon: Icons.check_circle,
+              label: 'Active',
+              value: '$activeProducts',
+              color: Colors.green,
+            ),
+          ),
+          Container(width: 1, height: 40, color: primaryColor.withOpacity(0.2)),
+          Expanded(
+            child: _buildStatItem(
+              icon: Icons.warning,
+              label: 'Low Stock',
+              value: '$lowStockProducts',
+              color: Colors.orange,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    final textColor = ThemeConfig.getTextColor(currentTheme);
+    
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: textColor.withOpacity(0.6),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+    
+    if (loading) {
       return Scaffold(
+        backgroundColor: backgroundColor,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.error_outline,
-                size: 80,
-                color: ThemeConfig.getThemeColors(currentTheme)['error'],
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                strokeWidth: 3,
               ),
               const SizedBox(height: 16),
               Text(
-                error!,
+                'Loading products...',
                 style: TextStyle(
-                  color: ThemeConfig.getThemeColors(currentTheme)['error'],
+                  color: ThemeConfig.getTextColor(currentTheme).withOpacity(0.7),
+                  fontSize: 16,
                 ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: fetchProductsByCompany,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                  foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-                ),
-                child: Text(SimpleTranslations.get(langCode, 'retry')),
               ),
             ],
           ),
@@ -384,53 +678,98 @@ class _ProductPageState extends State<ProductPage> {
       );
     }
 
+    if (error != null) {
+      return Scaffold(
+        backgroundColor: backgroundColor,
+        body: Center(
+          child: Container(
+            margin: const EdgeInsets.all(32),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.withOpacity(0.3)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: Colors.red,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Oops! Something went wrong',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: ThemeConfig.getTextColor(currentTheme),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  error!,
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: fetchProductsByCompany,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(SimpleTranslations.get(langCode, 'retry')),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: buttonTextColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: Text(
           '${SimpleTranslations.get(langCode, 'products')} (${filteredProducts.length})',
+          style: TextStyle(
+            color: buttonTextColor,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+        backgroundColor: primaryColor,
+        foregroundColor: buttonTextColor,
+        elevation: 0,
         actions: [
           IconButton(
             onPressed: fetchLowStockProducts,
-            icon: const Icon(Icons.warning),
+            icon: const Icon(Icons.warning_amber_rounded),
             tooltip: SimpleTranslations.get(langCode, 'check_low_stock'),
           ),
           IconButton(
             onPressed: fetchProductsByCompany,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             tooltip: SimpleTranslations.get(langCode, 'refresh'),
           ),
         ],
       ),
       body: Column(
         children: [
+          // Stats Row
+          _buildStatsRow(),
+          
           // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: SimpleTranslations.get(langCode, 'search'),
-                hintText: SimpleTranslations.get(langCode, 'search_hint'),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                    width: 2,
-                  ),
-                ),
-              ),
-            ),
-          ),
+          _buildSearchBar(),
 
           // Filter Row
           _buildFilterRow(),
@@ -439,142 +778,124 @@ class _ProductPageState extends State<ProductPage> {
           Expanded(
             child: products.isEmpty
                 ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.inventory_2_outlined,
-                          size: 80,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          SimpleTranslations.get(langCode, 'no_products_found'),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey,
+                    child: Container(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.inventory_2_outlined,
+                              size: 64,
+                              color: primaryColor,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 24),
+                          Text(
+                            SimpleTranslations.get(langCode, 'no_products_found'),
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: ThemeConfig.getTextColor(currentTheme),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Start by adding your first product',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: ThemeConfig.getTextColor(currentTheme).withOpacity(0.6),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            onPressed: _onAddProduct,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Product'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              foregroundColor: buttonTextColor,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   )
                 : filteredProducts.isEmpty
                 ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.search_off,
-                          size: 80,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          SimpleTranslations.get(langCode, 'no_search_results'),
-                          style: const TextStyle(
-                            fontSize: 18,
+                    child: Container(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search_off,
+                            size: 64,
                             color: Colors.grey,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          Text(
+                            SimpleTranslations.get(langCode, 'no_search_results'),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Try adjusting your search or filters',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   )
                 : ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 80),
                     itemCount: filteredProducts.length,
                     itemBuilder: (ctx, i) {
                       final product = filteredProducts[i];
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        elevation: 2,
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: _getStatusColor(product.status),
-                            child: Icon(
-                              _getProductIcon(product.category),
-                              color: Colors.white,
-                            ),
-                          ),
-                          title: Text(
-                            product.productName,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                                '${SimpleTranslations.get(langCode, 'Stock')}: ${product.stockQuantity}',
-                              ),
-                          // trailing: Row(
-                          //   mainAxisSize: MainAxisSize.min,
-                          //   children: [
-                          //     Text(
-                          //       '${SimpleTranslations.get(langCode, 'Amt:')}: ${product.stockQuantity}',
-                          //     ),
-                          //     const SizedBox(width: 16),
-                          //   ],
-                          // ),
-                          onTap: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ProductEditPage(
-                                  productData: {
-                                    'product_code': product.productCode,
-                                    'product_name': product.productName,
-                                    'sku': product.sku,
-                                    'description': product.description,
-                                    'category': product.category,
-                                    'brand': product.brand,
-                                    'unit_price': product.unitPrice,
-                                    'cost_price': product.costPrice,
-                                    'stock_quantity': product.stockQuantity,
-                                    'minimum_stock': product.minimumStock,
-                                    'unit_of_measure': product.unitOfMeasure,
-                                    'weight': product.weight,
-                                    'dimensions': product.dimensions,
-                                    'barcode': product.barcode,
-                                    'supplier_id': product.supplierId,
-                                    'status': product.status,
-                                    'notes': product.notes,
-                                  },
-                                ),
-                              ),
-                            );
-
-                            if (result == true || result == 'deleted') {
-                              fetchProductsByCompany();
-
-                              if (result == 'deleted') {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      SimpleTranslations.get(
-                                        langCode,
-                                        'product_discontinued_successfully',
-                                      ),
-                                    ),
-                                    backgroundColor: ThemeConfig.getThemeColors(
-                                      currentTheme,
-                                    )['success'],
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                        ),
-                      );
+                      return _buildProductCard(product);
                     },
                   ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _onAddProduct,
-        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-        tooltip: SimpleTranslations.get(langCode, 'add_product'),
-        child: const Icon(Icons.add),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: _onAddProduct,
+          backgroundColor: primaryColor,
+          foregroundColor: buttonTextColor,
+          elevation: 0,
+          icon: const Icon(Icons.add_rounded),
+          label: Text(
+            SimpleTranslations.get(langCode, 'add_product'),
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
       ),
     );
   }
@@ -582,16 +903,21 @@ class _ProductPageState extends State<ProductPage> {
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'active':
-        return ThemeConfig.getThemeColors(currentTheme)['success'] ??
-            Colors.green;
+        return Colors.green;
       case 'inactive':
-        return ThemeConfig.getThemeColors(currentTheme)['warning'] ??
-            Colors.orange;
+        return Colors.orange;
       case 'discontinued':
-        return ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red;
+        return Colors.red;
       default:
         return Colors.grey;
     }
+  }
+
+  Color _getStockColor(int? stock) {
+    final stockValue = stock ?? 0;
+    if (stockValue <= 5) return Colors.red;
+    if (stockValue <= 20) return Colors.orange;
+    return Colors.green;
   }
 
   String _getStatusText(String status) {
@@ -609,23 +935,49 @@ class _ProductPageState extends State<ProductPage> {
 
   IconData _getProductIcon(String? category) {
     switch (category?.toLowerCase()) {
+      case 'ເຄື່ອງໃຊ້ໄຟຟ້າ':
       case 'electronics':
         return Icons.devices;
+      case 'ຄອມພິວເຕີ':
       case 'computers':
         return Icons.computer;
+      case 'ຊອບແວ':
       case 'software':
         return Icons.code;
+      case 'ອາຫານ ແລະ ເຄື່ອງດື່ມ':
       case 'food & beverage':
         return Icons.restaurant;
+      case 'ປື້ມ':
       case 'books':
         return Icons.book;
+      case 'ເຄື່ອງນຸ່ງຫົ່ມ':
       case 'clothing':
         return Icons.checkroom;
+      case 'ບ້ານ ແລະ ສວນ':
+      case 'home & garden':
+        return Icons.home;
+      case 'ກິລາ':
+      case 'sports':
+        return Icons.sports_soccer;
+      case 'ຍານຍົນ':
+      case 'automotive':
+        return Icons.directions_car;
+      case 'ສຸຂະພາບ ແລະ ຄວາມງາມ':
+      case 'health & beauty':
+        return Icons.favorite;
+      case 'ເຄື່ອງມື':
+      case 'tools':
+        return Icons.build;
+      case 'ອຸປະກອນສຳນັກງານ':
+      case 'office supplies':
+        return Icons.business_center;
+      case 'ອື່ນໆ':
+      case 'other':
+        return Icons.category;
       default:
         return Icons.inventory_2;
     }
   }
-
 }
 
 class Product {
@@ -635,21 +987,16 @@ class Product {
   final String? description;
   final String? category;
   final String? brand;
-  final double? unitPrice;
-  final double? costPrice;
-  final int stockQuantity;
-  final int? minimumStock;
-  final String? unitOfMeasure;
   final double? weight;
   final String? dimensions;
   final String? barcode;
   final int? supplierId;
   final String status;
   final String? notes;
+  final int? stockQuantity;
   final DateTime? createdDate;
   final DateTime? updatedDate;
 
-  static int _parseCount = 0;
 
   Product({
     required this.productName,
@@ -658,17 +1005,13 @@ class Product {
     this.description,
     this.category,
     this.brand,
-    this.unitPrice,
-    this.costPrice,
-    required this.stockQuantity,
-    this.minimumStock,
-    this.unitOfMeasure,
     this.weight,
     this.dimensions,
     this.barcode,
     this.supplierId,
     required this.status,
     this.notes,
+    this.stockQuantity,
     this.createdDate,
     this.updatedDate,
   });
@@ -692,7 +1035,6 @@ class Product {
       return null;
     }
 
-    _parseCount++;
 
     return Product(
       productName: json['product_name'] ?? '',
@@ -701,17 +1043,13 @@ class Product {
       description: json['description'],
       category: json['category'],
       brand: json['brand'],
-      unitPrice: parseToDouble(json['unit_price']),
-      costPrice: parseToDouble(json['cost_price']),
-      stockQuantity: parseToInt(json['stock_quantity']) ?? 0,
-      minimumStock: parseToInt(json['minimum_stock']),
-      unitOfMeasure: json['unit_of_measure'],
       weight: parseToDouble(json['weight']),
       dimensions: json['dimensions'],
       barcode: json['barcode'],
       supplierId: parseToInt(json['supplier_id']),
       status: json['status'] ?? 'active',
       notes: json['notes'],
+      stockQuantity: parseToInt(json['stock_quantity']),
       createdDate: json['created_date'] != null
           ? DateTime.tryParse(json['created_date'])
           : null,

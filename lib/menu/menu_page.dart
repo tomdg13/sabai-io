@@ -4,7 +4,10 @@ import 'package:sabaicub/driver/DriverPage.dart' as driver_ctrl;
 import 'package:sabaicub/history/bookingListPage.dart' as booklist_ctrl;
 import 'package:sabaicub/history/MessagePage.dart' as message_ctrl;
 import 'package:sabaicub/config/theme.dart';
+import 'package:sabaicub/menu/AddStockPage.dart';
+import 'package:sabaicub/menu/MenuHome.dart' show MenuHomePage;
 import 'package:sabaicub/menu/MenuSettingsPage.dart';
+import 'package:sabaicub/menu/dashboard.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
@@ -81,9 +84,9 @@ class _MenuPageState extends State<MenuPage> {
 
   _TabItem _homeTab() {
     return _TabItem(
-      SimpleTranslations.get(langCode, 'history'),
+      SimpleTranslations.get(langCode, 'Dashboard'),
       Icons.history,
-      const booklist_ctrl.BookingListPage(), // Fixed: added const
+      const InventoryDashboard(), // Fixed: added const
     );
   }
 
@@ -94,8 +97,8 @@ class _MenuPageState extends State<MenuPage> {
       case 'driver':
       default:
         return [
-          _TabItem(t('driver_dashboard'), Icons.home, const driver_ctrl.DriverPage()), // Fixed: added const
-          _TabItem(t('message'), Icons.message, const message_ctrl.MessagePage()), // Fixed: added const
+        
+          _TabItem(t('Stock'), Icons.message, const  AddStockPage ()), // Fixed: added const
           _TabItem(t('car'), Icons.directions_car, const mycar_ctrl.MyCarPage()), // Fixed: added const
           _TabItem(t('setting'), Icons.settings, const MenuSettingsPage()), // Fixed: proper instantiation
         ];

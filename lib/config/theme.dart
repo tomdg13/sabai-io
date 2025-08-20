@@ -77,7 +77,7 @@ class ThemeConfig {
   };
 
   // Default theme
-  static const String defaultTheme = 'green';
+  static const String defaultTheme = 'oxfordBlue';
 
   // Get theme colors for a specific theme
   static Map<String, Color> getThemeColors(String themeName) {

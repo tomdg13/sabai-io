@@ -137,7 +137,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
   }
 
   Future<void> _deleteProduct() async {
-    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    ThemeConfig.getPrimaryColor(currentTheme);
     final textColor = ThemeConfig.getTextColor(currentTheme);
     
     // Show confirmation dialog
