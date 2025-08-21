@@ -3,7 +3,7 @@ class SimpleTranslations {
     'en': {
       // --- login ---
       'login': 'Login',
-      'loginTitle': 'Sabaicub',
+      'loginTitle': 'Inventory',
       'logout': 'Logout',
       'username': 'Username',
       'phone': 'Phone',
@@ -777,7 +777,7 @@ class SimpleTranslations {
 
       // --- login ---
       'login': 'ເຂົ້າລະບົບ',
-      'loginTitle': 'Sabaicub',
+      'loginTitle': 'Inventory',
       'logout': 'ອອກຈາກລະບົບ',
       'username': 'ຊື່ຜູ້ໃຊ້',
       'phone': 'ເບີໂທ',

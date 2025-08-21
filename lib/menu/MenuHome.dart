@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:sabaicub/business/ProductPage.dart' show ProductPage;
-import 'package:sabaicub/business/UserPage.dart';
-import 'package:sabaicub/business/branch.dart';
+import 'package:Inventory/business/ProductPage.dart' show ProductPage;
+import 'package:Inventory/business/UserPage.dart';
+import 'package:Inventory/business/branch.dart';
 
 
 import 'package:shared_preferences/shared_preferences.dart';

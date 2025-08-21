@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:sabaicub/config/theme.dart';
+import 'package:Inventory/config/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login/login_page.dart';
 import 'menu/menu_page.dart';
@@ -95,41 +95,41 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       primaryColor: primaryColor,
       
       // AppBar theme
-      appBarTheme: AppBarTheme(
-        backgroundColor: primaryColor,
-        elevation: 2,
-        titleTextStyle: TextStyle(
-          color: buttonTextColor,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-        ),
-        iconTheme: IconThemeData(color: buttonTextColor),
-        actionsIconTheme: IconThemeData(color: buttonTextColor),
-      ),
+      // appBarTheme: AppBarTheme(
+      //   backgroundColor: primaryColor,
+      //   elevation: 2,
+      //   titleTextStyle: TextStyle(
+      //     color: buttonTextColor,
+      //     fontSize: 20,
+      //     fontWeight: FontWeight.w600,
+      //   ),
+      //   iconTheme: IconThemeData(color: buttonTextColor),
+      //   actionsIconTheme: IconThemeData(color: buttonTextColor),
+      // ),
       
       // Button themes
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primaryColor,
-          foregroundColor: buttonTextColor,
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      ),
+      // elevatedButtonTheme: ElevatedButtonThemeData(
+      //   style: ElevatedButton.styleFrom(
+      //     backgroundColor: primaryColor,
+      //     foregroundColor: buttonTextColor,
+      //     textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+      //     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+      //     shape: RoundedRectangleBorder(
+      //       borderRadius: BorderRadius.circular(8),
+      //     ),
+      //   ),
+      // ),
       
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: primaryColor,
-          side: BorderSide(color: primaryColor, width: 1.5),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      ),
+      // outlinedButtonTheme: OutlinedButtonThemeData(
+      //   style: OutlinedButton.styleFrom(
+      //     foregroundColor: primaryColor,
+      //     side: BorderSide(color: primaryColor, width: 1.5),
+      //     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+      //     shape: RoundedRectangleBorder(
+      //       borderRadius: BorderRadius.circular(8),
+      //     ),
+      //   ),
+      // ),
       
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(

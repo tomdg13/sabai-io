@@ -1,6 +1,6 @@
 // vendor.dart
 import 'package:flutter/material.dart';
-import 'package:sabaicub/config/theme.dart';
+import 'package:Inventory/config/theme.dart';
 import '../utils/simple_translations.dart';
 
 class VendorPage extends StatefulWidget {

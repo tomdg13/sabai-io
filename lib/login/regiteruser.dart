@@ -4,9 +4,9 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:sabaicub/config/config.dart';
-import 'package:sabaicub/config/theme.dart'; // Add theme import
-import 'package:sabaicub/login/CameraWithOverlayPage.dart';
+import 'package:Inventory/config/config.dart';
+import 'package:Inventory/config/theme.dart'; // Add theme import
+import 'package:Inventory/login/CameraWithOverlayPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 import 'package:crypto/crypto.dart';

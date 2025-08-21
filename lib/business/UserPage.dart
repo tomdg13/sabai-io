@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:sabaicub/business/UserAdd.dart';
-import 'package:sabaicub/business/UserEdit.dart';
-import 'package:sabaicub/config/config.dart';
-import 'package:sabaicub/config/theme.dart'; // Add this import
+import 'package:Inventory/business/UserAdd.dart';
+import 'package:Inventory/business/UserEdit.dart';
+import 'package:Inventory/config/config.dart';
+import 'package:Inventory/config/theme.dart'; // Add this import
 import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';

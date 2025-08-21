@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:sabaicub/car/mycar.dart' as mycar_ctrl;
-import 'package:sabaicub/driver/DriverPage.dart' as driver_ctrl;
-import 'package:sabaicub/history/bookingListPage.dart' as booklist_ctrl;
-import 'package:sabaicub/history/MessagePage.dart' as message_ctrl;
-import 'package:sabaicub/config/theme.dart';
-import 'package:sabaicub/menu/AddStockPage.dart';
-import 'package:sabaicub/menu/MenuHome.dart' show MenuHomePage;
-import 'package:sabaicub/menu/MenuSettingsPage.dart';
-import 'package:sabaicub/menu/dashboard.dart';
+import 'package:Inventory/car/mycar.dart' as mycar_ctrl;
+import 'package:Inventory/driver/DriverPage.dart' as driver_ctrl;
+import 'package:Inventory/history/bookingListPage.dart' as booklist_ctrl;
+import 'package:Inventory/history/MessagePage.dart' as message_ctrl;
+import 'package:Inventory/config/theme.dart';
+import 'package:Inventory/menu/AddStockPage.dart';
+import 'package:Inventory/menu/MenuHome.dart' show MenuHomePage;
+import 'package:Inventory/menu/MenuSettingsPage.dart';
+import 'package:Inventory/menu/dashboard.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';

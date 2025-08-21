@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:sabaicub/business/ProductAdd.dart'; // Make sure this import is correct
-import 'package:sabaicub/business/ProductEdit.dart';
-import 'package:sabaicub/config/config.dart';
-import 'package:sabaicub/config/theme.dart';
+import 'package:Inventory/business/ProductAdd.dart';
+import 'package:Inventory/business/ProductEdit.dart';
+import 'package:Inventory/config/config.dart';
+import 'package:Inventory/config/theme.dart';
 import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,7 +27,6 @@ class _ProductPageState extends State<ProductPage> {
 
   final TextEditingController _searchController = TextEditingController();
   String selectedCategory = 'All';
-  String selectedStatus = 'active';
   List<String> categories = ['All'];
 
   @override
@@ -74,10 +73,6 @@ class _ProductPageState extends State<ProductPage> {
     final lowerQuery = query.toLowerCase();
     setState(() {
       filteredProducts = products.where((product) {
-        // Apply status filter
-        if (selectedStatus != 'all' && product.status != selectedStatus)
-          return false;
-
         // Apply category filter
         if (selectedCategory != 'All' && product.category != selectedCategory)
           return false;
@@ -86,12 +81,10 @@ class _ProductPageState extends State<ProductPage> {
         if (query.isNotEmpty) {
           final nameLower = product.productName.toLowerCase();
           final codeLower = product.productCode?.toLowerCase() ?? '';
-          final skuLower = product.sku?.toLowerCase() ?? '';
           final brandLower = product.brand?.toLowerCase() ?? '';
 
           return nameLower.contains(lowerQuery) ||
               codeLower.contains(lowerQuery) ||
-              skuLower.contains(lowerQuery) ||
               brandLower.contains(lowerQuery);
         }
 
@@ -118,20 +111,19 @@ class _ProductPageState extends State<ProductPage> {
       error = null;
     });
 
-    final url = AppConfig.api('/api/ioproduct/productsByCompany');
+    // Add status filter to API call since status column was removed from database
+    // This assumes your backend filters for active products by default
+    final url = AppConfig.api('/api/ioproducts/company/$companyId?status=active');
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
 
-      final requestBody = {'company_id': companyId, 'status': 'active'};
-
-      final response = await http.post(
+      final response = await http.get(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(requestBody),
       );
 
       if (!mounted) return;
@@ -168,7 +160,7 @@ class _ProductPageState extends State<ProductPage> {
   }
 
   Future<void> fetchLowStockProducts() async {
-    final url = AppConfig.api('/api/ioproduct/lowstock/$companyId');
+    final url = AppConfig.api('/api/ioproducts/company/$companyId/low-stock');
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
@@ -230,12 +222,11 @@ class _ProductPageState extends State<ProductPage> {
     }
   }
 
-  // FIXED: Use the local companyId variable instead of widget.companyId
   void _onAddProduct() async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ProductAddPage(companyId: companyId), // Fixed here
+        builder: (context) => ProductAddPage(companyId: companyId),
       ),
     );
 
@@ -316,7 +307,6 @@ class _ProductPageState extends State<ProductPage> {
                 _searchController.clear();
                 setState(() {
                   selectedCategory = 'All';
-                  selectedStatus = 'active';
                 });
                 filterProducts('');
               },
@@ -398,15 +388,12 @@ class _ProductPageState extends State<ProductPage> {
                   productData: {
                     'product_code': product.productCode,
                     'product_name': product.productName,
-                    'sku': product.sku,
                     'description': product.description,
                     'category': product.category,
                     'brand': product.brand,
-                    'weight': product.weight,
-                    'dimensions': product.dimensions,
                     'barcode': product.barcode,
                     'supplier_id': product.supplierId,
-                    'status': product.status,
+                    'unit': product.unit,
                     'notes': product.notes,
                   },
                 ),
@@ -422,7 +409,7 @@ class _ProductPageState extends State<ProductPage> {
                     content: Text(
                       SimpleTranslations.get(
                         langCode,
-                        'product_discontinued_successfully',
+                        'product_deleted_successfully',
                       ),
                     ),
                     backgroundColor: ThemeConfig.getThemeColors(
@@ -446,21 +433,21 @@ class _ProductPageState extends State<ProductPage> {
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
-                    color: _getStatusColor(product.status).withOpacity(0.15),
+                    color: primaryColor.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: _getStatusColor(product.status).withOpacity(0.3),
+                      color: primaryColor.withOpacity(0.3),
                     ),
                   ),
                   child: Icon(
                     _getProductIcon(product.category),
-                    color: _getStatusColor(product.status),
+                    color: primaryColor,
                     size: 28,
                   ),
                 ),
                 const SizedBox(width: 16),
                 
-                // Product Details
+                // Product Details - Fixed overflow issue
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -494,29 +481,31 @@ class _ProductPageState extends State<ProductPage> {
                         ),
                       const SizedBox(height: 8),
                       
-                      // Stock and Status Row
-                      Row(
+                      // Stock and Unit Row - Fixed with Wrap to prevent overflow
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
                           // Stock Info
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                             decoration: BoxDecoration(
                               color: _getStockColor(product.stockQuantity).withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(6),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
                                   Icons.inventory,
-                                  size: 14,
+                                  size: 12,
                                   color: _getStockColor(product.stockQuantity),
                                 ),
-                                const SizedBox(width: 4),
+                                const SizedBox(width: 3),
                                 Text(
-                                  '${SimpleTranslations.get(langCode, 'Stock')}: ${product.stockQuantity ?? 0}',
+                                  'Stock: ${product.stockQuantity ?? 0}',
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w500,
                                     color: _getStockColor(product.stockQuantity),
                                   ),
@@ -524,24 +513,35 @@ class _ProductPageState extends State<ProductPage> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
                           
-                          // Status Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _getStatusColor(product.status).withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              _getStatusText(product.status),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: _getStatusColor(product.status),
+                          // Unit Badge
+                          if (product.unit != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.category,
+                                    size: 12,
+                                    color: primaryColor,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    'Unit: ${product.unit}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: primaryColor,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ],
@@ -564,11 +564,10 @@ class _ProductPageState extends State<ProductPage> {
 
   Widget _buildStatsRow() {
     final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
-    ThemeConfig.getTextColor(currentTheme);
     
     final totalProducts = products.length;
-    final activeProducts = products.where((p) => p.status == 'active').length;
     final lowStockProducts = products.where((p) => (p.stockQuantity ?? 0) <= 5).length;
+    final totalUnits = products.fold<int>(0, (sum, p) => sum + (p.unit ?? 0));
     
     return Container(
       margin: const EdgeInsets.all(16),
@@ -596,10 +595,10 @@ class _ProductPageState extends State<ProductPage> {
           Container(width: 1, height: 40, color: primaryColor.withOpacity(0.2)),
           Expanded(
             child: _buildStatItem(
-              icon: Icons.check_circle,
-              label: 'Active',
-              value: '$activeProducts',
-              color: Colors.green,
+              icon: Icons.confirmation_number,
+              label: 'Units',
+              value: '$totalUnits',
+              color: Colors.blue,
             ),
           ),
           Container(width: 1, height: 40, color: primaryColor.withOpacity(0.2)),
@@ -900,37 +899,11 @@ class _ProductPageState extends State<ProductPage> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return Colors.green;
-      case 'inactive':
-        return Colors.orange;
-      case 'discontinued':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   Color _getStockColor(int? stock) {
     final stockValue = stock ?? 0;
     if (stockValue <= 5) return Colors.red;
     if (stockValue <= 20) return Colors.orange;
     return Colors.green;
-  }
-
-  String _getStatusText(String status) {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return SimpleTranslations.get(langCode, 'active');
-      case 'inactive':
-        return SimpleTranslations.get(langCode, 'inactive');
-      case 'discontinued':
-        return SimpleTranslations.get(langCode, 'discontinued');
-      default:
-        return status;
-    }
   }
 
   IconData _getProductIcon(String? category) {
@@ -950,6 +923,8 @@ class _ProductPageState extends State<ProductPage> {
       case 'ປື້ມ':
       case 'books':
         return Icons.book;
+      case 'education':
+        return Icons.school;
       case 'ເຄື່ອງນຸ່ງຫົ່ມ':
       case 'clothing':
         return Icons.checkroom;
@@ -983,49 +958,35 @@ class _ProductPageState extends State<ProductPage> {
 class Product {
   final String productName;
   final String? productCode;
-  final String? sku;
   final String? description;
   final String? category;
   final String? brand;
-  final double? weight;
-  final String? dimensions;
   final String? barcode;
   final int? supplierId;
-  final String status;
+  final int? unit;
   final String? notes;
   final int? stockQuantity;
+  final String? status; // Added status field
   final DateTime? createdDate;
   final DateTime? updatedDate;
-
 
   Product({
     required this.productName,
     this.productCode,
-    this.sku,
     this.description,
     this.category,
     this.brand,
-    this.weight,
-    this.dimensions,
     this.barcode,
     this.supplierId,
-    required this.status,
+    this.unit,
     this.notes,
     this.stockQuantity,
+    this.status,
     this.createdDate,
     this.updatedDate,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
-    // Helper function to safely parse string/number to double
-    double? parseToDouble(dynamic value) {
-      if (value == null) return null;
-      if (value is double) return value;
-      if (value is int) return value.toDouble();
-      if (value is String) return double.tryParse(value);
-      return null;
-    }
-
     // Helper function to safely parse string/number to int
     int? parseToInt(dynamic value) {
       if (value == null) return null;
@@ -1035,21 +996,18 @@ class Product {
       return null;
     }
 
-
     return Product(
       productName: json['product_name'] ?? '',
       productCode: json['product_code'],
-      sku: json['sku'],
       description: json['description'],
       category: json['category'],
       brand: json['brand'],
-      weight: parseToDouble(json['weight']),
-      dimensions: json['dimensions'],
       barcode: json['barcode'],
       supplierId: parseToInt(json['supplier_id']),
-      status: json['status'] ?? 'active',
+      unit: parseToInt(json['unit']),
       notes: json['notes'],
       stockQuantity: parseToInt(json['stock_quantity']),
+      status: json['status'] ?? 'active', // Default to active if not provided
       createdDate: json['created_date'] != null
           ? DateTime.tryParse(json['created_date'])
           : null,

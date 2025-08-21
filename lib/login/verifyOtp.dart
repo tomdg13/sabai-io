@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:sabaicub/config/config.dart';
-import 'package:sabaicub/config/theme.dart';
+import 'package:Inventory/config/config.dart';
+import 'package:Inventory/config/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;

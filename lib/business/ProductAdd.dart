@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:sabaicub/config/config.dart';
-import 'package:sabaicub/config/theme.dart';
+import 'package:Inventory/config/config.dart';
+import 'package:Inventory/config/theme.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -22,603 +22,183 @@ class _ProductAddPageState extends State<ProductAddPage> {
   String langCode = 'en';
   String currentTheme = ThemeConfig.defaultTheme;
 
-  // Cache these values to avoid repeated calls
-  late Color primaryColor;
-  late Color backgroundColor;
-  late Color textColor;
-  late Color buttonTextColor;
+  // Pre-calculate colors once
+  late final Color primaryColor;
+  late final Color backgroundColor;
+  late final Color textColor;
+  late final Color buttonTextColor;
 
-  // Text Controllers
-  final TextEditingController _productNameController = TextEditingController();
-  final TextEditingController _productCodeController = TextEditingController();
-  final TextEditingController _skuController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _categoryController = TextEditingController();
-  final TextEditingController _brandController = TextEditingController();
-  final TextEditingController _weightController = TextEditingController();
-  final TextEditingController _dimensionsController = TextEditingController();
-  final TextEditingController _barcodeController = TextEditingController();
-  final TextEditingController _supplierIdController = TextEditingController();
-  final TextEditingController _notesController = TextEditingController();
+  // Text Controllers - Only essential fields
+  final _productNameController = TextEditingController();
+  final _productCodeController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _brandController = TextEditingController();
+  final _barcodeController = TextEditingController();
+  final _supplierIdController = TextEditingController();
+  final _unitController = TextEditingController();
+  final _notesController = TextEditingController();
 
-  String _selectedStatus = 'active';
   String _selectedCategory = '';
 
-  // Predefined categories - made const for better performance
-  static const List<String> _predefinedCategories = [
-    'ເຄື່ອງໃຊ້ໄຟຟ້າ',
-    'ຄອມພິວເຕີ',
-    'ຊອບແວ',
-    'ອາຫານ ແລະ ເຄື່ອງດື່ມ',
-    'ປື້ມ',
-    'ເຄື່ອງນຸ່ງຫົ່ມ',
-    'ບ້ານ ແລະ ສວນ',
-    'ກິລາ',
-    'ຍານຍົນ',
-    'ສຸຂະພາບ ແລະ ຄວາມງາມ',
-    'ເຄື່ອງມື',
-    'ອຸປະກອນສຳນັກງານ',
-    'ອື່ນໆ',
+  // Optimized categories list
+  static const _categories = [
+    'Electronics',
+    'Education',
+    'Food & Beverage',
+    'Clothing',
+    'Tools',
+    'Office Supplies',
+    'Other',
   ];
 
   @override
   void initState() {
     super.initState();
-    _initializeColors();
-    _loadSettings();
+    _initializeTheme();
   }
 
-  // Cache colors to avoid repeated theme calls
-  void _initializeColors() {
+  // Initialize theme colors once
+  void _initializeTheme() {
     primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
     backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
     textColor = ThemeConfig.getTextColor(currentTheme);
     buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
   }
 
-  // Load settings asynchronously but don't block UI
-  void _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final newLangCode = prefs.getString('languageCode') ?? 'en';
-    final newTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
-    
-    if (mounted && (newLangCode != langCode || newTheme != currentTheme)) {
-      setState(() {
-        langCode = newLangCode;
-        currentTheme = newTheme;
-      });
-      _initializeColors();
-    }
-  }
-
   @override
   void dispose() {
+    // Dispose all controllers
     _productNameController.dispose();
     _productCodeController.dispose();
-    _skuController.dispose();
     _descriptionController.dispose();
-    _categoryController.dispose();
     _brandController.dispose();
-    _weightController.dispose();
-    _dimensionsController.dispose();
     _barcodeController.dispose();
     _supplierIdController.dispose();
+    _unitController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
-  // Optimized barcode scanning with better error handling
+  // Fast barcode scanning
   Future<void> _scanBarcode() async {
     try {
-      final result = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (context) => const BarcodeScannerPage(),
-        ),
+      final result = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(builder: (_) => const BarcodeScannerPage()),
       );
       
-      if (result != null && result.isNotEmpty && mounted) {
-        setState(() {
-          _barcodeController.text = result;
-        });
-        
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Text('Barcode scanned: $result'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
+      if (result?.isNotEmpty == true && mounted) {
+        _barcodeController.text = result!;
+        _showMessage('Barcode scanned: $result', isError: false);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Text('Scanning failed: ${e.toString()}'),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      if (mounted) _showMessage('Scanning failed', isError: true);
     }
   }
 
+  // Optimized product creation
   Future<void> _addProduct() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
 
-      if (token == null || token.isEmpty) {
-        throw Exception('Authentication token not found');
+      if (token?.isEmpty != false) {
+        throw Exception('Please login again');
       }
 
-      // Prepare product data more efficiently
-      final productData = <String, dynamic>{
+      // Build minimal request data
+      final data = <String, dynamic>{
         'company_id': widget.companyId,
         'product_name': _productNameController.text.trim(),
-        'status': _selectedStatus,
       };
 
-      // Only add non-empty fields
-      void addIfNotEmpty(String key, String? value) {
-        if (value != null && value.trim().isNotEmpty) {
-          productData[key] = value.trim();
-        }
+      // Add optional fields if not empty
+      _addIfNotEmpty(data, 'product_code', _productCodeController.text);
+      _addIfNotEmpty(data, 'description', _descriptionController.text);
+      _addIfNotEmpty(data, 'brand', _brandController.text);
+      _addIfNotEmpty(data, 'barcode', _barcodeController.text);
+      _addIfNotEmpty(data, 'notes', _notesController.text);
+      _addIfNotEmpty(data, 'category', _selectedCategory);
+
+      // Parse numeric fields
+      final unit = _unitController.text.trim();
+      if (unit.isNotEmpty) {
+        data['unit'] = int.tryParse(unit) ?? 0;
       }
 
-      addIfNotEmpty('product_code', _productCodeController.text);
-      addIfNotEmpty('sku', _skuController.text);
-      addIfNotEmpty('description', _descriptionController.text);
-      addIfNotEmpty('brand', _brandController.text);
-      addIfNotEmpty('dimensions', _dimensionsController.text);
-      addIfNotEmpty('barcode', _barcodeController.text);
-      addIfNotEmpty('notes', _notesController.text);
-
-      // Handle category
-      if (_selectedCategory.isNotEmpty) {
-        productData['category'] = _selectedCategory;
-      } else if (_categoryController.text.trim().isNotEmpty) {
-        productData['category'] = _categoryController.text.trim();
+      final supplierId = _supplierIdController.text.trim();
+      if (supplierId.isNotEmpty) {
+        data['supplier_id'] = int.tryParse(supplierId);
       }
 
-      // Handle numeric fields
-      if (_weightController.text.trim().isNotEmpty) {
-        try {
-          productData['weight'] = double.parse(_weightController.text.trim());
-        } catch (e) {
-          throw Exception('Invalid weight format');
-        }
-      }
-
-      if (_supplierIdController.text.trim().isNotEmpty) {
-        try {
-          productData['supplier_id'] = int.parse(_supplierIdController.text.trim());
-        } catch (e) {
-          throw Exception('Invalid supplier ID format');
-        }
-      }
-
-      final url = AppConfig.api('/api/ioproduct/add');
+      // Make API call
       final response = await http.post(
-        url,
+        AppConfig.api('/api/ioproducts'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(productData),
+        body: jsonEncode(data),
       );
 
       if (!mounted) return;
 
+      final result = jsonDecode(response.body);
+      
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = jsonDecode(response.body);
-        
-        if (responseData['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      responseData['message'] ?? 'Product added successfully',
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          );
+        if (result['status'] == 'success') {
+          _showMessage('Product added successfully!', isError: false);
           Navigator.pop(context, true);
-        } else {
-          throw Exception(responseData['message'] ?? 'Failed to add product');
+          return;
         }
-      } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Server error occurred');
       }
+      
+      throw Exception(result['message'] ?? 'Failed to add product');
+
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text('Error: ${e.toString()}')),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        _showMessage('Error: ${e.toString()}', isError: true);
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Create reusable input decoration to avoid repeated object creation
-  InputDecoration _buildInputDecoration({
-    required String labelText,
-    required IconData prefixIcon,
-    String? hintText,
-  }) {
-    return InputDecoration(
-      labelText: labelText,
-      labelStyle: TextStyle(color: textColor.withOpacity(0.7)),
-      hintText: hintText,
-      hintStyle: TextStyle(color: textColor.withOpacity(0.5)),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: primaryColor.withOpacity(0.5)),
+  // Helper methods
+  void _addIfNotEmpty(Map<String, dynamic> data, String key, String value) {
+    if (value.trim().isNotEmpty) {
+      data[key] = value.trim();
+    }
+  }
+
+  void _showMessage(String message, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: isError ? 4 : 2),
       ),
+    );
+  }
+
+  // Optimized input decoration
+  InputDecoration _inputDecoration(String label, IconData icon, {String? hint}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: Icon(icon, color: primaryColor),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: primaryColor, width: 2),
       ),
-      prefixIcon: Icon(prefixIcon, color: primaryColor),
       filled: true,
       fillColor: backgroundColor,
-    );
-  }
-
-  Widget _buildBasicInfoSection() {
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      color: backgroundColor,
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.inventory_2, color: primaryColor, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Basic Information',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: primaryColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Barcode with scan button - Fixed Row layout
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    controller: _barcodeController,
-                    style: TextStyle(color: textColor),
-                    decoration: _buildInputDecoration(
-                      labelText: 'Barcode',
-                      prefixIcon: Icons.qr_code_scanner,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Scan button
-                SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _scanBarcode,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: buttonTextColor,
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Icon(Icons.qr_code_scanner, size: 20),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            // Product Name (Required)
-            TextFormField(
-              controller: _productNameController,
-              style: TextStyle(color: textColor),
-              decoration: _buildInputDecoration(
-                labelText: 'Product Name *',
-                prefixIcon: Icons.inventory_2,
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Product name is required';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            
-            // Product Code and SKU in a row
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _productCodeController,
-                    style: TextStyle(color: textColor),
-                    decoration: _buildInputDecoration(
-                      labelText: 'Product Code',
-                      prefixIcon: Icons.qr_code,
-                      hintText: 'e.g., PRD-001',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _skuController,
-                    style: TextStyle(color: textColor),
-                    decoration: _buildInputDecoration(
-                      labelText: 'SKU',
-                      prefixIcon: Icons.tag,
-                      hintText: 'Stock Keeping Unit',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            // Category and Brand in a row
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2, // Give more space to category dropdown
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedCategory.isEmpty ? null : _selectedCategory,
-                    style: TextStyle(color: textColor, fontSize: 14), // Smaller font
-                    dropdownColor: backgroundColor,
-                    isExpanded: true, // Prevent overflow
-                    decoration: _buildInputDecoration(
-                      labelText: 'Category',
-                      prefixIcon: Icons.category,
-                    ),
-                    items: _predefinedCategories.map((category) {
-                      return DropdownMenuItem(
-                        value: category,
-                        child: Container(
-                          constraints: const BoxConstraints(maxWidth: 200), // Limit width
-                          child: Text(
-                            category, 
-                            style: TextStyle(color: textColor, fontSize: 14),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCategory = value ?? '';
-                        if (value != null) {
-                          _categoryController.clear();
-                        }
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12), // Reduced spacing
-                Expanded(
-                  flex: 1, // Less space for brand
-                  child: TextFormField(
-                    controller: _brandController,
-                    style: TextStyle(color: textColor, fontSize: 14),
-                    decoration: _buildInputDecoration(
-                      labelText: 'Brand',
-                      prefixIcon: Icons.branding_watermark,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailsSection() {
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      color: backgroundColor,
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.description, color: primaryColor, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Additional Details',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: primaryColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            // Description
-            TextFormField(
-              controller: _descriptionController,
-              maxLines: 3,
-              style: TextStyle(color: textColor),
-              decoration: _buildInputDecoration(
-                labelText: 'Description',
-                prefixIcon: Icons.description,
-                hintText: 'Product description...',
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Weight, Dimensions, and Supplier ID in rows
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _weightController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}')),
-                    ],
-                    style: TextStyle(color: textColor),
-                    decoration: _buildInputDecoration(
-                      labelText: 'Weight (kg)',
-                      prefixIcon: Icons.scale,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _dimensionsController,
-                    style: TextStyle(color: textColor),
-                    decoration: _buildInputDecoration(
-                      labelText: 'Dimensions',
-                      prefixIcon: Icons.aspect_ratio,
-                      hintText: 'L x W x H cm',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _supplierIdController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: TextStyle(color: textColor),
-                    decoration: _buildInputDecoration(
-                      labelText: 'Supplier ID',
-                      prefixIcon: Icons.business,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedStatus,
-                    style: TextStyle(color: textColor, fontSize: 14),
-                    dropdownColor: backgroundColor,
-                    isExpanded: true, // Prevent overflow
-                    decoration: _buildInputDecoration(
-                      labelText: 'Status',
-                      prefixIcon: Icons.toggle_on,
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'active',
-                        child: Text('Active', overflow: TextOverflow.ellipsis),
-                      ),
-                      DropdownMenuItem(
-                        value: 'inactive',
-                        child: Text('Inactive', overflow: TextOverflow.ellipsis),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedStatus = value!;
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            // Notes
-            TextFormField(
-              controller: _notesController,
-              maxLines: 3,
-              style: TextStyle(color: textColor),
-              decoration: _buildInputDecoration(
-                labelText: 'Notes',
-                prefixIcon: Icons.note,
-                hintText: 'Additional notes about the product...',
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -627,14 +207,10 @@ class _ProductAddPageState extends State<ProductAddPage> {
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: Text(
-          'Add Product',
-          style: TextStyle(color: buttonTextColor),
-        ),
+        title: const Text('Add Product'),
         backgroundColor: primaryColor,
         foregroundColor: buttonTextColor,
-        iconTheme: IconThemeData(color: buttonTextColor),
-        elevation: 2,
+        elevation: 0,
       ),
       body: Form(
         key: _formKey,
@@ -642,54 +218,146 @@ class _ProductAddPageState extends State<ProductAddPage> {
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildBasicInfoSection(),
-                    _buildDetailsSection(),
+                    // Basic Information Section
+                    _buildSectionHeader('Basic Information', Icons.inventory_2),
+                    const SizedBox(height: 16),
+
+                    // Barcode with scan button
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _barcodeController,
+                            decoration: _inputDecoration('Barcode', Icons.qr_code_scanner),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: IconButton.filled(
+                            onPressed: _isLoading ? null : _scanBarcode,
+                            icon: const Icon(Icons.qr_code_scanner, size: 20),
+                            style: IconButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              foregroundColor: buttonTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Product Name (Required)
+                    TextFormField(
+                      controller: _productNameController,
+                      decoration: _inputDecoration('Product Name *', Icons.inventory_2),
+                      validator: (value) {
+                        if (value?.trim().isEmpty == true) {
+                          return 'Product name is required';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Product Code
+                    TextFormField(
+                      controller: _productCodeController,
+                      decoration: _inputDecoration('Product Code', Icons.qr_code, hint: 'e.g., PRD-001'),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Category
+                    DropdownButtonFormField<String>(
+                      value: _selectedCategory.isEmpty ? null : _selectedCategory,
+                      decoration: _inputDecoration('Category', Icons.category),
+                      items: _categories.map((category) {
+                        return DropdownMenuItem(
+                          value: category,
+                          child: Text(category),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() => _selectedCategory = value ?? '');
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Brand
+                    TextFormField(
+                      controller: _brandController,
+                      decoration: _inputDecoration('Brand', Icons.branding_watermark),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Unit Quantity
+                    TextFormField(
+                      controller: _unitController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: _inputDecoration('Unit Quantity', Icons.confirmation_number, hint: 'e.g., 12'),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Additional Details Section
+                    _buildSectionHeader('Additional Details', Icons.description),
+                    const SizedBox(height: 16),
+
+                    // Description
+                    TextFormField(
+                      controller: _descriptionController,
+                      maxLines: 3,
+                      decoration: _inputDecoration('Description', Icons.description, hint: 'Product description...'),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Supplier ID
+                    TextFormField(
+                      controller: _supplierIdController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: _inputDecoration('Supplier ID', Icons.business),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Notes
+                    TextFormField(
+                      controller: _notesController,
+                      maxLines: 3,
+                      decoration: _inputDecoration('Notes', Icons.note, hint: 'Additional notes...'),
+                    ),
+                    const SizedBox(height: 80), // Space for button
                   ],
                 ),
               ),
             ),
-            
-            // Submit Button - Fixed at bottom
+
+            // Submit Button
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, -2),
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _addProduct,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: buttonTextColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _addProduct,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: buttonTextColor,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 2,
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Add Product', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
-                child: _isLoading
-                    ? SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(buttonTextColor),
-                        ),
-                      )
-                    : const Text(
-                        'Add Product',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
               ),
             ),
           ],
@@ -697,9 +365,26 @@ class _ProductAddPageState extends State<ProductAddPage> {
       ),
     );
   }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: primaryColor, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: primaryColor,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-// Optimized Barcode Scanner Page
+// Optimized Barcode Scanner
 class BarcodeScannerPage extends StatefulWidget {
   const BarcodeScannerPage({Key? key}) : super(key: key);
 
@@ -708,40 +393,29 @@ class BarcodeScannerPage extends StatefulWidget {
 }
 
 class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
-  late MobileScannerController cameraController;
+  late final MobileScannerController _controller;
   bool _isScanning = true;
 
   @override
   void initState() {
     super.initState();
-    cameraController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-    );
+    _controller = MobileScannerController(detectionSpeed: DetectionSpeed.noDuplicates);
   }
 
   @override
   void dispose() {
-    cameraController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   void _onDetect(BarcodeCapture capture) {
     if (!_isScanning || !mounted) return;
     
-    final List<Barcode> barcodes = capture.barcodes;
-    if (barcodes.isNotEmpty) {
-      final barcode = barcodes.first;
-      if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
-        setState(() {
-          _isScanning = false;
-        });
-        
-        // Vibrate to indicate successful scan
-        HapticFeedback.mediumImpact();
-        
-        // Return the scanned barcode
-        Navigator.of(context).pop(barcode.rawValue);
-      }
+    final barcode = capture.barcodes.firstOrNull?.rawValue;
+    if (barcode?.isNotEmpty == true) {
+      setState(() => _isScanning = false);
+      HapticFeedback.mediumImpact();
+      Navigator.pop(context, barcode);
     }
   }
 
@@ -756,27 +430,21 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
         actions: [
           IconButton(
             icon: ValueListenableBuilder(
-              valueListenable: cameraController.torchState,
-              builder: (context, state, child) {
-                return Icon(
-                  state == TorchState.on ? Icons.flash_on : Icons.flash_off,
-                  color: state == TorchState.on ? Colors.yellow : Colors.white,
-                );
-              },
+              valueListenable: _controller.torchState,
+              builder: (_, state, __) => Icon(
+                state == TorchState.on ? Icons.flash_on : Icons.flash_off,
+                color: state == TorchState.on ? Colors.yellow : Colors.white,
+              ),
             ),
-            onPressed: () => cameraController.toggleTorch(),
+            onPressed: _controller.toggleTorch,
           ),
         ],
       ),
       body: Stack(
         children: [
-          // Camera view
-          MobileScanner(
-            controller: cameraController,
-            onDetect: _onDetect,
-          ),
+          MobileScanner(controller: _controller, onDetect: _onDetect),
           
-          // Simple overlay
+          // Scan area
           Center(
             child: Container(
               width: 250,
@@ -787,10 +455,10 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
               ),
             ),
           ),
-          
+
           // Instructions
           Positioned(
-            bottom: 100,
+            bottom: 80,
             left: 20,
             right: 20,
             child: Container(
@@ -802,19 +470,11 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.qr_code_scanner,
-                    color: Colors.white,
-                    size: 32,
-                  ),
+                  const Icon(Icons.qr_code_scanner, color: Colors.white, size: 32),
                   const SizedBox(height: 8),
                   const Text(
-                    'Position the barcode within the frame',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    'Position barcode within frame',
+                    style: TextStyle(color: Colors.white, fontSize: 16),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 4),
@@ -827,25 +487,6 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                   ),
                 ],
               ),
-            ),
-          ),
-          
-          // Manual input button
-          Positioned(
-            bottom: 30,
-            left: 20,
-            right: 20,
-            child: ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.9),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text('Cancel'),
             ),
           ),
         ],

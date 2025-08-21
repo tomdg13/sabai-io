@@ -1,4 +1,4 @@
-package com.example.sabaicub
+package com.example.Inventory
 
 import io.flutter.embedding.android.FlutterActivity
 

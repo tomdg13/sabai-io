@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
-import 'package:sabaicub/config/config.dart';
-// import 'package:sabaicub/config/config.dart';
+import 'package:Inventory/config/config.dart';
+// import 'package:Inventory/config/config.dart';
 
 class ImagePreviewPage extends StatefulWidget {
   final String imageUrl; // original image URL

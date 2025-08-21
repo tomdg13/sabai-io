@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:sabaicub/config/config.dart';
-import 'package:sabaicub/config/theme.dart';
+import 'package:Inventory/config/config.dart';
+import 'package:Inventory/config/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -300,51 +300,88 @@ class _InventoryDashboardState extends State<InventoryDashboard>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'IoInventory Dashboard',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: ThemeConfig.getPrimaryColor(widget.currentTheme ?? 'default'),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: isRefreshing
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Icon(Icons.refresh),
-            onPressed: isRefreshing ? null : _refreshData,
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'Overview', icon: Icon(Icons.dashboard)),
-            Tab(text: 'Inventory', icon: Icon(Icons.inventory)),
-            Tab(text: 'Alerts', icon: Icon(Icons.warning)),
-            Tab(text: 'Reports', icon: Icon(Icons.analytics)),
-          ],
-        ),
-      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
+          : Column(
               children: [
-                _buildOverviewTab(),
-                _buildInventoryTab(),
-                _buildAlertsTab(),
-                _buildReportsTab(),
+                // Custom Header (replacing AppBar)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
+                  decoration: BoxDecoration(
+                    color: ThemeConfig.getPrimaryColor(widget.currentTheme ?? 'default'),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'IoInventory Dashboard',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          IconButton(
+                            icon: isRefreshing
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Icon(Icons.refresh, color: Colors.white),
+                            onPressed: isRefreshing ? null : _refreshData,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Tab Bar
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: TabBar(
+                          controller: _tabController,
+                          indicatorColor: Colors.white,
+                          labelColor: Colors.white,
+                          unselectedLabelColor: Colors.white70,
+                          labelStyle: const TextStyle(fontSize: 12),
+                          unselectedLabelStyle: const TextStyle(fontSize: 12),
+                          tabs: const [
+                            Tab(text: 'Overview', icon: Icon(Icons.dashboard, size: 20)),
+                            Tab(text: 'Inventory', icon: Icon(Icons.inventory, size: 20)),
+                            Tab(text: 'Alerts', icon: Icon(Icons.warning, size: 20)),
+                            Tab(text: 'Reports', icon: Icon(Icons.analytics, size: 20)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Tab Content
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildOverviewTab(),
+                      _buildInventoryTab(),
+                      _buildAlertsTab(),
+                      _buildReportsTab(),
+                    ],
+                  ),
+                ),
               ],
             ),
     );
@@ -614,11 +651,22 @@ class _InventoryDashboardState extends State<InventoryDashboard>
               style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
           ),
-          title: Text('Product ${item['product_id']}'),
-          subtitle: Text('Stock: ${item['stock_quantity']} | Location: ${item['location_id']}'),
-          trailing: Text(
-            '${_formatCurrency(item['unit_price_lak'])} LAK',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+          title: Text(
+            'Product ${item['product_id']}',
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            'Stock: ${item['stock_quantity']} | Location: ${item['location_id']}',
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: SizedBox(
+            width: 80,
+            child: Text(
+              '${_formatCurrency(item['unit_price_lak'])} LAK',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         )).toList(),
       ),
@@ -689,17 +737,26 @@ class _InventoryDashboardState extends State<InventoryDashboard>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Unit Price: ${_formatCurrency(item['unit_price_lak']?.toDouble() ?? 0)} LAK',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Unit Price: ${_formatCurrency(item['unit_price_lak'])} LAK',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showStockUpdateDialog(item),
-                  icon: const Icon(Icons.edit, size: 16),
-                  label: const Text('Update Stock'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
+                const SizedBox(width: 8),
+                Flexible(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showStockUpdateDialog(item),
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text('Update'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
                   ),
                 ),
               ],
@@ -718,6 +775,7 @@ class _InventoryDashboardState extends State<InventoryDashboard>
         title: Text('Product ${item['product_id']}'),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text('Current Stock: ${item['stock_quantity']}'),
             if (alertType == 'Low Stock')
@@ -726,13 +784,18 @@ class _InventoryDashboardState extends State<InventoryDashboard>
               Text('Expires: ${item['expire_date']}'),
           ],
         ),
-        trailing: ElevatedButton(
-          onPressed: () => _showStockUpdateDialog(item),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            foregroundColor: Colors.white,
+        trailing: SizedBox(
+          width: 70,
+          child: ElevatedButton(
+            onPressed: () => _showStockUpdateDialog(item),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              textStyle: const TextStyle(fontSize: 11),
+            ),
+            child: const Text('Action'),
           ),
-          child: const Text('Action'),
         ),
       ),
     );
