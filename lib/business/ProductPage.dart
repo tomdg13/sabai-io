@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:Inventory/business/ProductAdd.dart';
-import 'package:Inventory/business/ProductEdit.dart';
+import 'ProductAddPage.dart';
+import 'ProductEditPage.dart';
 import 'package:Inventory/config/config.dart';
 import 'package:Inventory/config/theme.dart';
 import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:developer' as developer;
 
 class ProductPage extends StatefulWidget {
   const ProductPage({Key? key}) : super(key: key);
@@ -22,136 +23,190 @@ class _ProductPageState extends State<ProductPage> {
   List<Product> filteredProducts = [];
   bool loading = true;
   String? error;
-  int companyId = 1;
   String currentTheme = ThemeConfig.defaultTheme;
 
   final TextEditingController _searchController = TextEditingController();
-  String selectedCategory = 'All';
-  List<String> categories = ['All'];
 
   @override
   void initState() {
     super.initState();
+    print('🚀 DEBUG: ProductPage initState() called');
+    debugPrint('Language code: $langCode');
+
     _loadLangCode();
-    _loadCompanyId();
     _loadCurrentTheme();
-    fetchProductsByCompany();
+    fetchProducts();
+    
     _searchController.addListener(() {
+      print('🔍 DEBUG: Search query: ${_searchController.text}');
       filterProducts(_searchController.text);
     });
   }
 
   void _loadLangCode() async {
+    print('📱 DEBUG: Loading language code...');
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       langCode = prefs.getString('languageCode') ?? 'en';
-    });
-  }
-
-  void _loadCompanyId() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      companyId = prefs.getInt('company_id') ?? 1;
+      print('🌐 DEBUG: Language code loaded: $langCode');
     });
   }
 
   void _loadCurrentTheme() async {
+    print('🎨 DEBUG: Loading current theme...');
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      currentTheme =
-          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      print('🎨 DEBUG: Theme loaded: $currentTheme');
     });
   }
 
   @override
   void dispose() {
+    print('🗑️ DEBUG: ProductPage dispose() called');
     _searchController.dispose();
     super.dispose();
   }
 
   void filterProducts(String query) {
+    print('🔍 DEBUG: Filtering products with query: "$query"');
     final lowerQuery = query.toLowerCase();
     setState(() {
       filteredProducts = products.where((product) {
-        // Apply category filter
-        if (selectedCategory != 'All' && product.category != selectedCategory)
-          return false;
-
-        // Apply search filter
-        if (query.isNotEmpty) {
-          final nameLower = product.productName.toLowerCase();
-          final codeLower = product.productCode?.toLowerCase() ?? '';
-          final brandLower = product.brand?.toLowerCase() ?? '';
-
-          return nameLower.contains(lowerQuery) ||
-              codeLower.contains(lowerQuery) ||
-              brandLower.contains(lowerQuery);
-        }
-
-        return true;
+        // Filter out deleted products, then apply search filter
+        if (product.status == 'deleted') return false;
+        
+        final nameLower = product.productName.toLowerCase();
+        final categoryLower = (product.category ?? '').toLowerCase();
+        final brandLower = (product.brand ?? '').toLowerCase();
+        final codeLower = (product.productCode ?? '').toLowerCase();
+        
+        bool matches = nameLower.contains(lowerQuery) ||
+            categoryLower.contains(lowerQuery) ||
+            brandLower.contains(lowerQuery) ||
+            codeLower.contains(lowerQuery);
+            
+        return matches;
       }).toList();
+      print('🔍 DEBUG: Filtered products count: ${filteredProducts.length}');
     });
   }
 
-  void _updateCategories() {
-    final uniqueCategories = products
-        .map((product) => product.category ?? 'Uncategorized')
-        .toSet()
-        .toList();
-
-    setState(() {
-      categories = ['All', ...uniqueCategories];
-    });
+  List<Product> _getActiveProducts(List<Product> allProducts) {
+    final activeProducts = allProducts.where((product) => product.status != 'deleted').toList();
+    print('✅ DEBUG: Active products (excluding deleted): ${activeProducts.length} out of ${allProducts.length}');
+    return activeProducts;
   }
 
-  Future<void> fetchProductsByCompany() async {
-    if (!mounted) return;
+  Future<void> fetchProducts() async {
+    print('🔍 DEBUG: Starting fetchProducts()');
+    
+    if (!mounted) {
+      print('⚠️ DEBUG: Widget not mounted, aborting fetchProducts()');
+      return;
+    }
+    
     setState(() {
       loading = true;
       error = null;
     });
 
-    // Add status filter to API call since status column was removed from database
-    // This assumes your backend filters for active products by default
-    final url = AppConfig.api('/api/ioproducts/company/$companyId?status=active');
+    // Correct API endpoint for your NestJS IoProduct API
+    final url = AppConfig.api('/api/ioproducts');
+    print('🌐 DEBUG: API URL: $url');
+    
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
+      final companyId = prefs.getInt('company_id') ?? 1;
+      
+      print('🔑 DEBUG: Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
+      print('🏢 DEBUG: Company ID: $companyId');
+      
+      // Build query parameters
+      final queryParams = {
+        'status': 'active', // or 'admin' to see all products
+        'company_id': companyId.toString(),
+      };
+      
+      final uri = Uri.parse(url.toString()).replace(queryParameters: queryParams);
+      print('🔗 DEBUG: Full URI: $uri');
+      
+      final headers = {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+      print('📋 DEBUG: Request headers: $headers');
+      
+      final response = await http.get(uri, headers: headers);
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      print('📡 DEBUG: Response Status Code: ${response.statusCode}');
+      print('📄 DEBUG: Response Headers: ${response.headers}');
+      print('📝 DEBUG: Response Body: ${response.body}');
 
-      if (!mounted) return;
+      if (!mounted) {
+        print('⚠️ DEBUG: Widget not mounted after API call, aborting');
+        return;
+      }
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-
-        if (data['status'] == 'success') {
-          final List<dynamic> rawProducts = data['data'] ?? [];
-          products = rawProducts.map((e) => Product.fromJson(e)).toList();
-
-          _updateCategories();
-          filteredProducts = List.from(products);
-
-          setState(() => loading = false);
-        } else {
+      if (response.statusCode == 200) {
+        try {
+          final data = jsonDecode(response.body);
+          print('✅ DEBUG: Parsed JSON successfully');
+          print('📊 DEBUG: API Response structure: ${data.keys.toList()}');
+          
+          if (data['status'] == 'success') {
+            final List<dynamic> rawProducts = data['data'] ?? [];
+            print('📦 DEBUG: Raw products count: ${rawProducts.length}');
+            
+            // Print first product for debugging
+            if (rawProducts.isNotEmpty) {
+              print('🔍 DEBUG: First product data: ${rawProducts[0]}');
+            }
+            
+            products = rawProducts.map((e) {
+              try {
+                return Product.fromJson(e);
+              } catch (parseError) {
+                print('❌ DEBUG: Error parsing product: $parseError');
+                print('📝 DEBUG: Problem product data: $e');
+                rethrow;
+              }
+            }).toList();
+            
+            filteredProducts = _getActiveProducts(products);
+            
+            print('✅ DEBUG: Total products loaded: ${products.length}');
+            print('✅ DEBUG: Active products: ${filteredProducts.length}');
+            
+            setState(() => loading = false);
+          } else {
+            print('❌ DEBUG: API returned error status: ${data['status']}');
+            print('❌ DEBUG: API error message: ${data['message']}');
+            setState(() {
+              loading = false;
+              error = data['message'] ?? 'Unknown error from API';
+            });
+          }
+        } catch (jsonError) {
+          print('❌ DEBUG: JSON parsing error: $jsonError');
+          print('📝 DEBUG: Raw response that failed to parse: ${response.body}');
           setState(() {
             loading = false;
-            error = data['message'] ?? 'Unknown error';
+            error = 'Failed to parse server response: $jsonError';
           });
         }
       } else {
+        print('❌ DEBUG: HTTP Error ${response.statusCode}');
+        print('❌ DEBUG: Error response body: ${response.body}');
         setState(() {
           loading = false;
-          error = 'Server error: ${response.statusCode}';
+          error = 'Server error: ${response.statusCode}\n${response.body}';
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('💥 DEBUG: Exception caught: $e');
+      print('📚 DEBUG: Stack trace: $stackTrace');
       setState(() {
         loading = false;
         error = 'Failed to load data: $e';
@@ -159,516 +214,210 @@ class _ProductPageState extends State<ProductPage> {
     }
   }
 
-  Future<void> fetchLowStockProducts() async {
-    final url = AppConfig.api('/api/ioproducts/company/$companyId/low-stock');
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
-
-      final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        if (data['status'] == 'success') {
-          final List<dynamic> rawProducts = data['data'] ?? [];
-          final lowStockProducts = rawProducts
-              .map((e) => Product.fromJson(e))
-              .toList();
-
-          if (lowStockProducts.isNotEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  '${lowStockProducts.length} ${SimpleTranslations.get(langCode, 'products_low_stock')}',
-                ),
-                backgroundColor: ThemeConfig.getThemeColors(
-                  currentTheme,
-                )['warning'],
-                action: SnackBarAction(
-                  label: SimpleTranslations.get(langCode, 'view_details'),
-                  textColor: Colors.white,
-                  onPressed: () {
-                    setState(() {
-                      products = lowStockProducts;
-                      filteredProducts = List.from(products);
-                    });
-                  },
-                ),
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  SimpleTranslations.get(langCode, 'adequate_stock_message'),
-                ),
-                backgroundColor: ThemeConfig.getThemeColors(
-                  currentTheme,
-                )['success'],
-              ),
-            );
-          }
-        }
-      }
-    } catch (e) {
-      // Silent error handling
-    }
-  }
-
   void _onAddProduct() async {
+    print('➕ DEBUG: Add product button pressed');
+    
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => ProductAddPage(companyId: companyId),
-      ),
+      MaterialPageRoute(builder: (context) => ProductAddPage()),
     );
 
+    print('📝 DEBUG: Add product result: $result');
     if (result == true) {
-      fetchProductsByCompany();
+      print('🔄 DEBUG: Refreshing products after add');
+      fetchProducts();
     }
   }
 
-  Widget _buildFilterRow() {
-    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
-    final textColor = ThemeConfig.getTextColor(currentTheme);
+  // ✅ FIXED: Better image widget with proper error handling
+  Widget _buildProductImage(Product product) {
+    print('🖼️ DEBUG: Building image for product: ${product.productName}');
+    print('🖼️ DEBUG: Image URL: ${product.imageUrl}');
     
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: ThemeConfig.getBackgroundColor(currentTheme),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Category Filter
-          Expanded(
-            flex: 2,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: primaryColor.withOpacity(0.2)),
-              ),
-              child: DropdownButtonFormField<String>(
-                value: selectedCategory,
-                style: TextStyle(color: textColor, fontSize: 14),
-                dropdownColor: ThemeConfig.getBackgroundColor(currentTheme),
-                decoration: InputDecoration(
-                  labelText: SimpleTranslations.get(langCode, 'category'),
-                  labelStyle: TextStyle(color: textColor.withOpacity(0.7)),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  prefixIcon: Icon(Icons.category, color: primaryColor, size: 20),
-                ),
-                items: categories.map((category) {
-                  return DropdownMenuItem(
-                    value: category, 
-                    child: Text(
-                      category,
-                      style: TextStyle(color: textColor),
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedCategory = value!;
-                  });
-                  filterProducts(_searchController.text);
-                },
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          
-          // Quick actions
-          Container(
-            decoration: BoxDecoration(
-              color: primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              onPressed: () {
-                _searchController.clear();
-                setState(() {
-                  selectedCategory = 'All';
-                });
-                filterProducts('');
-              },
-              icon: Icon(Icons.clear_all, color: primaryColor),
-              tooltip: SimpleTranslations.get(langCode, 'clear_filters'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchBar() {
-    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
-    final textColor = ThemeConfig.getTextColor(currentTheme);
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: primaryColor.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: primaryColor.withOpacity(0.2)),
+    // Check if we have a valid image URL
+    if (product.imageUrl == null || product.imageUrl!.isEmpty) {
+      print('🖼️ DEBUG: No image URL, showing placeholder');
+      return CircleAvatar(
+        radius: 25,
+        backgroundColor: Colors.grey[200],
+        child: Icon(
+          Icons.inventory_2,
+          color: Colors.grey[600],
+          size: 30,
         ),
-        child: TextField(
-          controller: _searchController,
-          style: TextStyle(color: textColor),
-          decoration: InputDecoration(
-            labelText: SimpleTranslations.get(langCode, 'search'),
-            labelStyle: TextStyle(color: textColor.withOpacity(0.7)),
-            hintText: SimpleTranslations.get(langCode, 'search_hint'),
-            hintStyle: TextStyle(color: textColor.withOpacity(0.5)),
-            prefixIcon: Icon(Icons.search, color: primaryColor),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: Icon(Icons.clear, color: textColor.withOpacity(0.7)),
-                    onPressed: () {
-                      _searchController.clear();
-                      filterProducts('');
-                    },
-                  )
-                : null,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          ),
-        ),
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildProductCard(Product product) {
-    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
-    final textColor = ThemeConfig.getTextColor(currentTheme);
-    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
+    // Handle different image URL formats
+    String imageUrl = product.imageUrl!;
     
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-        border: Border.all(color: primaryColor.withOpacity(0.1)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ProductEditPage(
-                  productData: {
-                    'product_code': product.productCode,
-                    'product_name': product.productName,
-                    'description': product.description,
-                    'category': product.category,
-                    'brand': product.brand,
-                    'barcode': product.barcode,
-                    'supplier_id': product.supplierId,
-                    'unit': product.unit,
-                    'notes': product.notes,
-                  },
-                ),
+    // If it's a relative URL, make it absolute
+    if (!imageUrl.startsWith('http')) {
+      // Get base URL from your config
+      final baseUrl = AppConfig.api('').toString().replaceAll('/api', '');
+      
+      // Handle different path formats
+      if (imageUrl.startsWith('/')) {
+        imageUrl = '$baseUrl$imageUrl';
+      } else {
+        imageUrl = '$baseUrl/$imageUrl';
+      }
+    }
+    
+    print('🖼️ DEBUG: Final image URL: $imageUrl');
+
+    return CircleAvatar(
+      radius: 25,
+      backgroundColor: Colors.grey[200],
+      child: ClipOval(
+        child: Image.network(
+          imageUrl,
+          width: 50,
+          height: 50,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) {
+              print('🖼️ DEBUG: Image loaded successfully for ${product.productName}');
+              return child;
+            }
+            print('🖼️ DEBUG: Loading image for ${product.productName}...');
+            return Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                    : null,
               ),
             );
-
-            if (result == true || result == 'deleted') {
-              fetchProductsByCompany();
-
-              if (result == 'deleted') {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      SimpleTranslations.get(
-                        langCode,
-                        'product_deleted_successfully',
-                      ),
-                    ),
-                    backgroundColor: ThemeConfig.getThemeColors(
-                      currentTheme,
-                    )['success'],
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                );
-              }
-            }
           },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Product Icon
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: primaryColor.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: primaryColor.withOpacity(0.3),
-                    ),
-                  ),
-                  child: Icon(
-                    _getProductIcon(product.category),
-                    color: primaryColor,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                
-                // Product Details - Fixed overflow issue
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Product Name
-                      Text(
-                        product.productName,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      
-                      // Product Code and Category
-                      if (product.productCode != null || product.category != null)
-                        Text(
-                          [
-                            if (product.productCode != null) product.productCode!,
-                            if (product.category != null) product.category!,
-                          ].join(' • '),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: textColor.withOpacity(0.6),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      const SizedBox(height: 8),
-                      
-                      // Stock and Unit Row - Fixed with Wrap to prevent overflow
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          // Stock Info
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: _getStockColor(product.stockQuantity).withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.inventory,
-                                  size: 12,
-                                  color: _getStockColor(product.stockQuantity),
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  'Stock: ${product.stockQuantity ?? 0}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: _getStockColor(product.stockQuantity),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          
-                          // Unit Badge
-                          if (product.unit != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: primaryColor.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.category,
-                                    size: 12,
-                                    color: primaryColor,
-                                  ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    'Unit: ${product.unit}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                      color: primaryColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Arrow Icon
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: textColor.withOpacity(0.3),
-                ),
-              ],
-            ),
-          ),
+          errorBuilder: (context, error, stackTrace) {
+            print('❌ DEBUG: Error loading image for ${product.productName}: $error');
+            print('📝 DEBUG: Failed URL: $imageUrl');
+            return Icon(
+              Icons.inventory_2,
+              color: Colors.grey[600],
+              size: 30,
+            );
+          },
         ),
       ),
-    );
-  }
-
-  Widget _buildStatsRow() {
-    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
-    
-    final totalProducts = products.length;
-    final lowStockProducts = products.where((p) => (p.stockQuantity ?? 0) <= 5).length;
-    final totalUnits = products.fold<int>(0, (sum, p) => sum + (p.unit ?? 0));
-    
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            primaryColor.withOpacity(0.1),
-            primaryColor.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: primaryColor.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.inventory_2,
-              label: 'Total',
-              value: '$totalProducts',
-              color: primaryColor,
-            ),
-          ),
-          Container(width: 1, height: 40, color: primaryColor.withOpacity(0.2)),
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.confirmation_number,
-              label: 'Units',
-              value: '$totalUnits',
-              color: Colors.blue,
-            ),
-          ),
-          Container(width: 1, height: 40, color: primaryColor.withOpacity(0.2)),
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.warning,
-              label: 'Low Stock',
-              value: '$lowStockProducts',
-              color: Colors.orange,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    final textColor = ThemeConfig.getTextColor(currentTheme);
-    
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: textColor,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: textColor.withOpacity(0.6),
-          ),
-        ),
-      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
-    final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
-    final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
+    print('🎨 DEBUG: Building ProductPage widget');
+    print('📊 DEBUG: Current state - loading: $loading, error: $error, products: ${products.length}');
     
     if (loading) {
+      print('⏳ DEBUG: Showing loading indicator');
       return Scaffold(
-        backgroundColor: backgroundColor,
+        appBar: AppBar(
+          title: Text('Products'),
+          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+          foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+        ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  ThemeConfig.getPrimaryColor(currentTheme),
+                ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
+              Text('Loading products...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (error != null) {
+      print('❌ DEBUG: Showing error state: $error');
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('Products'),
+          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+          foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+        ),
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red),
+                SizedBox(height: 16),
+                Text(
+                  'Error Loading Products',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  error!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
+                  ),
+                ),
+                SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    print('🔄 DEBUG: Retry button pressed');
+                    fetchProducts();
+                  },
+                  icon: Icon(Icons.refresh),
+                  label: Text('Retry'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                    foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (products.isEmpty) {
+      print('📭 DEBUG: Showing empty state');
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('Products (0)'),
+          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+          foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+          actions: [
+            IconButton(
+              onPressed: () {
+                print('🔄 DEBUG: Refresh button pressed from empty state');
+                fetchProducts();
+              },
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+            ),
+          ],
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey),
+              SizedBox(height: 16),
               Text(
-                'Loading products...',
-                style: TextStyle(
-                  color: ThemeConfig.getTextColor(currentTheme).withOpacity(0.7),
-                  fontSize: 16,
+                'No products found',
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+              SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _onAddProduct,
+                icon: Icon(Icons.add),
+                label: Text('Add First Product'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                  foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
                 ),
               ),
             ],
@@ -677,285 +426,265 @@ class _ProductPageState extends State<ProductPage> {
       );
     }
 
-    if (error != null) {
-      return Scaffold(
-        backgroundColor: backgroundColor,
-        body: Center(
-          child: Container(
-            margin: const EdgeInsets.all(32),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.red.withOpacity(0.3)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 64,
-                  color: Colors.red,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Oops! Something went wrong',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: ThemeConfig.getTextColor(currentTheme),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  error!,
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: fetchProductsByCompany,
-                  icon: const Icon(Icons.refresh),
-                  label: Text(SimpleTranslations.get(langCode, 'retry')),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: buttonTextColor,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
+    print('📱 DEBUG: Rendering main product list with ${filteredProducts.length} products');
+    
     return Scaffold(
-      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: Text(
-          '${SimpleTranslations.get(langCode, 'products')} (${filteredProducts.length})',
-          style: TextStyle(
-            color: buttonTextColor,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: primaryColor,
-        foregroundColor: buttonTextColor,
-        elevation: 0,
+        title: Text('${SimpleTranslations.get(langCode, 'products') ?? 'Products'} (${filteredProducts.length})'),
+        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         actions: [
           IconButton(
-            onPressed: fetchLowStockProducts,
-            icon: const Icon(Icons.warning_amber_rounded),
-            tooltip: SimpleTranslations.get(langCode, 'check_low_stock'),
-          ),
-          IconButton(
-            onPressed: fetchProductsByCompany,
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: SimpleTranslations.get(langCode, 'refresh'),
+            onPressed: () {
+              print('🔄 DEBUG: Refresh button pressed from app bar');
+              fetchProducts();
+            },
+            icon: const Icon(Icons.refresh),
+            tooltip: SimpleTranslations.get(langCode, 'refresh') ?? 'Refresh',
           ),
         ],
       ),
       body: Column(
         children: [
-          // Stats Row
-          _buildStatsRow(),
-          
-          // Search Bar
-          _buildSearchBar(),
-
-          // Filter Row
-          _buildFilterRow(),
-
-          // Products List
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: SimpleTranslations.get(langCode, 'search') ?? 'Search products...',
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                ),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        onPressed: () {
+                          print('🧹 DEBUG: Clear search button pressed');
+                          _searchController.clear();
+                        },
+                        icon: Icon(Icons.clear),
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                    width: 2,
+                  ),
+                ),
+              ),
+            ),
+          ),
           Expanded(
-            child: products.isEmpty
+            child: filteredProducts.isEmpty
                 ? Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: primaryColor.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.inventory_2_outlined,
-                              size: 64,
-                              color: primaryColor,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.search_off, size: 80, color: Colors.grey),
+                        const SizedBox(height: 16),
+                        Text(
+                          _searchController.text.isNotEmpty
+                              ? 'No products match your search'
+                              : 'No products found',
+                          style: const TextStyle(fontSize: 18, color: Colors.grey),
+                        ),
+                        if (_searchController.text.isNotEmpty) ...[
+                          SizedBox(height: 8),
                           Text(
-                            SimpleTranslations.get(langCode, 'no_products_found'),
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: ThemeConfig.getTextColor(currentTheme),
-                            ),
+                            'Try a different search term',
+                            style: TextStyle(color: Colors.grey[600]),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Start by adding your first product',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: ThemeConfig.getTextColor(currentTheme).withOpacity(0.6),
+                        ],
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: fetchProducts,
+                    child: ListView.builder(
+                      itemCount: filteredProducts.length,
+                      itemBuilder: (ctx, i) {
+                        final product = filteredProducts[i];
+                        print('🏗️ DEBUG: Building list item for product: ${product.productName}');
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          elevation: 2,
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              radius: 25,
+                              backgroundImage: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                                  ? NetworkImage(product.imageUrl!) // Try original URL first
+                                  : const AssetImage('assets/images/default_product.png') as ImageProvider,
+                              onBackgroundImageError: (exception, stackTrace) {
+                                print('🖼️ DEBUG: Error loading image for ${product.productName}');
+                                print('🖼️ DEBUG: Original URL failed: ${product.imageUrl}');
+                                print('🖼️ DEBUG: Error: $exception');
+                                print('🖼️ DEBUG: Testing alternative URLs...');
+                                
+                                // Print alternative URLs to test
+                                if (product.imageUrl!.contains('/public/')) {
+                                  print('🖼️ DEBUG: Try without /public/: ${product.imageUrl!.replaceAll('/public/', '/')}');
+                                  print('🖼️ DEBUG: Try with /uploads/: ${product.imageUrl!.replaceAll('/public/images/', '/uploads/')}');
+                                  print('🖼️ DEBUG: Try with /static/: ${product.imageUrl!.replaceAll('/public/images/', '/static/')}');
+                                }
+                              },
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                          ElevatedButton.icon(
-                            onPressed: _onAddProduct,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add Product'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryColor,
-                              foregroundColor: buttonTextColor,
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                            title: Text(
+                              product.productName,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : filteredProducts.isEmpty
-                ? Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.search_off,
-                            size: 64,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            SimpleTranslations.get(langCode, 'no_search_results'),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (product.category != null && product.category!.isNotEmpty)
+                                  Text(
+                                    'Category: ${product.category}',
+                                    style: TextStyle(fontSize: 13),
+                                  ),
+                                if (product.brand != null && product.brand!.isNotEmpty)
+                                  Text(
+                                    'Brand: ${product.brand}',
+                                    style: TextStyle(fontSize: 13),
+                                  ),
+                                if (product.productCode != null && product.productCode!.isNotEmpty)
+                                  Text(
+                                    'Code: ${product.productCode}',
+                                    style: TextStyle(fontSize: 13),
+                                  ),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: _getStatusColor(product.status),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        product.status.toUpperCase(),
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    if (product.unit != null) ...[
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Unit: ${product.unit}',
+                                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Try adjusting your search or filters',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
+                            trailing: Icon(
+                              Icons.edit,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
                             ),
+                            onTap: () async {
+                              print('👆 DEBUG: Product tapped: ${product.productName}');
+                              
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ProductEditPage(
+                                    productData: product.toJson(),
+                                  ),
+                                ),
+                              );
+
+                              print('📝 DEBUG: Edit product result: $result');
+                              if (result == true || result == 'deleted') {
+                                print('🔄 DEBUG: Product operation completed, refreshing list...');
+                                fetchProducts();
+                                
+                                if (result == 'deleted') {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Product removed from list'),
+                                      backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 80),
-                    itemCount: filteredProducts.length,
-                    itemBuilder: (ctx, i) {
-                      final product = filteredProducts[i];
-                      return _buildProductCard(product);
-                    },
                   ),
           ),
         ],
       ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: primaryColor.withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: _onAddProduct,
-          backgroundColor: primaryColor,
-          foregroundColor: buttonTextColor,
-          elevation: 0,
-          icon: const Icon(Icons.add_rounded),
-          label: Text(
-            SimpleTranslations.get(langCode, 'add_product'),
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _onAddProduct,
+        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+        tooltip: SimpleTranslations.get(langCode, 'add_product') ?? 'Add Product',
+        child: const Icon(Icons.add),
       ),
     );
   }
 
-  Color _getStockColor(int? stock) {
-    final stockValue = stock ?? 0;
-    if (stockValue <= 5) return Colors.red;
-    if (stockValue <= 20) return Colors.orange;
-    return Colors.green;
+  // ✅ Helper method to find correct image URL path
+  String _getCorrectImageUrl(String imageUrl) {
+    print('🖼️ DEBUG: Original image URL: $imageUrl');
+    
+    // Try different URL patterns to find the working one
+    List<String> urlsToTry = [];
+    
+    // Pattern 1: Keep original URL with /public/
+    urlsToTry.add(imageUrl);
+    
+    // Pattern 2: Remove /public/ from URL
+    if (imageUrl.contains('/public/')) {
+      urlsToTry.add(imageUrl.replaceAll('/public/', '/'));
+    }
+    
+    // Pattern 3: Use direct file path (common for static files)
+    if (imageUrl.contains('/public/images/')) {
+      urlsToTry.add(imageUrl.replaceAll('/public/images/', '/uploads/'));
+      urlsToTry.add(imageUrl.replaceAll('/public/images/', '/static/'));
+      urlsToTry.add(imageUrl.replaceAll('/public/images/', '/files/'));
+    }
+    
+    // For now, return the original URL and log all possibilities
+    print('🖼️ DEBUG: URLs to try: $urlsToTry');
+    
+    // Let's first try the original URL
+    return imageUrl;
   }
 
-  IconData _getProductIcon(String? category) {
-    switch (category?.toLowerCase()) {
-      case 'ເຄື່ອງໃຊ້ໄຟຟ້າ':
-      case 'electronics':
-        return Icons.devices;
-      case 'ຄອມພິວເຕີ':
-      case 'computers':
-        return Icons.computer;
-      case 'ຊອບແວ':
-      case 'software':
-        return Icons.code;
-      case 'ອາຫານ ແລະ ເຄື່ອງດື່ມ':
-      case 'food & beverage':
-        return Icons.restaurant;
-      case 'ປື້ມ':
-      case 'books':
-        return Icons.book;
-      case 'education':
-        return Icons.school;
-      case 'ເຄື່ອງນຸ່ງຫົ່ມ':
-      case 'clothing':
-        return Icons.checkroom;
-      case 'ບ້ານ ແລະ ສວນ':
-      case 'home & garden':
-        return Icons.home;
-      case 'ກິລາ':
-      case 'sports':
-        return Icons.sports_soccer;
-      case 'ຍານຍົນ':
-      case 'automotive':
-        return Icons.directions_car;
-      case 'ສຸຂະພາບ ແລະ ຄວາມງາມ':
-      case 'health & beauty':
-        return Icons.favorite;
-      case 'ເຄື່ອງມື':
-      case 'tools':
-        return Icons.build;
-      case 'ອຸປະກອນສຳນັກງານ':
-      case 'office supplies':
-        return Icons.business_center;
-      case 'ອື່ນໆ':
-      case 'other':
-        return Icons.category;
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'active':
+        return Colors.green;
+      case 'inactive':
+        return Colors.orange;
+      case 'deleted':
+        return Colors.red;
+      case 'pending':
+        return Colors.blue;
       default:
-        return Icons.inventory_2;
+        return Colors.grey;
     }
   }
 }
 
+// Updated Product model to match your IoProduct API structure
 class Product {
+  final int productId;
+  final int companyId;
   final String productName;
   final String? productCode;
   final String? description;
@@ -963,14 +692,16 @@ class Product {
   final String? brand;
   final String? barcode;
   final int? supplierId;
-  final int? unit;
+  final DateTime createdDate;
+  final DateTime updatedDate;
   final String? notes;
-  final int? stockQuantity;
-  final String? status; // Added status field
-  final DateTime? createdDate;
-  final DateTime? updatedDate;
-
+  final int? unit;
+  final String? imageUrl;
+  final String status;
+  
   Product({
+    required this.productId,
+    required this.companyId,
     required this.productName,
     this.productCode,
     this.description,
@@ -978,42 +709,79 @@ class Product {
     this.brand,
     this.barcode,
     this.supplierId,
-    this.unit,
+    required this.createdDate,
+    required this.updatedDate,
     this.notes,
-    this.stockQuantity,
-    this.status,
-    this.createdDate,
-    this.updatedDate,
+    this.unit,
+    this.imageUrl,
+    required this.status,
   });
-
+  
   factory Product.fromJson(Map<String, dynamic> json) {
-    // Helper function to safely parse string/number to int
-    int? parseToInt(dynamic value) {
-      if (value == null) return null;
-      if (value is int) return value;
-      if (value is double) return value.toInt();
-      if (value is String) return int.tryParse(value);
-      return null;
-    }
+    print('🔄 DEBUG: Converting JSON to Product');
+    print('📝 DEBUG: JSON keys: ${json.keys.toList()}');
+    print('📝 DEBUG: JSON data: $json');
+    
+    try {
+      // Handle different date formats
+      DateTime parseDate(dynamic dateValue) {
+        if (dateValue == null) return DateTime.now();
+        if (dateValue is String) {
+          try {
+            return DateTime.parse(dateValue);
+          } catch (e) {
+            print('⚠️ DEBUG: Error parsing date string "$dateValue": $e');
+            return DateTime.now();
+          }
+        }
+        return DateTime.now();
+      }
 
-    return Product(
-      productName: json['product_name'] ?? '',
-      productCode: json['product_code'],
-      description: json['description'],
-      category: json['category'],
-      brand: json['brand'],
-      barcode: json['barcode'],
-      supplierId: parseToInt(json['supplier_id']),
-      unit: parseToInt(json['unit']),
-      notes: json['notes'],
-      stockQuantity: parseToInt(json['stock_quantity']),
-      status: json['status'] ?? 'active', // Default to active if not provided
-      createdDate: json['created_date'] != null
-          ? DateTime.tryParse(json['created_date'])
-          : null,
-      updatedDate: json['updated_date'] != null
-          ? DateTime.tryParse(json['updated_date'])
-          : null,
-    );
+      final product = Product(
+        productId: json['product_id'] ?? 0,
+        companyId: json['company_id'] ?? 0,
+        productName: json['product_name'] ?? '',
+        productCode: json['product_code'],
+        description: json['description'],
+        category: json['category'],
+        brand: json['brand'],
+        barcode: json['barcode'],
+        supplierId: json['supplier_id'],
+        createdDate: parseDate(json['created_date']),
+        updatedDate: parseDate(json['updated_date']),
+        notes: json['notes'],
+        unit: json['unit'],
+        imageUrl: json['image_url'],
+        status: json['status'] ?? 'active',
+      );
+      
+      print('✅ DEBUG: Successfully created product: ${product.productName}');
+      return product;
+    } catch (e, stackTrace) {
+      print('❌ DEBUG: Error parsing product JSON: $e');
+      print('📚 DEBUG: Stack trace: $stackTrace');
+      print('📝 DEBUG: Problem JSON: $json');
+      rethrow;
+    }
+  }
+  
+  Map<String, dynamic> toJson() {
+    return {
+      'product_id': productId,
+      'company_id': companyId,
+      'product_name': productName,
+      'product_code': productCode,
+      'description': description,
+      'category': category,
+      'brand': brand,
+      'barcode': barcode,
+      'supplier_id': supplierId,
+      'created_date': createdDate.toIso8601String(),
+      'updated_date': updatedDate.toIso8601String(),
+      'notes': notes,
+      'unit': unit,
+      'image_url': imageUrl,
+      'status': status,
+    };
   }
 }

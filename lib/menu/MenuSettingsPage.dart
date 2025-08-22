@@ -1,12 +1,11 @@
+import 'package:Inventory/business/ProductPage.dart';
 import 'package:flutter/material.dart';
-import 'package:Inventory/business/ProductPage.dart' show ProductPage;
+
 import 'package:Inventory/business/UserPage.dart';
 import 'package:Inventory/business/branch.dart';
 
-
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart'; // Import your existing ThemeConfig
-
 
 class MenuSettingsPage extends StatefulWidget {
   const MenuSettingsPage({Key? key}) : super(key: key);
@@ -161,7 +160,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
               color: Colors.blue,
               onTap: _navigateToBranchPage,
             ),
-
             _buildGridItem(
               icon: Icons.store,
               title: 'Vender',
@@ -178,20 +176,19 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
               icon: Icons.computer,
               title: 'Product',
               color: Colors.purple,
-              onTap: _navigateToProductPage,  // ✅ Fixed: Use specific method
+              onTap: _navigateToProductPage,  // ✅ Fixed: Use new ProductPage
             ),
             // NEW: User menu item
             _buildGridItem(
               icon: Icons.person,
               title: 'User',
               color: Colors.cyan,
-              onTap: _navigateToUserPage ,
+              onTap: _navigateToUserPage,
             ),
             _buildLanguageGridItem(),
             _buildThemeGridItem(),
             // Future settings placeholders
             _buildPlaceholderGridItem('Reports', Icons.analytics),
-
             _buildPlaceholderGridItem('Help', Icons.help_outline),
           ],
         ),
@@ -388,11 +385,11 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Navigate to Product page
+  /// ✅ FIXED: Navigate to Product page using new ProductPage class
   void _navigateToProductPage() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const ProductPage()),
+      MaterialPageRoute(builder: (context) => const ProductPage()),  // Changed from productpage() to ProductPage()
     );
   }
 

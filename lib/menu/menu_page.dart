@@ -5,7 +5,7 @@ import 'package:Inventory/history/bookingListPage.dart' as booklist_ctrl;
 import 'package:Inventory/history/MessagePage.dart' as message_ctrl;
 import 'package:Inventory/config/theme.dart';
 import 'package:Inventory/menu/AddStockPage.dart';
-import 'package:Inventory/menu/MenuHome.dart' show MenuHomePage;
+
 import 'package:Inventory/menu/MenuSettingsPage.dart';
 import 'package:Inventory/menu/dashboard.dart';
 
@@ -324,15 +324,15 @@ class _MenuPageState extends State<MenuPage> {
     if (isLoading || tabs.isEmpty) {
       return Scaffold(
         backgroundColor: backgroundColor,
-        appBar: AppBar(
-          title: Text(
-            'Loading...',
-            style: TextStyle(color: buttonTextColor),
-          ),
-          backgroundColor: primaryColor,
-          foregroundColor: buttonTextColor,
-          elevation: 0,
-        ),
+        // appBar: AppBar(
+        //   title: Text(
+        //     'Loading...',
+        //     style: TextStyle(color: buttonTextColor),
+        //   ),
+        //   backgroundColor: primaryColor,
+        //   foregroundColor: buttonTextColor,
+        //   elevation: 0,
+        // ),
         body: Center(
           child: CircularProgressIndicator(
             valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
