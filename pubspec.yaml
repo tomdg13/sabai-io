@@ -30,7 +30,7 @@ dependencies:
   camera: ^0.11.2
   url_launcher: ^6.2.6
   image: ^4.1.7
-
+  
   mobile_scanner: ^3.5.6
   
   

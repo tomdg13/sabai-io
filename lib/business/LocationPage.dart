@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'ProductAddPage.dart';
-import 'ProductEditPage.dart';
+import 'LocationAddPage.dart';
+import 'LocationEditPage.dart';
 import 'package:Inventory/config/config.dart';
 import 'package:Inventory/config/theme.dart';
 import 'dart:convert';
@@ -9,18 +9,18 @@ import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:developer' as developer;
 
-class ProductPage extends StatefulWidget {
-  const ProductPage({Key? key}) : super(key: key);
+class LocationPage extends StatefulWidget {
+  const LocationPage({Key? key}) : super(key: key);
 
   @override
-  State<ProductPage> createState() => _ProductPageState();
+  State<LocationPage> createState() => _LocationPageState();
 }
 
 String langCode = 'en';
 
-class _ProductPageState extends State<ProductPage> {
-  List<Product> products = [];
-  List<Product> filteredProducts = [];
+class _LocationPageState extends State<LocationPage> {
+  List<IoLocation> locations = [];
+  List<IoLocation> filteredLocations = [];
   bool loading = true;
   String? error;
   String currentTheme = ThemeConfig.defaultTheme;
@@ -30,16 +30,16 @@ class _ProductPageState extends State<ProductPage> {
   @override
   void initState() {
     super.initState();
-    print('🚀 DEBUG: ProductPage initState() called');
+    print('🚀 DEBUG: LocationPage initState() called');
     debugPrint('Language code: $langCode');
 
     _loadLangCode();
     _loadCurrentTheme();
-    fetchProducts();
+    fetchLocations();
     
     _searchController.addListener(() {
       print('🔍 DEBUG: Search query: ${_searchController.text}');
-      filterProducts(_searchController.text);
+      filterLocations(_searchController.text);
     });
   }
 
@@ -63,46 +63,29 @@ class _ProductPageState extends State<ProductPage> {
 
   @override
   void dispose() {
-    print('🗑️ DEBUG: ProductPage dispose() called');
+    print('🗑️ DEBUG: LocationPage dispose() called');
     _searchController.dispose();
     super.dispose();
   }
 
-  void filterProducts(String query) {
-    print('🔍 DEBUG: Filtering products with query: "$query"');
+  void filterLocations(String query) {
+    print('🔍 DEBUG: Filtering locations with query: "$query"');
     final lowerQuery = query.toLowerCase();
     setState(() {
-      filteredProducts = products.where((product) {
-        // Filter out deleted products, then apply search filter
-        if (product.status == 'deleted') return false;
-        
-        final nameLower = product.productName.toLowerCase();
-        final categoryLower = (product.category ?? '').toLowerCase();
-        final brandLower = (product.brand ?? '').toLowerCase();
-        final codeLower = (product.productCode ?? '').toLowerCase();
-        
-        bool matches = nameLower.contains(lowerQuery) ||
-            categoryLower.contains(lowerQuery) ||
-            brandLower.contains(lowerQuery) ||
-            codeLower.contains(lowerQuery);
-            
+      filteredLocations = locations.where((location) {
+        final nameLower = location.locationName.toLowerCase();
+        bool matches = nameLower.contains(lowerQuery);
         return matches;
       }).toList();
-      print('🔍 DEBUG: Filtered products count: ${filteredProducts.length}');
+      print('🔍 DEBUG: Filtered locations count: ${filteredLocations.length}');
     });
   }
 
-  List<Product> _getActiveProducts(List<Product> allProducts) {
-    final activeProducts = allProducts.where((product) => product.status != 'deleted').toList();
-    print('✅ DEBUG: Active products (excluding deleted): ${activeProducts.length} out of ${allProducts.length}');
-    return activeProducts;
-  }
-
-  Future<void> fetchProducts() async {
-    print('🔍 DEBUG: Starting fetchProducts()');
+  Future<void> fetchLocations() async {
+    print('🔍 DEBUG: Starting fetchLocations()');
     
     if (!mounted) {
-      print('⚠️ DEBUG: Widget not mounted, aborting fetchProducts()');
+      print('⚠️ DEBUG: Widget not mounted, aborting fetchLocations()');
       return;
     }
     
@@ -111,8 +94,8 @@ class _ProductPageState extends State<ProductPage> {
       error = null;
     });
 
-    // Correct API endpoint for your NestJS IoProduct API
-    final url = AppConfig.api('/api/ioproduct');
+    // Correct API endpoint for your NestJS IoLocation API
+    final url = AppConfig.api('/api/iolocation');
     print('🌐 DEBUG: API URL: $url');
     
     try {
@@ -125,7 +108,7 @@ class _ProductPageState extends State<ProductPage> {
       
       // Build query parameters
       final queryParams = {
-        'status': 'active', // or 'admin' to see all products
+        'status': 'admin', // Use admin to see all locations
         'company_id': companyId.toString(),
       };
       
@@ -156,28 +139,28 @@ class _ProductPageState extends State<ProductPage> {
           print('📊 DEBUG: API Response structure: ${data.keys.toList()}');
           
           if (data['status'] == 'success') {
-            final List<dynamic> rawProducts = data['data'] ?? [];
-            print('📦 DEBUG: Raw products count: ${rawProducts.length}');
+            final List<dynamic> rawLocations = data['data'] ?? [];
+            print('📦 DEBUG: Raw locations count: ${rawLocations.length}');
             
-            // Print first product for debugging
-            if (rawProducts.isNotEmpty) {
-              print('🔍 DEBUG: First product data: ${rawProducts[0]}');
+            // Print first location for debugging
+            if (rawLocations.isNotEmpty) {
+              print('🔍 DEBUG: First location data: ${rawLocations[0]}');
             }
             
-            products = rawProducts.map((e) {
+            locations = rawLocations.map((e) {
               try {
-                return Product.fromJson(e);
+                return IoLocation.fromJson(e);
               } catch (parseError) {
-                print('❌ DEBUG: Error parsing product: $parseError');
-                print('📝 DEBUG: Problem product data: $e');
+                print('❌ DEBUG: Error parsing location: $parseError');
+                print('📝 DEBUG: Problem location data: $e');
                 rethrow;
               }
             }).toList();
             
-            filteredProducts = _getActiveProducts(products);
+            filteredLocations = List.from(locations);
             
-            print('✅ DEBUG: Total products loaded: ${products.length}');
-            print('✅ DEBUG: Active products: ${filteredProducts.length}');
+            print('✅ DEBUG: Total locations loaded: ${locations.length}');
+            print('✅ DEBUG: Filtered locations: ${filteredLocations.length}');
             
             setState(() => loading = false);
           } else {
@@ -214,34 +197,33 @@ class _ProductPageState extends State<ProductPage> {
     }
   }
 
-  void _onAddProduct() async {
-    print('➕ DEBUG: Add product button pressed');
+  void _onAddLocation() async {
+    print('➕ DEBUG: Add Location button pressed');
     
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => ProductAddPage()),
+      MaterialPageRoute(builder: (context) => LocationAddPage()),
     );
 
-    print('📝 DEBUG: Add product result: $result');
+    print('📝 DEBUG: Add Location result: $result');
     if (result == true) {
-      print('🔄 DEBUG: Refreshing products after add');
-      fetchProducts();
+      print('🔄 DEBUG: Refreshing locations after add');
+      fetchLocations();
     }
   }
 
-  // ✅ FIXED: Better image widget with proper error handling
-  Widget _buildProductImage(Product product) {
-    print('🖼️ DEBUG: Building image for product: ${product.productName}');
-    print('🖼️ DEBUG: Image URL: ${product.imageUrl}');
+  Widget _buildLocationImage(IoLocation location) {
+    print('🖼️ DEBUG: Building image for location: ${location.locationName}');
+    print('🖼️ DEBUG: Image URL: ${location.imageUrl}');
     
     // Check if we have a valid image URL
-    if (product.imageUrl == null || product.imageUrl!.isEmpty) {
+    if (location.imageUrl == null || location.imageUrl!.isEmpty) {
       print('🖼️ DEBUG: No image URL, showing placeholder');
       return CircleAvatar(
         radius: 25,
         backgroundColor: Colors.grey[200],
         child: Icon(
-          Icons.inventory_2,
+          Icons.location_on,
           color: Colors.grey[600],
           size: 30,
         ),
@@ -249,7 +231,7 @@ class _ProductPageState extends State<ProductPage> {
     }
 
     // Handle different image URL formats
-    String imageUrl = product.imageUrl!;
+    String imageUrl = location.imageUrl!;
     
     // If it's a relative URL, make it absolute
     if (!imageUrl.startsWith('http')) {
@@ -277,10 +259,10 @@ class _ProductPageState extends State<ProductPage> {
           fit: BoxFit.cover,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) {
-              print('🖼️ DEBUG: Image loaded successfully for ${product.productName}');
+              print('🖼️ DEBUG: Image loaded successfully for ${location.locationName}');
               return child;
             }
-            print('🖼️ DEBUG: Loading image for ${product.productName}...');
+            print('🖼️ DEBUG: Loading image for ${location.locationName}...');
             return Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
@@ -291,10 +273,10 @@ class _ProductPageState extends State<ProductPage> {
             );
           },
           errorBuilder: (context, error, stackTrace) {
-            print('❌ DEBUG: Error loading image for ${product.productName}: $error');
+            print('❌ DEBUG: Error loading image for ${location.locationName}: $error');
             print('📝 DEBUG: Failed URL: $imageUrl');
             return Icon(
-              Icons.inventory_2,
+              Icons.location_on,
               color: Colors.grey[600],
               size: 30,
             );
@@ -306,14 +288,14 @@ class _ProductPageState extends State<ProductPage> {
 
   @override
   Widget build(BuildContext context) {
-    print('🎨 DEBUG: Building ProductPage widget');
-    print('📊 DEBUG: Current state - loading: $loading, error: $error, products: ${products.length}');
+    print('🎨 DEBUG: Building LocationPage widget');
+    print('📊 DEBUG: Current state - loading: $loading, error: $error, locations: ${locations.length}');
     
     if (loading) {
       print('⏳ DEBUG: Showing loading indicator');
       return Scaffold(
         appBar: AppBar(
-          title: Text('Products'),
+          title: Text('Locations'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         ),
@@ -327,7 +309,7 @@ class _ProductPageState extends State<ProductPage> {
                 ),
               ),
               SizedBox(height: 16),
-              Text('Loading products...'),
+              Text('Loading Locations...'),
             ],
           ),
         ),
@@ -338,7 +320,7 @@ class _ProductPageState extends State<ProductPage> {
       print('❌ DEBUG: Showing error state: $error');
       return Scaffold(
         appBar: AppBar(
-          title: Text('Products'),
+          title: Text('Locations'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         ),
@@ -351,7 +333,7 @@ class _ProductPageState extends State<ProductPage> {
                 Icon(Icons.error_outline, size: 64, color: Colors.red),
                 SizedBox(height: 16),
                 Text(
-                  'Error Loading Products',
+                  'Error Loading Locations',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 8),
@@ -366,7 +348,7 @@ class _ProductPageState extends State<ProductPage> {
                 ElevatedButton.icon(
                   onPressed: () {
                     print('🔄 DEBUG: Retry button pressed');
-                    fetchProducts();
+                    fetchLocations();
                   },
                   icon: Icon(Icons.refresh),
                   label: Text('Retry'),
@@ -382,18 +364,18 @@ class _ProductPageState extends State<ProductPage> {
       );
     }
 
-    if (products.isEmpty) {
+    if (locations.isEmpty) {
       print('📭 DEBUG: Showing empty state');
       return Scaffold(
         appBar: AppBar(
-          title: Text('Products (0)'),
+          title: Text('Locations (0)'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
           actions: [
             IconButton(
               onPressed: () {
                 print('🔄 DEBUG: Refresh button pressed from empty state');
-                fetchProducts();
+                fetchLocations();
               },
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh',
@@ -404,17 +386,17 @@ class _ProductPageState extends State<ProductPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey),
+              Icon(Icons.location_on_outlined, size: 80, color: Colors.grey),
               SizedBox(height: 16),
               Text(
-                'No products found',
+                'No Locations found',
                 style: TextStyle(fontSize: 18, color: Colors.grey),
               ),
               SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: _onAddProduct,
+                onPressed: _onAddLocation,
                 icon: Icon(Icons.add),
-                label: Text('Add First Product'),
+                label: Text('Add First Location'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
                   foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
@@ -426,18 +408,18 @@ class _ProductPageState extends State<ProductPage> {
       );
     }
 
-    print('📱 DEBUG: Rendering main product list with ${filteredProducts.length} products');
+    print('📱 DEBUG: Rendering main location list with ${filteredLocations.length} locations');
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('${SimpleTranslations.get(langCode, 'products') ?? 'Products'} (${filteredProducts.length})'),
+        title: Text('${SimpleTranslations.get(langCode, 'Locations') ?? 'Locations'} (${filteredLocations.length})'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         actions: [
           IconButton(
             onPressed: () {
               print('🔄 DEBUG: Refresh button pressed from app bar');
-              fetchProducts();
+              fetchLocations();
             },
             icon: const Icon(Icons.refresh),
             tooltip: SimpleTranslations.get(langCode, 'refresh') ?? 'Refresh',
@@ -451,7 +433,7 @@ class _ProductPageState extends State<ProductPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                labelText: SimpleTranslations.get(langCode, 'search') ?? 'Search products...',
+                labelText: SimpleTranslations.get(langCode, 'search') ?? 'Search Locations...',
                 prefixIcon: Icon(
                   Icons.search,
                   color: ThemeConfig.getPrimaryColor(currentTheme),
@@ -479,7 +461,7 @@ class _ProductPageState extends State<ProductPage> {
             ),
           ),
           Expanded(
-            child: filteredProducts.isEmpty
+            child: filteredLocations.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -488,8 +470,8 @@ class _ProductPageState extends State<ProductPage> {
                         const SizedBox(height: 16),
                         Text(
                           _searchController.text.isNotEmpty
-                              ? 'No products match your search'
-                              : 'No products found',
+                              ? 'No Locations match your search'
+                              : 'No Locations found',
                           style: const TextStyle(fontSize: 18, color: Colors.grey),
                         ),
                         if (_searchController.text.isNotEmpty) ...[
@@ -503,114 +485,54 @@ class _ProductPageState extends State<ProductPage> {
                     ),
                   )
                 : RefreshIndicator(
-                    onRefresh: fetchProducts,
+                    onRefresh: fetchLocations,
                     child: ListView.builder(
-                      itemCount: filteredProducts.length,
+                      itemCount: filteredLocations.length,
                       itemBuilder: (ctx, i) {
-                        final product = filteredProducts[i];
-                        print('🏗️ DEBUG: Building list item for product: ${product.productName}');
+                        final location = filteredLocations[i];
+                        print('🏗️ DEBUG: Building list item for location: ${location.locationName}');
 
                         return Card(
                           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           elevation: 2,
                           child: ListTile(
-                            leading: CircleAvatar(
-                              radius: 25,
-                              backgroundImage: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                                  ? NetworkImage(product.imageUrl!) // Try original URL first
-                                  : const AssetImage('assets/images/default_product.png') as ImageProvider,
-                              onBackgroundImageError: (exception, stackTrace) {
-                                print('🖼️ DEBUG: Error loading image for ${product.productName}');
-                                print('🖼️ DEBUG: Original URL failed: ${product.imageUrl}');
-                                print('🖼️ DEBUG: Error: $exception');
-                                print('🖼️ DEBUG: Testing alternative URLs...');
-                                
-                                // Print alternative URLs to test
-                                if (product.imageUrl!.contains('/public/')) {
-                                  print('🖼️ DEBUG: Try without /public/: ${product.imageUrl!.replaceAll('/public/', '/')}');
-                                  print('🖼️ DEBUG: Try with /uploads/: ${product.imageUrl!.replaceAll('/public/images/', '/uploads/')}');
-                                  print('🖼️ DEBUG: Try with /static/: ${product.imageUrl!.replaceAll('/public/images/', '/static/')}');
-                                }
-                              },
-                            ),
+                            leading: _buildLocationImage(location),
                             title: Text(
-                              product.productName,
+                              location.locationName,
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
                               ),
                             ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (product.category != null && product.category!.isNotEmpty)
-                                  Text(
-                                    'Category: ${product.category}',
-                                    style: TextStyle(fontSize: 13),
-                                  ),
-                                if (product.brand != null && product.brand!.isNotEmpty)
-                                  Text(
-                                    'Brand: ${product.brand}',
-                                    style: TextStyle(fontSize: 13),
-                                  ),
-                                if (product.productCode != null && product.productCode!.isNotEmpty)
-                                  Text(
-                                    'Code: ${product.productCode}',
-                                    style: TextStyle(fontSize: 13),
-                                  ),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: _getStatusColor(product.status),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        product.status.toUpperCase(),
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    if (product.unit != null) ...[
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Unit: ${product.unit}',
-                                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
+                            subtitle: Text(
+                              'Company ID: ${location.companyId}',
+                              style: TextStyle(fontSize: 13),
                             ),
                             trailing: Icon(
                               Icons.edit,
                               color: ThemeConfig.getPrimaryColor(currentTheme),
                             ),
                             onTap: () async {
-                              print('👆 DEBUG: Product tapped: ${product.productName}');
+                              print('👆 DEBUG: Location tapped: ${location.locationName}');
                               
                               final result = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => ProductEditPage(
-                                    productData: product.toJson(),
+                                  builder: (_) => LocationEditPage(
+                                    LocationData: location.toJson(),
                                   ),
                                 ),
                               );
 
-                              print('📝 DEBUG: Edit product result: $result');
+                              print('📝 DEBUG: Edit Location result: $result');
                               if (result == true || result == 'deleted') {
-                                print('🔄 DEBUG: Product operation completed, refreshing list...');
-                                fetchProducts();
+                                print('🔄 DEBUG: Location operation completed, refreshing list...');
+                                fetchLocations();
                                 
                                 if (result == 'deleted') {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('Product removed from list'),
+                                      content: Text('Location removed from list'),
                                       backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
                                       duration: Duration(seconds: 2),
                                     ),
@@ -627,138 +549,46 @@ class _ProductPageState extends State<ProductPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _onAddProduct,
+        onPressed: _onAddLocation,
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-        tooltip: SimpleTranslations.get(langCode, 'add_product') ?? 'Add Product',
+        tooltip: SimpleTranslations.get(langCode, 'add_Location') ?? 'Add Location',
         child: const Icon(Icons.add),
       ),
     );
   }
-
-  // ✅ Helper method to find correct image URL path
-  String _getCorrectImageUrl(String imageUrl) {
-    print('🖼️ DEBUG: Original image URL: $imageUrl');
-    
-    // Try different URL patterns to find the working one
-    List<String> urlsToTry = [];
-    
-    // Pattern 1: Keep original URL with /public/
-    urlsToTry.add(imageUrl);
-    
-    // Pattern 2: Remove /public/ from URL
-    if (imageUrl.contains('/public/')) {
-      urlsToTry.add(imageUrl.replaceAll('/public/', '/'));
-    }
-    
-    // Pattern 3: Use direct file path (common for static files)
-    if (imageUrl.contains('/public/images/')) {
-      urlsToTry.add(imageUrl.replaceAll('/public/images/', '/uploads/'));
-      urlsToTry.add(imageUrl.replaceAll('/public/images/', '/static/'));
-      urlsToTry.add(imageUrl.replaceAll('/public/images/', '/files/'));
-    }
-    
-    // For now, return the original URL and log all possibilities
-    print('🖼️ DEBUG: URLs to try: $urlsToTry');
-    
-    // Let's first try the original URL
-    return imageUrl;
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return Colors.green;
-      case 'inactive':
-        return Colors.orange;
-      case 'deleted':
-        return Colors.red;
-      case 'pending':
-        return Colors.blue;
-      default:
-        return Colors.grey;
-    }
-  }
 }
 
-// Updated Product model to match your IoProduct API structure
-class Product {
-  final int productId;
+// Updated IoLocation model to match your io_location table structure
+class IoLocation {
+  final int locationId;
   final int companyId;
-  final String productName;
-  final String? productCode;
-  final String? description;
-  final String? category;
-  final String? brand;
-  final String? barcode;
-  final int? supplierId;
-  final DateTime createdDate;
-  final DateTime updatedDate;
-  final String? notes;
-  final int? unit;
+  final String locationName;
   final String? imageUrl;
-  final String status;
   
-  Product({
-    required this.productId,
+  IoLocation({
+    required this.locationId,
     required this.companyId,
-    required this.productName,
-    this.productCode,
-    this.description,
-    this.category,
-    this.brand,
-    this.barcode,
-    this.supplierId,
-    required this.createdDate,
-    required this.updatedDate,
-    this.notes,
-    this.unit,
+    required this.locationName,
     this.imageUrl,
-    required this.status,
   });
   
-  factory Product.fromJson(Map<String, dynamic> json) {
-    print('🔄 DEBUG: Converting JSON to Product');
+  factory IoLocation.fromJson(Map<String, dynamic> json) {
+    print('🔄 DEBUG: Converting JSON to IoLocation');
     print('📝 DEBUG: JSON keys: ${json.keys.toList()}');
     print('📝 DEBUG: JSON data: $json');
     
     try {
-      // Handle different date formats
-      DateTime parseDate(dynamic dateValue) {
-        if (dateValue == null) return DateTime.now();
-        if (dateValue is String) {
-          try {
-            return DateTime.parse(dateValue);
-          } catch (e) {
-            print('⚠️ DEBUG: Error parsing date string "$dateValue": $e');
-            return DateTime.now();
-          }
-        }
-        return DateTime.now();
-      }
-
-      final product = Product(
-        productId: json['product_id'] ?? 0,
+      final location = IoLocation(
+        locationId: json['location_id'] ?? 0,
         companyId: json['company_id'] ?? 0,
-        productName: json['product_name'] ?? '',
-        productCode: json['product_code'],
-        description: json['description'],
-        category: json['category'],
-        brand: json['brand'],
-        barcode: json['barcode'],
-        supplierId: json['supplier_id'],
-        createdDate: parseDate(json['created_date']),
-        updatedDate: parseDate(json['updated_date']),
-        notes: json['notes'],
-        unit: json['unit'],
+        locationName: json['location'] ?? '',
         imageUrl: json['image_url'],
-        status: json['status'] ?? 'active',
       );
-      
-      print('✅ DEBUG: Successfully created product: ${product.productName}');
-      return product;
+      print('✅ DEBUG: Successfully created IoLocation: ${location.locationName}');
+      return location;
     } catch (e, stackTrace) {
-      print('❌ DEBUG: Error parsing product JSON: $e');
+      print('❌ DEBUG: Error parsing IoLocation JSON: $e');
       print('📚 DEBUG: Stack trace: $stackTrace');
       print('📝 DEBUG: Problem JSON: $json');
       rethrow;
@@ -767,21 +597,10 @@ class Product {
   
   Map<String, dynamic> toJson() {
     return {
-      'product_id': productId,
+      'location_id': locationId,
       'company_id': companyId,
-      'product_name': productName,
-      'product_code': productCode,
-      'description': description,
-      'category': category,
-      'brand': brand,
-      'barcode': barcode,
-      'supplier_id': supplierId,
-      'created_date': createdDate.toIso8601String(),
-      'updated_date': updatedDate.toIso8601String(),
-      'notes': notes,
-      'unit': unit,
+      'location': locationName,
       'image_url': imageUrl,
-      'status': status,
     };
   }
 }

@@ -128,7 +128,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
       final token = prefs.getString('access_token');
       final productId = widget.productData['product_id'];
 
-      final url = AppConfig.api('/api/ioproducts/$productId');
+      final url = AppConfig.api('/api/ioproduct/$productId');
       print('🌐 DEBUG: Updating product at: $url');
 
       final productData = <String, dynamic>{};
@@ -248,7 +248,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
       final token = prefs.getString('access_token');
       final productId = widget.productData['product_id'];
 
-      final url = AppConfig.api('/api/ioproducts/$productId');
+      final url = AppConfig.api('/api/ioproduct/$productId');
       print('🗑️ DEBUG: Deleting product at: $url');
 
       final response = await http.delete(

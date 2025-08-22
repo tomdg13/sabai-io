@@ -21,11 +21,12 @@ class AddStockPage extends StatefulWidget {
 class _AddStockPageState extends State<AddStockPage> {
   String? accessToken;
   String langCode = 'en';
+  int? companyId;
   
   // Form controllers
   final _formKey = GlobalKey<FormState>();
   final _productIdController = TextEditingController();
-  final _locationIdController = TextEditingController();
+  final _barcodeController = TextEditingController();
   final _stockQuantityController = TextEditingController();
   final _minimumStockController = TextEditingController();
   final _reservedQuantityController = TextEditingController();
@@ -41,9 +42,12 @@ class _AddStockPageState extends State<AddStockPage> {
   bool isSubmitting = false;
   bool isCreateMode = true;
   bool isScanning = false;
+  bool isLoadingLocations = false;
   List<Map<String, dynamic>> existingInventory = [];
+  List<Map<String, dynamic>> locations = [];
   Map<String, dynamic>? selectedInventoryItem;
   Map<String, dynamic>? scannedProduct;
+  Map<String, dynamic>? selectedLocation;
   
   // Dropdown values
   String selectedCurrency = 'LAK';
@@ -64,11 +68,53 @@ class _AddStockPageState extends State<AddStockPage> {
     final prefs = await SharedPreferences.getInstance();
     accessToken = prefs.getString('access_token');
     langCode = prefs.getString('languageCode') ?? 'en';
+    companyId = prefs.getInt('company_id') ?? 1;
     
     if (accessToken != null) {
-      _loadExistingInventory();
+      await _loadLocations();
+      await _loadExistingInventory();
     } else {
       _showErrorSnackBar(SimpleTranslations.get(langCode, 'auth_token_not_found'));
+    }
+  }
+
+  Future<void> _loadLocations() async {
+    if (accessToken == null || companyId == null) return;
+    
+    setState(() => isLoadingLocations = true);
+
+    try {
+      final response = await http.get(
+        AppConfig.api('/api/iolocation?status=admin&company_id=$companyId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      print('📍 DEBUG: Locations API Response: ${response.statusCode}');
+      print('📍 DEBUG: Locations API Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'success') {
+          setState(() {
+            locations = List<Map<String, dynamic>>.from(data['data'] ?? []);
+          });
+          print('📍 DEBUG: Loaded ${locations.length} locations');
+        } else {
+          _showErrorSnackBar('Failed to load locations: ${data['message']}');
+        }
+      } else if (response.statusCode == 401) {
+        _handleAuthError();
+      } else {
+        _showErrorSnackBar('Failed to load locations: Server error ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error loading locations: $e');
+      _showErrorSnackBar('Error loading locations: $e');
+    } finally {
+      setState(() => isLoadingLocations = false);
     }
   }
 
@@ -94,20 +140,29 @@ class _AddStockPageState extends State<AddStockPage> {
 
     try {
       final response = await http.get(
-        AppConfig.api('/api/products/barcode/$barcode'),
+        AppConfig.api('/api/ioproduct/barcode/$barcode'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
         },
       );
 
+      print('🔍 DEBUG: Barcode API Response: ${response.statusCode}');
+      print('🔍 DEBUG: Barcode API Body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        setState(() {
-          scannedProduct = data['data'];
-          _productIdController.text = scannedProduct!['product_id'].toString();
-        });
-        _showSuccessSnackBar(SimpleTranslations.get(langCode, 'product_found_success'));
+        if (data['status'] == 'success') {
+          setState(() {
+            scannedProduct = data['data'];
+            _barcodeController.text = scannedProduct!['barcode'] ?? '';
+            _productIdController.text = scannedProduct!['product_id'].toString();
+          });
+          print('✅ DEBUG: Product found: ${scannedProduct!['product_name']}');
+          _showSuccessSnackBar(SimpleTranslations.get(langCode, 'product_found_success'));
+        } else {
+          _showErrorSnackBar('Product not found: ${data['message']}');
+        }
       } else if (response.statusCode == 404) {
         _showErrorSnackBar(SimpleTranslations.get(langCode, 'product_not_found'));
       } else if (response.statusCode == 401) {
@@ -116,6 +171,7 @@ class _AddStockPageState extends State<AddStockPage> {
         _showErrorSnackBar(SimpleTranslations.get(langCode, 'failed_to_lookup_product'));
       }
     } catch (e) {
+      print('❌ DEBUG: Error looking up product: $e');
       _showErrorSnackBar('${SimpleTranslations.get(langCode, 'error_looking_up_product')}: $e');
     } finally {
       setState(() => isLoading = false);
@@ -154,12 +210,18 @@ class _AddStockPageState extends State<AddStockPage> {
   Future<void> _createNewInventory() async {
     if (!_formKey.currentState!.validate() || accessToken == null) return;
 
+    if (selectedLocation == null) {
+      _showErrorSnackBar('Please select a location');
+      return;
+    }
+
     setState(() => isSubmitting = true);
 
     try {
       final requestBody = {
+        'barcode': _barcodeController.text.trim().isNotEmpty ? _barcodeController.text.trim() : null,
         'product_id': int.parse(_productIdController.text),
-        'location_id': int.parse(_locationIdController.text),
+        'location_id': selectedLocation!['location_id'],
         'stock_quantity': int.parse(_stockQuantityController.text),
         'minimum_stock': int.parse(_minimumStockController.text),
         'reserved_quantity': int.parse(_reservedQuantityController.text.isEmpty ? '0' : _reservedQuantityController.text),
@@ -244,8 +306,8 @@ class _AddStockPageState extends State<AddStockPage> {
   }
 
   void _clearForm() {
+    _barcodeController.clear();
     _productIdController.clear();
-    _locationIdController.clear();
     _stockQuantityController.clear();
     _minimumStockController.clear();
     _reservedQuantityController.clear();
@@ -258,6 +320,7 @@ class _AddStockPageState extends State<AddStockPage> {
     setState(() {
       selectedExpireDate = null;
       selectedInventoryItem = null;
+      selectedLocation = null;
       selectedCurrency = 'LAK';
       selectedStatus = 'ACTIVE';
       scannedProduct = null;
@@ -282,8 +345,8 @@ class _AddStockPageState extends State<AddStockPage> {
 
   @override
   void dispose() {
+    _barcodeController.dispose();
     _productIdController.dispose();
-    _locationIdController.dispose();
     _stockQuantityController.dispose();
     _minimumStockController.dispose();
     _reservedQuantityController.dispose();
@@ -326,28 +389,109 @@ class _AddStockPageState extends State<AddStockPage> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.green[200]!),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.check_circle, color: Colors.green[600]),
+                        // Product Image
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green[300]!),
+                          ),
+                          child: scannedProduct!['image_url'] != null && scannedProduct!['image_url'].toString().isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(7),
+                                  child: Image.network(
+                                    scannedProduct!['image_url'],
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        color: Colors.green[100],
+                                        child: Icon(
+                                          Icons.inventory,
+                                          color: Colors.green[600],
+                                          size: 24,
+                                        ),
+                                      );
+                                    },
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        color: Colors.green[100],
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.green[600]!),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                )
+                              : Container(
+                                  color: Colors.green[100],
+                                  child: Icon(
+                                    Icons.inventory,
+                                    color: Colors.green[600],
+                                    size: 24,
+                                  ),
+                                ),
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                SimpleTranslations.get(langCode, 'scanned_product'),
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              Row(
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.green[600], size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    SimpleTranslations.get(langCode, 'scanned_product'),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green[700],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Text('${SimpleTranslations.get(langCode, 'product_name')}: ${scannedProduct!['name'] ?? 'N/A'}'),
-                              Text('${SimpleTranslations.get(langCode, 'product_id')}: ${scannedProduct!['product_id']}'),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${SimpleTranslations.get(langCode, 'product_name')}: ${scannedProduct!['product_name'] ?? 'N/A'}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              Text(
+                                '${SimpleTranslations.get(langCode, 'product_id')}: ${scannedProduct!['product_id']}',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                              ),
+                              if (scannedProduct!['barcode'] != null)
+                                Text(
+                                  'Barcode: ${scannedProduct!['barcode']}',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 13,
+                                  ),
+                                ),
                             ],
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close),
+                          icon: Icon(Icons.close, color: Colors.grey[600]),
                           onPressed: () {
                             setState(() {
                               scannedProduct = null;
@@ -411,45 +555,170 @@ class _AddStockPageState extends State<AddStockPage> {
             ),
             const SizedBox(height: 20),
             
-            // Product & Location with Barcode Scanner
+            // Barcode Scanner (Primary)
             Row(
               children: [
                 Expanded(
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _FastTextField(
-                          controller: _productIdController,
-                          label: SimpleTranslations.get(langCode, 'product_id'),
-                          keyboardType: TextInputType.number,
-                          required: true,
-                          langCode: langCode,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: primaryColor,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-                          onPressed: _scanBarcode,
-                          tooltip: SimpleTranslations.get(langCode, 'scan_barcode'),
-                        ),
-                      ),
-                    ],
+                  child: _FastTextField(
+                    controller: _barcodeController,
+                    label: 'Barcode *',
+                    keyboardType: TextInputType.text,
+                    required: true,
+                    langCode: langCode,
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(child: _FastTextField(
-                  controller: _locationIdController,
-                  label: SimpleTranslations.get(langCode, 'location_id'),
-                  keyboardType: TextInputType.number,
-                  required: true,
-                  langCode: langCode,
-                )),
+                const SizedBox(width: 8),
+                Container(
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+                    onPressed: _scanBarcode,
+                    tooltip: SimpleTranslations.get(langCode, 'scan_barcode'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Product ID (Auto-populated from barcode scan)
+            _FastTextField(
+              controller: _productIdController,
+              label: SimpleTranslations.get(langCode, 'product_id'),
+              keyboardType: TextInputType.number,
+              required: true,
+              langCode: langCode,
+            ),
+            const SizedBox(height: 16),
+            
+            // Location Dropdown
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${SimpleTranslations.get(langCode, 'location')} *',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: isLoadingLocations
+                      ? Container(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                              const SizedBox(width: 12),
+                              Text('Loading locations...'),
+                            ],
+                          ),
+                        )
+                      : DropdownButtonHideUnderline(
+                          child: DropdownButton<Map<String, dynamic>>(
+                            value: selectedLocation,
+                            hint: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text('Select location'),
+                            ),
+                            isExpanded: true,
+                            items: locations.map((location) {
+                              return DropdownMenuItem<Map<String, dynamic>>(
+                                value: location,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      // Location Image
+                                      Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.grey[300]!),
+                                        ),
+                                        child: location['image_url'] != null && location['image_url'].toString().isNotEmpty
+                                            ? ClipRRect(
+                                                borderRadius: BorderRadius.circular(5),
+                                                child: Image.network(
+                                                  location['image_url'],
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return Container(
+                                                      color: Colors.grey[100],
+                                                      child: Icon(
+                                                        Icons.location_on,
+                                                        color: Colors.grey[400],
+                                                        size: 16,
+                                                      ),
+                                                    );
+                                                  },
+                                                  loadingBuilder: (context, child, loadingProgress) {
+                                                    if (loadingProgress == null) return child;
+                                                    return Container(
+                                                      color: Colors.grey[100],
+                                                      child: Center(
+                                                        child: SizedBox(
+                                                          width: 12,
+                                                          height: 12,
+                                                          child: CircularProgressIndicator(
+                                                            strokeWidth: 1.5,
+                                                            value: loadingProgress.expectedTotalBytes != null
+                                                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                                                : null,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                              )
+                                            : Container(
+                                                color: Colors.grey[100],
+                                                child: Icon(
+                                                  Icons.location_on,
+                                                  color: Colors.grey[400],
+                                                  size: 16,
+                                                ),
+                                              ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      // Location Name and ID
+                                      Expanded(
+                                        child: Text(
+                                          location['location'] ?? 'Unknown',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (value) => setState(() => selectedLocation = value),
+                          ),
+                        ),
+                ),
+                if (selectedLocation == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 8),
+                    child: Text(
+                      'Location is required',
+                      style: TextStyle(color: Colors.red[700], fontSize: 12),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 16),

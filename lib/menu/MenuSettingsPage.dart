@@ -1,3 +1,4 @@
+import 'package:Inventory/business/LocationPage.dart';
 import 'package:Inventory/business/ProductPage.dart';
 import 'package:flutter/material.dart';
 
@@ -177,6 +178,12 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
               title: 'Product',
               color: Colors.purple,
               onTap: _navigateToProductPage,  // ✅ Fixed: Use new ProductPage
+            ),
+            _buildGridItem(
+              icon: Icons.language,
+              title: 'Location',
+              color: const Color.fromARGB(255, 1, 136, 35),
+              onTap: _navigateToLocationPage,  
             ),
             // NEW: User menu item
             _buildGridItem(
@@ -390,6 +397,14 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const ProductPage()),  // Changed from productpage() to ProductPage()
+    );
+  }
+
+    /// Navigate to Location page using new Location class
+  void _navigateToLocationPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LocationPage()),  // Changed from productpage() to ProductPage()
     );
   }
 

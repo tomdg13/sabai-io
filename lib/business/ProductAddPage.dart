@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ProductAddPage extends StatefulWidget {
   const ProductAddPage({Key? key}) : super(key: key);
@@ -87,6 +88,57 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
     _brandFocus.dispose();
     _fadeController.dispose();
     super.dispose();
+  }
+
+  // Barcode Scanner Methods
+  Future<void> _scanBarcode(String fieldType) async {
+    try {
+      final result = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BarcodeScannerPage(fieldType: fieldType),
+        ),
+      );
+
+      if (result != null && result.isNotEmpty) {
+        setState(() {
+          if (fieldType == 'product_code') {
+            _productCodeController.text = result;
+          } else if (fieldType == 'barcode') {
+            _barcodeController.text = result;
+          }
+        });
+
+        // Show success feedback
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Barcode scanned: $result'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error scanning barcode: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Error scanning barcode: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _pickImage() async {
@@ -257,40 +309,41 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
       final token = prefs.getString('access_token');
       final companyId = prefs.getInt('company_id') ?? 1;
 
-      final url = AppConfig.api('/api/ioproducts');
+      final url = AppConfig.api('/api/ioproduct');
       print('🌐 DEBUG: Creating product at: $url');
 
-      final productData = {
-        'company_id': companyId,
-        'product_name': _productNameController.text.trim(),
-        'product_code': _productCodeController.text.trim().isNotEmpty 
-            ? _productCodeController.text.trim() 
-            : null,
-        'description': _descriptionController.text.trim().isNotEmpty 
-            ? _descriptionController.text.trim() 
-            : null,
-        'category': _categoryController.text.trim().isNotEmpty 
-            ? _categoryController.text.trim() 
-            : null,
-        'brand': _brandController.text.trim().isNotEmpty 
-            ? _brandController.text.trim() 
-            : null,
-        'barcode': _barcodeController.text.trim().isNotEmpty 
-            ? _barcodeController.text.trim() 
-            : null,
-        'supplier_id': _supplierIdController.text.trim().isNotEmpty 
-            ? int.tryParse(_supplierIdController.text.trim()) 
-            : null,
-        'notes': _notesController.text.trim().isNotEmpty 
-            ? _notesController.text.trim() 
-            : null,
-        'unit': _unitController.text.trim().isNotEmpty 
-            ? int.tryParse(_unitController.text.trim()) 
-            : null,
-        'status': _selectedStatus,
-        'image_url': _base64Image,
-      };
+      // In your _createProduct() method, change this line:
 
+final productData = {
+  'company_id': companyId,
+  'product_name': _productNameController.text.trim(),
+  'product_code': _productCodeController.text.trim().isNotEmpty 
+      ? _productCodeController.text.trim() 
+      : null,
+  'description': _descriptionController.text.trim().isNotEmpty 
+      ? _descriptionController.text.trim() 
+      : null,
+  'category': _categoryController.text.trim().isNotEmpty 
+      ? _categoryController.text.trim() 
+      : null,
+  'brand': _brandController.text.trim().isNotEmpty 
+      ? _brandController.text.trim() 
+      : null,
+  'barcode': _barcodeController.text.trim().isNotEmpty 
+      ? _barcodeController.text.trim() 
+      : null,
+  'supplier_id': _supplierIdController.text.trim().isNotEmpty 
+      ? int.tryParse(_supplierIdController.text.trim()) 
+      : null,
+  'notes': _notesController.text.trim().isNotEmpty 
+      ? _notesController.text.trim() 
+      : null,
+  'unit': _unitController.text.trim().isNotEmpty 
+      ? int.tryParse(_unitController.text.trim()) 
+      : null,
+  'status': _selectedStatus,
+  'image': _base64Image,  // ✅ Changed from 'image_url' to 'image'
+};
       print('📝 DEBUG: Product data: ${productData.toString()}');
 
       final response = await http.post(
@@ -399,6 +452,8 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
     String? Function(String?)? validator,
     int maxLines = 1,
     String? hint,
+    bool showScanButton = false,
+    String? scanType,
   }) {
     return Container(
       margin: EdgeInsets.only(bottom: 16),
@@ -421,6 +476,16 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
             icon,
             color: ThemeConfig.getPrimaryColor(currentTheme),
           ),
+          suffixIcon: showScanButton
+              ? IconButton(
+                  icon: Icon(
+                    Icons.qr_code_scanner,
+                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                  ),
+                  onPressed: () => _scanBarcode(scanType!),
+                  tooltip: 'Scan barcode',
+                )
+              : null,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -638,7 +703,9 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
                     icon: Icons.qr_code,
                     focusNode: _productCodeFocus,
                     nextFocus: _categoryFocus,
-                    hint: 'Enter product code or SKU',
+                    hint: 'Enter product code or scan barcode',
+                    showScanButton: true,
+                    scanType: 'product_code',
                   ),
                   
                   _buildEnhancedTextField(
@@ -671,7 +738,9 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
                     controller: _barcodeController,
                     label: 'Barcode',
                     icon: Icons.qr_code_scanner,
-                    hint: 'Enter barcode number',
+                    hint: 'Enter barcode number or scan',
+                    showScanButton: true,
+                    scanType: 'barcode',
                   ),
                   
                   _buildEnhancedTextField(
@@ -840,5 +909,350 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
       default:
         return Colors.grey;
     }
+  }
+}
+
+// Barcode Scanner Page
+class BarcodeScannerPage extends StatefulWidget {
+  final String fieldType;
+
+  const BarcodeScannerPage({Key? key, required this.fieldType}) : super(key: key);
+
+  @override
+  State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
+}
+
+class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
+  MobileScannerController cameraController = MobileScannerController();
+  bool isScanned = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(
+          widget.fieldType == 'product_code' 
+              ? 'Scan Product Code' 
+              : 'Scan Barcode',
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.flash_on),
+            onPressed: () => cameraController.toggleTorch(),
+          ),
+          IconButton(
+            icon: Icon(Icons.flip_camera_ios),
+            onPressed: () => cameraController.switchCamera(),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // Scanner View
+          MobileScanner(
+            controller: cameraController,
+            onDetect: (capture) {
+              if (!isScanned) {
+                isScanned = true;
+                final List<Barcode> barcodes = capture.barcodes;
+                
+                if (barcodes.isNotEmpty) {
+                  final String code = barcodes.first.displayValue ?? '';
+                  
+                  if (code.isNotEmpty) {
+                    // Vibrate on successful scan (if available)
+                    // HapticFeedback.mediumImpact();
+                    
+                    // Return the scanned code
+                    Navigator.of(context).pop(code);
+                  } else {
+                    setState(() {
+                      isScanned = false;
+                    });
+                  }
+                }
+              }
+            },
+          ),
+          
+          // Scanner Overlay
+          Container(
+            decoration: ShapeDecoration(
+              shape: QrScannerOverlayShape(
+                borderColor: Colors.white,
+                borderRadius: 10,
+                borderLength: 30,
+                borderWidth: 5,
+                cutOutSize: 250,
+              ),
+            ),
+          ),
+          
+          // Instructions
+          Positioned(
+            bottom: 100,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      widget.fieldType == 'product_code'
+                          ? 'Position the product code within the frame to scan'
+                          : 'Position the barcode within the frame to scan',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    cameraController.dispose();
+    super.dispose();
+  }
+}
+
+// QR Scanner Overlay Shape
+class QrScannerOverlayShape extends ShapeBorder {
+  final Color borderColor;
+  final double borderWidth;
+  final Color overlayColor;
+  final double borderRadius;
+  final double borderLength;
+  final double cutOutSize;
+
+  const QrScannerOverlayShape({
+    this.borderColor = Colors.white,
+    this.borderWidth = 3.0,
+    this.overlayColor = const Color.fromRGBO(0, 0, 0, 80),
+    this.borderRadius = 0,
+    this.borderLength = 40,
+    this.cutOutSize = 250,
+  });
+
+  @override
+  EdgeInsetsGeometry get dimensions => const EdgeInsets.all(10);
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) {
+    return Path()
+      ..fillType = PathFillType.evenOdd
+      ..addPath(getOuterPath(rect), Offset.zero);
+  }
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
+    Path _getLeftTopPath(Rect rect) {
+      return Path()
+        ..moveTo(rect.left, rect.bottom)
+        ..lineTo(rect.left, rect.top + borderRadius)
+        ..quadraticBezierTo(rect.left, rect.top, rect.left + borderRadius, rect.top)
+        ..lineTo(rect.right, rect.top);
+    }
+
+    Path _getRightTopPath(Rect rect) {
+      return Path()
+        ..moveTo(rect.left, rect.top)
+        ..lineTo(rect.right - borderRadius, rect.top)
+        ..quadraticBezierTo(rect.right, rect.top, rect.right, rect.top + borderRadius)
+        ..lineTo(rect.right, rect.bottom);
+    }
+
+    Path _getRightBottomPath(Rect rect) {
+      return Path()
+        ..moveTo(rect.right, rect.top)
+        ..lineTo(rect.right, rect.bottom - borderRadius)
+        ..quadraticBezierTo(rect.right, rect.bottom, rect.right - borderRadius, rect.bottom)
+        ..lineTo(rect.left, rect.bottom);
+    }
+
+    Path _getLeftBottomPath(Rect rect) {
+      return Path()
+        ..moveTo(rect.right, rect.bottom)
+        ..lineTo(rect.left + borderRadius, rect.bottom)
+        ..quadraticBezierTo(rect.left, rect.bottom, rect.left, rect.bottom - borderRadius)
+        ..lineTo(rect.left, rect.top);
+    }
+
+    final width = rect.width;
+    final borderWidthSize = width / 2;
+    final height = rect.height;
+    final borderHeightSize = height / 2;
+    final cutOutWidth = cutOutSize < width ? cutOutSize : width - borderWidth;
+    final cutOutHeight = cutOutSize < height ? cutOutSize : height - borderWidth;
+
+    final cutOutRect = Rect.fromLTWH(
+      rect.left + (width - cutOutWidth) / 2 + borderWidth,
+      rect.top + (height - cutOutHeight) / 2 + borderWidth,
+      cutOutWidth - borderWidth * 2,
+      cutOutHeight - borderWidth * 2,
+    );
+
+    final cutOutRRect = RRect.fromRectAndRadius(
+      cutOutRect,
+      Radius.circular(borderRadius),
+    );
+
+    final leftTopCorner = Rect.fromLTWH(
+      cutOutRect.left,
+      cutOutRect.top,
+      borderLength,
+      borderLength,
+    );
+
+    final rightTopCorner = Rect.fromLTWH(
+      cutOutRect.right - borderLength,
+      cutOutRect.top,
+      borderLength,
+      borderLength,
+    );
+
+    final rightBottomCorner = Rect.fromLTWH(
+      cutOutRect.right - borderLength,
+      cutOutRect.bottom - borderLength,
+      borderLength,
+      borderLength,
+    );
+
+    final leftBottomCorner = Rect.fromLTWH(
+      cutOutRect.left,
+      cutOutRect.bottom - borderLength,
+      borderLength,
+      borderLength,
+    );
+
+    return Path.combine(
+      PathOperation.difference,
+      Path()..addRect(rect),
+      Path()
+        ..addRRect(cutOutRRect)
+        ..addPath(_getLeftTopPath(leftTopCorner), Offset.zero)
+        ..addPath(_getRightTopPath(rightTopCorner), Offset.zero)
+        ..addPath(_getRightBottomPath(rightBottomCorner), Offset.zero)
+        ..addPath(_getLeftBottomPath(leftBottomCorner), Offset.zero),
+    );
+  }
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
+    final width = rect.width;
+    final borderWidthSize = width / 2;
+    final height = rect.height;
+    final borderHeightSize = height / 2;
+    final cutOutWidth = cutOutSize < width ? cutOutSize : width - borderWidth;
+    final cutOutHeight = cutOutSize < height ? cutOutSize : height - borderWidth;
+
+    final cutOutRect = Rect.fromLTWH(
+      rect.left + (width - cutOutWidth) / 2 + borderWidth,
+      rect.top + (height - cutOutHeight) / 2 + borderWidth,
+      cutOutWidth - borderWidth * 2,
+      cutOutHeight - borderWidth * 2,
+    );
+
+    final paint = Paint()
+      ..color = overlayColor
+      ..style = PaintingStyle.fill;
+
+    final backgroundPath = Path()
+      ..addRect(rect)
+      ..addRRect(RRect.fromRectAndRadius(cutOutRect, Radius.circular(borderRadius)));
+
+    canvas.drawPath(backgroundPath, paint..blendMode = BlendMode.srcOver);
+
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth;
+
+    // Draw corner borders
+    final path = Path();
+    
+    // Left top corner
+    path.moveTo(cutOutRect.left - borderWidth, cutOutRect.top + borderLength);
+    path.lineTo(cutOutRect.left - borderWidth, cutOutRect.top - borderWidth + borderRadius);
+    path.arcToPoint(
+      Offset(cutOutRect.left + borderRadius, cutOutRect.top - borderWidth),
+      radius: Radius.circular(borderRadius),
+    );
+    path.lineTo(cutOutRect.left + borderLength, cutOutRect.top - borderWidth);
+
+    // Right top corner
+    path.moveTo(cutOutRect.right - borderLength, cutOutRect.top - borderWidth);
+    path.lineTo(cutOutRect.right - borderRadius, cutOutRect.top - borderWidth);
+    path.arcToPoint(
+      Offset(cutOutRect.right + borderWidth, cutOutRect.top + borderRadius),
+      radius: Radius.circular(borderRadius),
+    );
+    path.lineTo(cutOutRect.right + borderWidth, cutOutRect.top + borderLength);
+
+    // Right bottom corner
+    path.moveTo(cutOutRect.right + borderWidth, cutOutRect.bottom - borderLength);
+    path.lineTo(cutOutRect.right + borderWidth, cutOutRect.bottom - borderRadius);
+    path.arcToPoint(
+      Offset(cutOutRect.right - borderRadius, cutOutRect.bottom + borderWidth),
+      radius: Radius.circular(borderRadius),
+    );
+    path.lineTo(cutOutRect.right - borderLength, cutOutRect.bottom + borderWidth);
+
+    // Left bottom corner
+    path.moveTo(cutOutRect.left + borderLength, cutOutRect.bottom + borderWidth);
+    path.lineTo(cutOutRect.left + borderRadius, cutOutRect.bottom + borderWidth);
+    path.arcToPoint(
+      Offset(cutOutRect.left - borderWidth, cutOutRect.bottom - borderRadius),
+      radius: Radius.circular(borderRadius),
+    );
+    path.lineTo(cutOutRect.left - borderWidth, cutOutRect.bottom - borderLength);
+
+    canvas.drawPath(path, borderPaint);
+  }
+
+  @override
+  ShapeBorder scale(double t) {
+    return QrScannerOverlayShape(
+      borderColor: borderColor,
+      borderWidth: borderWidth * t,
+      overlayColor: overlayColor,
+      borderRadius: borderRadius * t,
+      borderLength: borderLength * t,
+      cutOutSize: cutOutSize * t,
+    );
   }
 }

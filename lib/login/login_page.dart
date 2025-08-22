@@ -342,7 +342,7 @@ class _LoginPageState extends State<LoginPage> {
                     width: 1,
                   ),
                 ),
-                child: Icon(Icons.local_taxi, size: 64, color: primaryColor),
+                child: Icon(Icons.language, size: 64, color: primaryColor),
               ),
 
               const SizedBox(height: 40),
