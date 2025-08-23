@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:Inventory/config/config.dart';
-import 'package:Inventory/config/theme.dart';
+import 'package:inventory/config/config.dart';
+import 'package:inventory/config/theme.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1113,8 +1113,10 @@ class QrScannerOverlayShape extends ShapeBorder {
     }
 
     final width = rect.width;
+    // ignore: unused_local_variable
     final borderWidthSize = width / 2;
     final height = rect.height;
+    // ignore: unused_local_variable
     final borderHeightSize = height / 2;
     final cutOutWidth = cutOutSize < width ? cutOutSize : width - borderWidth;
     final cutOutHeight = cutOutSize < height ? cutOutSize : height - borderWidth;
@@ -1174,8 +1176,10 @@ class QrScannerOverlayShape extends ShapeBorder {
   @override
   void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
     final width = rect.width;
+    // ignore: unused_local_variable
     final borderWidthSize = width / 2;
     final height = rect.height;
+    // ignore: unused_local_variable
     final borderHeightSize = height / 2;
     final cutOutWidth = cutOutSize < width ? cutOutSize : width - borderWidth;
     final cutOutHeight = cutOutSize < height ? cutOutSize : height - borderWidth;

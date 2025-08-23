@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:Inventory/business/UserAdd.dart';
-import 'package:Inventory/business/UserEdit.dart';
-import 'package:Inventory/config/config.dart';
-import 'package:Inventory/config/theme.dart'; // Add this import
+import 'package:inventory/business/UserAdd.dart';
+import 'package:inventory/business/UserEdit.dart';
+import 'package:inventory/config/config.dart';
+import 'package:inventory/config/theme.dart'; // Add this import
 import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';

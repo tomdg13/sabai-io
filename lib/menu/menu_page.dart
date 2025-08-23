@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:Inventory/car/mycar.dart' as mycar_ctrl;
-import 'package:Inventory/driver/DriverPage.dart' as driver_ctrl;
-import 'package:Inventory/history/bookingListPage.dart' as booklist_ctrl;
-import 'package:Inventory/history/MessagePage.dart' as message_ctrl;
-import 'package:Inventory/config/theme.dart';
-import 'package:Inventory/menu/AddStockPage.dart';
+import 'package:inventory/car/mycar.dart' as mycar_ctrl;
+import 'package:inventory/driver/DriverPage.dart' as driver_ctrl;
+import 'package:inventory/history/bookingListPage.dart' as booklist_ctrl;
+import 'package:inventory/history/MessagePage.dart' as message_ctrl;
+import 'package:inventory/config/theme.dart';
+import 'package:inventory/menu/AddStockPage.dart';
 
-import 'package:Inventory/menu/MenuSettingsPage.dart';
-import 'package:Inventory/menu/dashboard.dart';
+import 'package:inventory/menu/MenuSettingsPage.dart';
+import 'package:inventory/menu/dashboard.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';

@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'LocationAddPage.dart';
 import 'LocationEditPage.dart';
-import 'package:Inventory/config/config.dart';
-import 'package:Inventory/config/theme.dart';
+import 'package:inventory/config/config.dart';
+import 'package:inventory/config/theme.dart';
 import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:developer' as developer;
 
 class LocationPage extends StatefulWidget {
   const LocationPage({Key? key}) : super(key: key);
@@ -412,7 +411,7 @@ class _LocationPageState extends State<LocationPage> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('${SimpleTranslations.get(langCode, 'Locations') ?? 'Locations'} (${filteredLocations.length})'),
+        title: Text('${SimpleTranslations.get(langCode, 'Locations')} (${filteredLocations.length})'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         actions: [
@@ -422,7 +421,7 @@ class _LocationPageState extends State<LocationPage> {
               fetchLocations();
             },
             icon: const Icon(Icons.refresh),
-            tooltip: SimpleTranslations.get(langCode, 'refresh') ?? 'Refresh',
+            tooltip: SimpleTranslations.get(langCode, 'refresh'),
           ),
         ],
       ),
@@ -433,7 +432,7 @@ class _LocationPageState extends State<LocationPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                labelText: SimpleTranslations.get(langCode, 'search') ?? 'Search Locations...',
+                labelText: SimpleTranslations.get(langCode, 'search'),
                 prefixIcon: Icon(
                   Icons.search,
                   color: ThemeConfig.getPrimaryColor(currentTheme),
@@ -552,7 +551,7 @@ class _LocationPageState extends State<LocationPage> {
         onPressed: _onAddLocation,
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-        tooltip: SimpleTranslations.get(langCode, 'add_Location') ?? 'Add Location',
+        tooltip: SimpleTranslations.get(langCode, 'add_Location'),
         child: const Icon(Icons.add),
       ),
     );

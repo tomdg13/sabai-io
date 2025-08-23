@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'package:Inventory/config/config.dart';
+import 'package:inventory/config/config.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
-import 'package:Inventory/config/theme.dart';
+import 'package:inventory/config/theme.dart';
 import 'ConfirmOtpResetPWPage.dart';
 
 class VerifyOtpforgetpassPage extends StatefulWidget {

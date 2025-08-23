@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:Inventory/config/theme.dart'; // Use main ThemeConfig
+import 'package:inventory/config/theme.dart'; // Use main ThemeConfig
 import '../utils/simple_translations.dart';
 
 class MessagePage extends StatefulWidget {

@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
-import 'package:Inventory/config/config.dart' show AppConfig;
+import 'package:inventory/config/config.dart' show AppConfig;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 

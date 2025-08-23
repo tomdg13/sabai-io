@@ -1,9 +1,9 @@
-import 'package:Inventory/business/LocationPage.dart';
-import 'package:Inventory/business/ProductPage.dart';
+import 'package:inventory/business/LocationPage.dart';
+import 'package:inventory/business/ProductPage.dart';
 import 'package:flutter/material.dart';
 
-import 'package:Inventory/business/UserPage.dart';
-import 'package:Inventory/business/branch.dart';
+import 'package:inventory/business/UserPage.dart';
+import 'package:inventory/business/branch.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart'; // Import your existing ThemeConfig
@@ -180,7 +180,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
               onTap: _navigateToProductPage,  // ✅ Fixed: Use new ProductPage
             ),
             _buildGridItem(
-              icon: Icons.language,
+              icon: Icons.view_in_ar,
               title: 'Location',
               color: const Color.fromARGB(255, 1, 136, 35),
               onTap: _navigateToLocationPage,  

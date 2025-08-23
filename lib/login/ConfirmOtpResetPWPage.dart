@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:Inventory/config/theme.dart'; // Add theme import
+import 'package:inventory/config/theme.dart'; // Add theme import
 import '../utils/simple_translations.dart';
 import 'ForgetPasswordPage.dart';
 

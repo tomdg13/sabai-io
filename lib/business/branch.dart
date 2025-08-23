@@ -1,6 +1,6 @@
 // branch.dart
 import 'package:flutter/material.dart';
-import 'package:Inventory/config/theme.dart';
+import 'package:inventory/config/theme.dart';
 import '../utils/simple_translations.dart';
 
 class BranchPage extends StatefulWidget {

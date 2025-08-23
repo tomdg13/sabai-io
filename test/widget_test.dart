@@ -7,7 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:Inventory/login/login_page.dart';
+import 'package:inventory/login/login_page.dart';
 // import 'package:Inventory/main.dart';
 
 void main() {

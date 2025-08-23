@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:Inventory/config/theme.dart';
-import 'package:Inventory/login/regiteruser.dart';
+import 'package:inventory/config/theme.dart';
+import 'package:inventory/login/regiteruser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
 
