@@ -1,4 +1,4 @@
-name: Inventory
+name: inventory
 description: "A new Flutter project."
 publish_to: 'none'
 
@@ -60,3 +60,4 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icon/Inventory.png" # only available for Android 8.0 devices and above
 
   flutter_lints: ^6.0.0
+
