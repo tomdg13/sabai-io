@@ -1101,6 +1101,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
                       return const Icon(Icons.flash_off);
                     case TorchState.on:
                       return const Icon(Icons.flash_on, color: Colors.yellow);
+                    // ignore: unreachable_switch_default
                     default:
                       return const Icon(Icons.flash_off, color: Colors.grey);
                   }

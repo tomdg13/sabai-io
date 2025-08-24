@@ -1,9 +1,9 @@
+import 'package:inventory/business/BranchPage.dart';
 import 'package:inventory/business/LocationPage.dart';
 import 'package:inventory/business/ProductPage.dart';
 import 'package:flutter/material.dart';
 
 import 'package:inventory/business/UserPage.dart';
-import 'package:inventory/business/branch.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart'; // Import your existing ThemeConfig
@@ -380,7 +380,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   void _navigateToBranchPage() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const BranchPage()),
+      MaterialPageRoute(builder: (context) => branchPage()),
     );
   }
 

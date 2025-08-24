@@ -448,7 +448,7 @@ class _UserAddPageState extends State<UserAddPage> {
 
                     // Role Dropdown
                     DropdownButtonFormField<String>(
-                      value: _selectedRole,
+                      initialValue: _selectedRole,
                       decoration: InputDecoration(
                         labelText: SimpleTranslations.get(langCode, 'role_required'),
                         border: OutlineInputBorder(

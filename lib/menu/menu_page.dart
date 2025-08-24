@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:inventory/car/mycar.dart' as mycar_ctrl;
-import 'package:inventory/driver/DriverPage.dart' as driver_ctrl;
-import 'package:inventory/history/bookingListPage.dart' as booklist_ctrl;
-import 'package:inventory/history/MessagePage.dart' as message_ctrl;
 import 'package:inventory/config/theme.dart';
 import 'package:inventory/menu/AddStockPage.dart';
 
