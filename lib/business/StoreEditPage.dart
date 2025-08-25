@@ -20,6 +20,21 @@ class storeEditPage extends StatefulWidget {
 class _storeEditPageState extends State<storeEditPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _storeNameController;
+  // ✅ ADDED: All additional form controllers
+  late final TextEditingController _storeCodeController;
+  late final TextEditingController _storeManagerController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _addressController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _stateController;
+  late final TextEditingController _countryController;
+  late final TextEditingController _postalCodeController;
+  late final TextEditingController _storeTypeController;
+  late final TextEditingController _statusController;
+  late final TextEditingController _openingHoursController;
+  late final TextEditingController _squareFootageController;
+  late final TextEditingController _notesController;
 
   String? _base64Image;
   String? _currentImageUrl;
@@ -45,6 +60,23 @@ class _storeEditPageState extends State<storeEditPage> {
   void _initializeControllers() {
     _storeNameController = TextEditingController(text: widget.storeData['store'] ?? '');
     _currentImageUrl = widget.storeData['image_url'];
+
+    // ✅ ADDED: Initialize all additional controllers
+    _storeCodeController = TextEditingController(text: widget.storeData['store_code'] ?? '');
+    _storeManagerController = TextEditingController(text: widget.storeData['store_manager'] ?? '');
+    _emailController = TextEditingController(text: widget.storeData['email'] ?? '');
+    _phoneController = TextEditingController(text: widget.storeData['phone'] ?? '');
+    _addressController = TextEditingController(text: widget.storeData['address'] ?? '');
+    _cityController = TextEditingController(text: widget.storeData['city'] ?? '');
+    _stateController = TextEditingController(text: widget.storeData['state'] ?? '');
+    _countryController = TextEditingController(text: widget.storeData['country'] ?? '');
+    _postalCodeController = TextEditingController(text: widget.storeData['postal_code'] ?? '');
+    _storeTypeController = TextEditingController(text: widget.storeData['store_type'] ?? '');
+    _statusController = TextEditingController(text: widget.storeData['status'] ?? '');
+    _openingHoursController = TextEditingController(text: widget.storeData['opening_hours'] ?? '');
+    _squareFootageController = TextEditingController(text: widget.storeData['square_footage']?.toString() ?? '');
+    _notesController = TextEditingController(text: widget.storeData['notes'] ?? '');
+    
     
     print('🔧 DEBUG: Initialized edit form with store: ${widget.storeData['store']}');
     print('🔧 DEBUG: store ID: ${widget.storeData['store_id']}');
@@ -54,6 +86,21 @@ class _storeEditPageState extends State<storeEditPage> {
   @override
   void dispose() {
     _storeNameController.dispose();
+     // ✅ ADDED: Dispose all additional controllers
+    _storeCodeController.dispose();
+    _storeManagerController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _countryController.dispose();
+    _postalCodeController.dispose();
+    _storeTypeController.dispose();
+    _statusController.dispose();
+    _openingHoursController.dispose();
+    _squareFootageController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -202,7 +249,7 @@ class _storeEditPageState extends State<storeEditPage> {
       
       // Only include fields that have values
       if (_storeNameController.text.trim().isNotEmpty) {
-        storeData['store'] = _storeNameController.text.trim();
+        storeData['store_name'] = _storeNameController.text.trim();
       }
       
       if (_base64Image != null) {
@@ -316,6 +363,60 @@ class _storeEditPageState extends State<storeEditPage> {
 
       final url = AppConfig.api('/api/iostore/$storeId');
       print('🗑️ DEBUG: Deleting store at: $url');
+
+      // ✅ UPDATED: Include all fields in update request
+      final storeData = <String, dynamic>{};
+      
+      // Only include fields that have values
+      if (_storeNameController.text.trim().isNotEmpty) {
+        storeData['store_name'] = _storeNameController.text.trim(); // ✅ FIXED: Changed from 'store' to 'store_name'
+      }
+      if (_storeCodeController.text.trim().isNotEmpty) {
+        storeData['store_code'] = _storeCodeController.text.trim();
+      }
+      if (_storeManagerController.text.trim().isNotEmpty) {
+        storeData['store_manager'] = _storeManagerController.text.trim();
+      }
+      if (_emailController.text.trim().isNotEmpty) {
+        storeData['email'] = _emailController.text.trim();
+      }
+      if (_phoneController.text.trim().isNotEmpty) {
+        storeData['phone'] = _phoneController.text.trim();
+      }
+      if (_addressController.text.trim().isNotEmpty) {
+        storeData['address'] = _addressController.text.trim();
+      }
+      if (_cityController.text.trim().isNotEmpty) {
+        storeData['city'] = _cityController.text.trim();
+      }
+      if (_stateController.text.trim().isNotEmpty) {
+        storeData['state'] = _stateController.text.trim();
+      }
+      if (_countryController.text.trim().isNotEmpty) {
+        storeData['country'] = _countryController.text.trim();
+      }
+      if (_postalCodeController.text.trim().isNotEmpty) {
+        storeData['postal_code'] = _postalCodeController.text.trim();
+      }
+      if (_storeTypeController.text.trim().isNotEmpty) {
+        storeData['store_type'] = _storeTypeController.text.trim();
+      }
+      if (_statusController.text.trim().isNotEmpty) {
+        storeData['status'] = _statusController.text.trim();
+      }
+      if (_openingHoursController.text.trim().isNotEmpty) {
+        storeData['opening_hours'] = _openingHoursController.text.trim();
+      }
+      if (_squareFootageController.text.trim().isNotEmpty) {
+        storeData['square_footage'] = int.tryParse(_squareFootageController.text.trim());
+      }
+      if (_notesController.text.trim().isNotEmpty) {
+        storeData['notes'] = _notesController.text.trim();
+      }
+      
+      if (_base64Image != null) {
+        storeData['image'] = _base64Image;
+      }
 
       final response = await http.delete(
         Uri.parse(url.toString()),
@@ -646,7 +747,41 @@ class _storeEditPageState extends State<storeEditPage> {
                       ),
                       
                       SizedBox(height: 16),
+                       // ✅ ADDED: Address Field
+                      TextFormField(
+                        controller: _addressController,
+                        maxLines: 2,
+                        decoration: InputDecoration(
+                          labelText: 'Address',
+                          hintText: 'Enter full address (optional)',
+                          prefixIcon: Icon(
+                            Icons.home,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              width: 2,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                      ),
                       
+                      SizedBox(height: 16),
+
+
+
+
                       // Display read-only company ID
                       Container(
                         padding: EdgeInsets.all(16),
@@ -679,6 +814,244 @@ class _storeEditPageState extends State<storeEditPage> {
               ),
 
               SizedBox(height: 30),
+
+              // ✅ ADDED: Country and Postal Code Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _countryController,
+                              decoration: InputDecoration(
+                                labelText: 'Country',
+                                hintText: 'Country',
+                                prefixIcon: Icon(
+                                  Icons.public,
+                                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                                    width: 2,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _postalCodeController,
+                              decoration: InputDecoration(
+                                labelText: 'Postal Code',
+                                hintText: 'ZIP/Postal',
+                                prefixIcon: Icon(
+                                  Icons.local_post_office,
+                                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                                    width: 2,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      SizedBox(height: 16),
+                      
+                      // ✅ ADDED: Store Type and Status Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _storeTypeController,
+                              decoration: InputDecoration(
+                                labelText: 'Store Type',
+                                hintText: 'e.g., retail, warehouse',
+                                prefixIcon: Icon(
+                                  Icons.category,
+                                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                                    width: 2,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _statusController,
+                              decoration: InputDecoration(
+                                labelText: 'Status',
+                                hintText: 'e.g., active, inactive',
+                                prefixIcon: Icon(
+                                  Icons.info,
+                                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                                    width: 2,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      SizedBox(height: 16),
+                      
+                      // ✅ ADDED: Opening Hours Field
+                      TextFormField(
+                        controller: _openingHoursController,
+                        decoration: InputDecoration(
+                          labelText: 'Opening Hours',
+                          hintText: 'e.g., Mon-Fri: 9AM-6PM (optional)',
+                          prefixIcon: Icon(
+                            Icons.access_time,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              width: 2,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                      ),
+                      
+                      SizedBox(height: 16),
+                      
+                      // ✅ ADDED: Square Footage Field
+                      TextFormField(
+                        controller: _squareFootageController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Square Footage',
+                          hintText: 'Store size in sq ft (optional)',
+                          prefixIcon: Icon(
+                            Icons.square_foot,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              width: 2,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                        validator: (value) {
+                          if (value != null && value.trim().isNotEmpty) {
+                            final num = int.tryParse(value.trim());
+                            if (num == null || num <= 0) {
+                              return 'Please enter a valid positive number';
+                            }
+                          }
+                          return null;
+                        },
+                      ),
+                      
+                      SizedBox(height: 16),
+                      
+                      // ✅ ADDED: Notes Field
+                      TextFormField(
+                        controller: _notesController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: 'Notes',
+                          hintText: 'Additional notes (optional)',
+                          prefixIcon: Icon(
+                            Icons.note,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              width: 2,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                      ),
+                      
+                      SizedBox(height: 16),
 
               // Update Button
               Container(

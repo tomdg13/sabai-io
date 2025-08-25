@@ -43,11 +43,14 @@ class _AddStockPageState extends State<AddStockPage> {
   bool isCreateMode = true;
   bool isScanning = false;
   bool isLoadingLocations = false;
+  bool isLoadingStores = false;
   List<Map<String, dynamic>> existingInventory = [];
   List<Map<String, dynamic>> locations = [];
+  List<Map<String, dynamic>> stores = [];
   Map<String, dynamic>? selectedInventoryItem;
   Map<String, dynamic>? scannedProduct;
   Map<String, dynamic>? selectedLocation;
+  Map<String, dynamic>? selectedStore;
   
   // Dropdown values
   String selectedCurrency = 'LAK';
@@ -72,6 +75,7 @@ class _AddStockPageState extends State<AddStockPage> {
     
     if (accessToken != null) {
       await _loadLocations();
+      await _loadStores();
       await _loadExistingInventory();
     } else {
       _showErrorSnackBar(SimpleTranslations.get(langCode, 'auth_token_not_found'));
@@ -115,6 +119,46 @@ class _AddStockPageState extends State<AddStockPage> {
       _showErrorSnackBar('Error loading locations: $e');
     } finally {
       setState(() => isLoadingLocations = false);
+    }
+  }
+
+  Future<void> _loadStores() async {
+    if (accessToken == null || companyId == null) return;
+    
+    setState(() => isLoadingStores = true);
+
+    try {
+      final response = await http.get(
+        AppConfig.api('/api/iostore?status=admin&company_id=$companyId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      print('🏪 DEBUG: Stores API Response: ${response.statusCode}');
+      print('🏪 DEBUG: Stores API Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'success') {
+          setState(() {
+            stores = List<Map<String, dynamic>>.from(data['data'] ?? []);
+          });
+          print('🏪 DEBUG: Loaded ${stores.length} stores');
+        } else {
+          _showErrorSnackBar('Failed to load stores: ${data['message']}');
+        }
+      } else if (response.statusCode == 401) {
+        _handleAuthError();
+      } else {
+        _showErrorSnackBar('Failed to load stores: Server error ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error loading stores: $e');
+      _showErrorSnackBar('Error loading stores: $e');
+    } finally {
+      setState(() => isLoadingStores = false);
     }
   }
 
@@ -215,6 +259,11 @@ class _AddStockPageState extends State<AddStockPage> {
       return;
     }
 
+    if (selectedStore == null) {
+      _showErrorSnackBar('Please select a store');
+      return;
+    }
+
     setState(() => isSubmitting = true);
 
     try {
@@ -222,6 +271,7 @@ class _AddStockPageState extends State<AddStockPage> {
         'barcode': _barcodeController.text.trim().isNotEmpty ? _barcodeController.text.trim() : null,
         'product_id': int.parse(_productIdController.text),
         'location_id': selectedLocation!['location_id'],
+        'store_id': selectedStore!['store_id'],
         'stock_quantity': int.parse(_stockQuantityController.text),
         'minimum_stock': int.parse(_minimumStockController.text),
         'reserved_quantity': int.parse(_reservedQuantityController.text.isEmpty ? '0' : _reservedQuantityController.text),
@@ -234,6 +284,10 @@ class _AddStockPageState extends State<AddStockPage> {
         'block_location': _blockLocationController.text.isEmpty ? null : _blockLocationController.text,
         'status': selectedStatus,
       };
+      print('🆕 DEBUG: Create Inventory Request Body: $requestBody');
+      
+
+      
 
       final response = await http.post(
         AppConfig.api('/api/inventory'),
@@ -241,13 +295,18 @@ class _AddStockPageState extends State<AddStockPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
         },
+        
         body: json.encode(requestBody),
       );
+      print('🆕 DEBUG: Create Inventory API Response: ${response.statusCode}');
+      print('🆕 DEBUG: Create Inventory API Body: ${response.body}');
+      
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         _showSuccessSnackBar(SimpleTranslations.get(langCode, 'inventory_created_success'));
         _clearForm();
-        Navigator.pop(context, true);
+        // Navigate back to main screen
+        Navigator.of(context).popUntil(ModalRoute.withName('/main'));
       } else if (response.statusCode == 401) {
         _handleAuthError();
       } else {
@@ -284,10 +343,11 @@ class _AddStockPageState extends State<AddStockPage> {
         body: json.encode(requestBody),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 && response.statusCode == 201 ) {
         _showSuccessSnackBar(SimpleTranslations.get(langCode, 'stock_added_success'));
         _clearForm();
-        Navigator.pop(context, true);
+        // Navigate back to main screen
+        Navigator.of(context).popUntil(ModalRoute.withName('/main'));
       } else if (response.statusCode == 401) {
         _handleAuthError();
       } else {
@@ -321,6 +381,7 @@ class _AddStockPageState extends State<AddStockPage> {
       selectedExpireDate = null;
       selectedInventoryItem = null;
       selectedLocation = null;
+      selectedStore = null;
       selectedCurrency = 'LAK';
       selectedStatus = 'ACTIVE';
       scannedProduct = null;
@@ -362,22 +423,6 @@ class _AddStockPageState extends State<AddStockPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          SimpleTranslations.get(langCode, 'add_stock'), 
-          style: const TextStyle(fontWeight: FontWeight.bold)
-        ),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner),
-            onPressed: _scanBarcode,
-            tooltip: SimpleTranslations.get(langCode, 'scan_barcode'),
-          ),
-        ],
-      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -504,34 +549,6 @@ class _AddStockPageState extends State<AddStockPage> {
                   ),
                 ],
                 
-                // Mode Selector
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(child: _ModeButton(
-                        isSelected: isCreateMode,
-                        onTap: () => setState(() => isCreateMode = true),
-                        icon: Icons.add_box,
-                        text: SimpleTranslations.get(langCode, 'create_new'),
-                        color: primaryColor,
-                      )),
-                      const SizedBox(width: 16),
-                      Expanded(child: _ModeButton(
-                        isSelected: !isCreateMode,
-                        onTap: () => setState(() => isCreateMode = false),
-                        icon: Icons.add_circle,
-                        text: SimpleTranslations.get(langCode, 'add_to_existing'),
-                        color: primaryColor,
-                      )),
-                    ],
-                  ),
-                ),
-                
                 // Form Content
                 Expanded(
                   child: isCreateMode ? _buildCreateForm() : _buildAddForm(),
@@ -595,132 +612,11 @@ class _AddStockPageState extends State<AddStockPage> {
             const SizedBox(height: 16),
             
             // Location Dropdown
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${SimpleTranslations.get(langCode, 'location')} *',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: isLoadingLocations
-                      ? Container(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                              const SizedBox(width: 12),
-                              Text('Loading locations...'),
-                            ],
-                          ),
-                        )
-                      : DropdownButtonHideUnderline(
-                          child: DropdownButton<Map<String, dynamic>>(
-                            value: selectedLocation,
-                            hint: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Text('Select location'),
-                            ),
-                            isExpanded: true,
-                            items: locations.map((location) {
-                              return DropdownMenuItem<Map<String, dynamic>>(
-                                value: location,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  child: Row(
-                                    children: [
-                                      // Location Image
-                                      Container(
-                                        width: 32,
-                                        height: 32,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: Colors.grey[300]!),
-                                        ),
-                                        child: location['image_url'] != null && location['image_url'].toString().isNotEmpty
-                                            ? ClipRRect(
-                                                borderRadius: BorderRadius.circular(5),
-                                                child: Image.network(
-                                                  location['image_url'],
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (context, error, stackTrace) {
-                                                    return Container(
-                                                      color: Colors.grey[100],
-                                                      child: Icon(
-                                                        Icons.location_on,
-                                                        color: Colors.grey[400],
-                                                        size: 16,
-                                                      ),
-                                                    );
-                                                  },
-                                                  loadingBuilder: (context, child, loadingProgress) {
-                                                    if (loadingProgress == null) return child;
-                                                    return Container(
-                                                      color: Colors.grey[100],
-                                                      child: Center(
-                                                        child: SizedBox(
-                                                          width: 12,
-                                                          height: 12,
-                                                          child: CircularProgressIndicator(
-                                                            strokeWidth: 1.5,
-                                                            value: loadingProgress.expectedTotalBytes != null
-                                                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                                                : null,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                              )
-                                            : Container(
-                                                color: Colors.grey[100],
-                                                child: Icon(
-                                                  Icons.location_on,
-                                                  color: Colors.grey[400],
-                                                  size: 16,
-                                                ),
-                                              ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      // Location Name and ID
-                                      Expanded(
-                                        child: Text(
-                                          location['location'] ?? 'Unknown',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) => setState(() => selectedLocation = value),
-                          ),
-                        ),
-                ),
-                if (selectedLocation == null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, left: 8),
-                    child: Text(
-                      'Location is required',
-                      style: TextStyle(color: Colors.red[700], fontSize: 12),
-                    ),
-                  ),
-              ],
-            ),
+            _buildLocationDropdown(),
+            const SizedBox(height: 16),
+
+            // Store Dropdown
+            _buildStoreDropdown(),
             const SizedBox(height: 16),
             
             // Stock Quantities
@@ -828,6 +724,254 @@ class _AddStockPageState extends State<AddStockPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLocationDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${SimpleTranslations.get(langCode, 'location')} *',
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: isLoadingLocations
+              ? Container(
+                  padding: const EdgeInsets.all(16),
+                  child: const Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Loading locations...'),
+                    ],
+                  ),
+                )
+              : DropdownButtonHideUnderline(
+                  child: DropdownButton<Map<String, dynamic>>(
+                    value: selectedLocation,
+                    hint: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('Select location'),
+                    ),
+                    isExpanded: true,
+                    items: locations.map((location) {
+                      return DropdownMenuItem<Map<String, dynamic>>(
+                        value: location,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: Row(
+                            children: [
+                              // Location Image
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.grey[300]!),
+                                ),
+                                child: location['image_url'] != null && location['image_url'].toString().isNotEmpty
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(5),
+                                        child: Image.network(
+                                          location['image_url'],
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              color: Colors.grey[100],
+                                              child: Icon(
+                                                Icons.location_on,
+                                                color: Colors.grey[400],
+                                                size: 16,
+                                              ),
+                                            );
+                                          },
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null) return child;
+                                            return Container(
+                                              color: Colors.grey[100],
+                                              child: const Center(
+                                                child: SizedBox(
+                                                  width: 12,
+                                                  height: 12,
+                                                  child: CircularProgressIndicator(strokeWidth: 1.5),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      )
+                                    : Container(
+                                        color: Colors.grey[100],
+                                        child: Icon(
+                                          Icons.location_on,
+                                          color: Colors.grey[400],
+                                          size: 16,
+                                        ),
+                                      ),
+                              ),
+                              const SizedBox(width: 10),
+                              // Location Name and ID
+                              Expanded(
+                                child: Text(
+                                  location['location'] ?? 'Unknown',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) => setState(() => selectedLocation = value),
+                  ),
+                ),
+        ),
+        if (selectedLocation == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 8),
+            child: Text(
+              'Location is required',
+              style: TextStyle(color: Colors.red[700], fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildStoreDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${SimpleTranslations.get(langCode, 'store')} *',
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: isLoadingStores
+              ? Container(
+                  padding: const EdgeInsets.all(16),
+                  child: const Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Loading stores...'),
+                    ],
+                  ),
+                )
+              : DropdownButtonHideUnderline(
+                  child: DropdownButton<Map<String, dynamic>>(
+                    value: selectedStore,
+                    hint: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('Select store'),
+                    ),
+                    isExpanded: true,
+                    items: stores.map((storeData) {
+                      return DropdownMenuItem<Map<String, dynamic>>(
+                        value: storeData,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: Row(
+                            children: [
+                              // Store Image
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.grey[300]!),
+                                ),
+                                child: storeData['image_url'] != null && storeData['image_url'].toString().isNotEmpty
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(5),
+                                        child: Image.network(
+                                          storeData['image_url'],
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              color: Colors.grey[100],
+                                              child: Icon(
+                                                Icons.store,
+                                                color: Colors.grey[400],
+                                                size: 16,
+                                              ),
+                                            );
+                                          },
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null) return child;
+                                            return Container(
+                                              color: Colors.grey[100],
+                                              child: const Center(
+                                                child: SizedBox(
+                                                  width: 12,
+                                                  height: 12,
+                                                  child: CircularProgressIndicator(strokeWidth: 1.5),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      )
+                                    : Container(
+                                        color: Colors.grey[100],
+                                        child: Icon(
+                                          Icons.store,
+                                          color: Colors.grey[400],
+                                          size: 16,
+                                        ),
+                                      ),
+                              ),
+                              const SizedBox(width: 10),
+                              // Store Name
+                              Expanded(
+                                child: Text(
+                                  storeData['store_name'] ?? storeData['name'] ?? 'Unknown Store',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) => setState(() => selectedStore = value),
+                  ),
+                ),
+        ),
+        if (selectedStore == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 8),
+            child: Text(
+              'Store is required',
+              style: TextStyle(color: Colors.red[700], fontSize: 12),
+            ),
+          ),
+      ],
     );
   }
 
@@ -999,7 +1143,6 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Check if controller is available instead of using value.isInitialized
     if (!isInitialized) {
       return;
     }
@@ -1048,76 +1191,10 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
     }
   }
 
-  void _toggleFlash() async {
-    try {
-      await cameraController.toggleTorch();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(SimpleTranslations.get(widget.langCode, 'flash_error')),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    }
-  }
-
-  void _switchCamera() async {
-    try {
-      await cameraController.switchCamera();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(SimpleTranslations.get(widget.langCode, 'camera_switch_error')),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: Text(
-          SimpleTranslations.get(widget.langCode, 'scan_barcode'),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: widget.primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          if (isInitialized) ...[
-            IconButton(
-              icon: ValueListenableBuilder(
-                valueListenable: cameraController.torchState,
-                builder: (context, state, child) {
-                  switch (state) {
-                    case TorchState.off:
-                      return const Icon(Icons.flash_off);
-                    case TorchState.on:
-                      return const Icon(Icons.flash_on, color: Colors.yellow);
-                    // ignore: unreachable_switch_default
-                    default:
-                      return const Icon(Icons.flash_off, color: Colors.grey);
-                  }
-                },
-              ),
-              onPressed: _toggleFlash,
-              tooltip: SimpleTranslations.get(widget.langCode, 'flash'),
-            ),
-            IconButton(
-              icon: const Icon(Icons.cameraswitch),
-              onPressed: _switchCamera,
-              tooltip: SimpleTranslations.get(widget.langCode, 'switch_camera'),
-            ),
-          ],
-        ],
-      ),
       body: !isInitialized
           ? Center(
               child: Column(
@@ -1375,52 +1452,6 @@ class ScannerOverlay extends CustomPainter {
 }
 
 // Fast, optimized custom widgets
-class _ModeButton extends StatelessWidget {
-  final bool isSelected;
-  final VoidCallback onTap;
-  final IconData icon;
-  final String text;
-  final Color color;
-
-  const _ModeButton({
-    required this.isSelected,
-    required this.onTap,
-    required this.icon,
-    required this.text,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? color : Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: isSelected ? color : Colors.grey[300]!),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: isSelected ? Colors.white : Colors.grey[600], size: 20),
-            const SizedBox(height: 4),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.grey[600],
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _FastTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
