@@ -11,7 +11,8 @@ import 'dart:typed_data';
 class ProductEditPage extends StatefulWidget {
   final Map<String, dynamic> productData;
 
-  const ProductEditPage({Key? key, required this.productData}) : super(key: key);
+  const ProductEditPage({Key? key, required this.productData})
+    : super(key: key);
 
   @override
   State<ProductEditPage> createState() => _ProductEditPageState();
@@ -37,7 +38,12 @@ class _ProductEditPageState extends State<ProductEditPage> {
   bool _isDeleting = false;
   String currentTheme = ThemeConfig.defaultTheme;
 
-  final List<String> _statusOptions = ['active', 'inactive', 'pending', 'deleted'];
+  final List<String> _statusOptions = [
+    'active',
+    'inactive',
+    'pending',
+    'deleted',
+  ];
 
   @override
   void initState() {
@@ -49,25 +55,46 @@ class _ProductEditPageState extends State<ProductEditPage> {
   void _loadCurrentTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      currentTheme =
+          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     });
   }
 
   void _initializeControllers() {
-    _productNameController = TextEditingController(text: widget.productData['product_name'] ?? '');
-    _productCodeController = TextEditingController(text: widget.productData['product_code'] ?? '');
-    _descriptionController = TextEditingController(text: widget.productData['description'] ?? '');
-    _categoryController = TextEditingController(text: widget.productData['category'] ?? '');
-    _brandController = TextEditingController(text: widget.productData['brand'] ?? '');
-    _barcodeController = TextEditingController(text: widget.productData['barcode'] ?? '');
-    _supplierIdController = TextEditingController(text: widget.productData['supplier_id']?.toString() ?? '');
-    _notesController = TextEditingController(text: widget.productData['notes'] ?? '');
-    _unitController = TextEditingController(text: widget.productData['unit']?.toString() ?? '');
-    
+    _productNameController = TextEditingController(
+      text: widget.productData['product_name'] ?? '',
+    );
+    _productCodeController = TextEditingController(
+      text: widget.productData['product_code'] ?? '',
+    );
+    _descriptionController = TextEditingController(
+      text: widget.productData['description'] ?? '',
+    );
+    _categoryController = TextEditingController(
+      text: widget.productData['category'] ?? '',
+    );
+    _brandController = TextEditingController(
+      text: widget.productData['brand'] ?? '',
+    );
+    _barcodeController = TextEditingController(
+      text: widget.productData['barcode'] ?? '',
+    );
+    _supplierIdController = TextEditingController(
+      text: widget.productData['supplier_id']?.toString() ?? '',
+    );
+    _notesController = TextEditingController(
+      text: widget.productData['notes'] ?? '',
+    );
+    _unitController = TextEditingController(
+      text: widget.productData['unit']?.toString() ?? '',
+    );
+
     _selectedStatus = widget.productData['status'] ?? 'active';
     _currentImageUrl = widget.productData['image_url'];
-    
-    print('🔧 DEBUG: Initialized edit form with product: ${widget.productData['product_name']}');
+
+    print(
+      '🔧 DEBUG: Initialized edit form with product: ${widget.productData['product_name']}',
+    );
   }
 
   @override
@@ -98,7 +125,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
         final File imageFile = File(image.path);
         final Uint8List imageBytes = await imageFile.readAsBytes();
         final String base64String = base64Encode(imageBytes);
-        
+
         setState(() {
           _imageFile = imageFile;
           _base64Image = 'data:image/jpeg;base64,$base64String';
@@ -108,9 +135,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
       }
     } catch (e) {
       print('❌ DEBUG: Error picking image: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error selecting image: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error selecting image: $e')));
     }
   }
 
@@ -132,7 +159,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
       print('🌐 DEBUG: Updating product at: $url');
 
       final productData = <String, dynamic>{};
-      
+
       // Only include fields that have values
       if (_productNameController.text.trim().isNotEmpty) {
         productData['product_name'] = _productNameController.text.trim();
@@ -153,7 +180,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
         productData['barcode'] = _barcodeController.text.trim();
       }
       if (_supplierIdController.text.trim().isNotEmpty) {
-        productData['supplier_id'] = int.tryParse(_supplierIdController.text.trim());
+        productData['supplier_id'] = int.tryParse(
+          _supplierIdController.text.trim(),
+        );
       }
       if (_notesController.text.trim().isNotEmpty) {
         productData['notes'] = _notesController.text.trim();
@@ -161,9 +190,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
       if (_unitController.text.trim().isNotEmpty) {
         productData['unit'] = int.tryParse(_unitController.text.trim());
       }
-      
+
       productData['status'] = _selectedStatus;
-      
+
       if (_base64Image != null) {
         productData['image_url'] = _base64Image;
       }
@@ -197,7 +226,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
         }
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
+        throw Exception(
+          errorData['message'] ?? 'Server error: ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('❌ DEBUG: Error updating product: $e');
@@ -221,7 +252,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Delete Product'),
-          content: Text('Are you sure you want to delete "${_productNameController.text}"? This action cannot be undone.'),
+          content: Text(
+            'Are you sure you want to delete "${_productNameController.text}"? This action cannot be undone.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -271,13 +304,18 @@ class _ProductEditPageState extends State<ProductEditPage> {
               backgroundColor: Colors.red,
             ),
           );
-          Navigator.pop(context, 'deleted'); // Return 'deleted' to indicate deletion
+          Navigator.pop(
+            context,
+            'deleted',
+          ); // Return 'deleted' to indicate deletion
         } else {
           throw Exception(responseData['message'] ?? 'Unknown error');
         }
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
+        throw Exception(
+          errorData['message'] ?? 'Server error: ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('❌ DEBUG: Error deleting product: $e');
@@ -302,10 +340,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
           children: [
             Text(
               'Product Image',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 16),
             GestureDetector(
@@ -321,23 +356,20 @@ class _ProductEditPageState extends State<ProductEditPage> {
                 child: _imageFile != null
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          _imageFile!,
-                          fit: BoxFit.cover,
-                        ),
+                        child: Image.file(_imageFile!, fit: BoxFit.cover),
                       )
                     : _currentImageUrl != null && _currentImageUrl!.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              _currentImageUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return _buildImagePlaceholder();
-                              },
-                            ),
-                          )
-                        : _buildImagePlaceholder(),
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          _currentImageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildImagePlaceholder();
+                          },
+                        ),
+                      )
+                    : _buildImagePlaceholder(),
               ),
             ),
             SizedBox(height: 8),
@@ -355,16 +387,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(
-          Icons.image,
-          size: 40,
-          color: Colors.grey[600],
-        ),
+        Icon(Icons.image, size: 40, color: Colors.grey[600]),
         SizedBox(height: 8),
-        Text(
-          'No image',
-          style: TextStyle(color: Colors.grey[600]),
-        ),
+        Text('No image', style: TextStyle(color: Colors.grey[600])),
       ],
     );
   }
@@ -418,7 +443,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
             children: [
               // Product Image Section
               _buildImageSection(),
-              
+
               SizedBox(height: 16),
 
               // Basic Information
@@ -436,7 +461,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
                         ),
                       ),
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _productNameController,
                         decoration: InputDecoration(
@@ -451,9 +476,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
                           return null;
                         },
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _productCodeController,
                         decoration: InputDecoration(
@@ -462,9 +487,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
                           prefixIcon: Icon(Icons.qr_code),
                         ),
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _categoryController,
                         decoration: InputDecoration(
@@ -473,9 +498,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
                           prefixIcon: Icon(Icons.category),
                         ),
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _brandController,
                         decoration: InputDecoration(
@@ -506,7 +531,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
                         ),
                       ),
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _barcodeController,
                         decoration: InputDecoration(
@@ -515,9 +540,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
                           prefixIcon: Icon(Icons.qr_code_scanner),
                         ),
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _supplierIdController,
                         decoration: InputDecoration(
@@ -527,9 +552,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
                         ),
                         keyboardType: TextInputType.number,
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _unitController,
                         decoration: InputDecoration(
@@ -539,11 +564,11 @@ class _ProductEditPageState extends State<ProductEditPage> {
                         ),
                         keyboardType: TextInputType.number,
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       DropdownButtonFormField<String>(
-                        initialValue: _selectedStatus,
+                        value: _selectedStatus,
                         decoration: InputDecoration(
                           labelText: 'Status',
                           border: OutlineInputBorder(),
@@ -583,7 +608,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
                         ),
                       ),
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _descriptionController,
                         decoration: InputDecoration(
@@ -593,9 +618,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
                         ),
                         maxLines: 3,
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _notesController,
                         decoration: InputDecoration(

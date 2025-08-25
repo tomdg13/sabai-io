@@ -301,7 +301,7 @@ class _CarAddPageState extends State<CarAddPage> {
                           ),
                           const SizedBox(height: 20),
                           DropdownButtonFormField<int>(
-                            initialValue: _selectedProvinceId,
+                            value: _selectedProvinceId,
                             decoration: InputDecoration(
                               labelText: SimpleTranslations.get(
                                 langCodes,
@@ -343,7 +343,7 @@ class _CarAddPageState extends State<CarAddPage> {
                             ],
                           ),
                           DropdownButtonFormField<int>(
-                            initialValue: _selectedCarTypeId,
+                            value: _selectedCarTypeId,
                             decoration: InputDecoration(
                               labelText: SimpleTranslations.get(
                                 langCodes,

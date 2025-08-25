@@ -465,15 +465,16 @@ class SimpleTranslations {
       "description_hint": "Product description...",
       "notes_hint": "Additional notes about the product...",
       // Authentication & Loading
-      'auth_token_not_found': 'Authentication token not found. Please login again.',
+      'auth_token_not_found':
+          'Authentication token not found. Please login again.',
       'session_expired': 'Session expired. Please login again.',
       'failed_to_load_inventory': 'Failed to load inventory',
-      
+
       // Page Title & Navigation
       'add_stock': 'Add Stock',
       'create_new': 'Create New',
       'add_to_existing': 'Add to Existing',
-      
+
       // Form Labels - Basic Info
       'product_id': 'Product ID',
       'location_id': 'Location ID',
@@ -483,11 +484,11 @@ class SimpleTranslations {
       'batch_number_optional': 'Batch Number (Optional)',
       'block_location': 'Block Location',
       'expire_date': 'Expire Date',
-      
+
       // Form Labels - Dropdowns
       'currency': 'Currency',
       'reserved': 'Reserved',
-      
+
       // Sections & Headers
       'create_new_inventory_item': 'Create New Inventory Item',
       'add_stock_to_existing_item': 'Add Stock to Existing Item',
@@ -497,7 +498,7 @@ class SimpleTranslations {
       'stock_info': 'Stock Information',
       'pricing_info': 'Pricing Information',
       'additional_info': 'Additional Information',
-      
+
       // Form Actions & Buttons
       'create_inventory_item': 'Create Inventory Item',
       'quantity_to_add': 'Quantity to Add',
@@ -505,20 +506,20 @@ class SimpleTranslations {
       'add_stock_button': 'Add Stock',
       'clear_form': 'Clear Form',
       'reset': 'Reset',
-      
+
       // Success Messages
       'inventory_created_success': 'Inventory item created successfully!',
       'stock_added_success': 'Stock added successfully!',
       'form_submitted_success': 'Form submitted successfully!',
       'data_saved_success': 'Data saved successfully!',
-      
+
       // Error Messages - API
       'failed_to_create_inventory': 'Failed to create inventory',
       'failed_to_add_stock': 'Failed to add stock',
       'error_creating_inventory': 'Error creating inventory',
       'error_adding_stock': 'Error adding stock',
       'api_error': 'API error occurred',
-      
+
       // Error Messages - Validation
       'fill_all_required_fields': 'Please fill all required fields',
       'enter_valid_number': 'Please enter a valid number',
@@ -528,7 +529,7 @@ class SimpleTranslations {
       'invalid_phone_format': 'Invalid phone format',
       'password_too_short': 'Password is too short',
       'passwords_dont_match': 'Passwords don\'t match',
-      
+
       // Inventory Related Terms
       'location': 'Location',
       'current_stock': 'Current Stock',
@@ -542,7 +543,7 @@ class SimpleTranslations {
       'supplier': 'Supplier',
       'batch': 'Batch',
       'expiry': 'Expiry',
-      
+
       // Dropdown Hints & Placeholders
       'select_inventory_item_hint': 'Select an inventory item',
       'select_product': 'Select Product',
@@ -550,7 +551,7 @@ class SimpleTranslations {
       'select_supplier': 'Select Supplier',
       'choose_option': 'Choose an option',
       'no_options_available': 'No options available',
-      
+
       // General UI Text
       'filter': 'Filter',
       'sort': 'Sort',
@@ -559,40 +560,108 @@ class SimpleTranslations {
       'information': 'Information',
       'profile': 'Profile',
 
-      
       // Date & Time
       'last_week': 'Last Week',
       'last_month': 'Last Month',
       'date_format': 'MM/dd/yyyy',
-      
+
       // Confirmation Messages
       'are_you_sure': 'Are you sure?',
       'confirm_logout': 'Are you sure you want to logout?',
       'yes': 'Yes',
       'no': 'No',
       'ok': 'OK',
-      
+
       // Status Messages
       'processing': 'Processing...',
       'operation_completed': 'Operation completed',
       'operation_failed': 'Operation failed',
       'no_results': 'No results found',
 
-      
-  
- 
-      
-      
       // Barcode Scanner
       'scan_barcode': 'Scan Barcode',
       'scan_instruction': 'Point your camera at a barcode to scan',
-      'camera_permission_denied': 'Camera permission denied. Please enable camera access in settings.',
+      'camera_permission_denied':
+          'Camera permission denied. Please enable camera access in settings.',
       'product_found_success': 'Product found successfully!',
       'product_not_found': 'Product not found with this barcode',
       'failed_to_lookup_product': 'Failed to lookup product',
       'error_looking_up_product': 'Error looking up product',
       'scanned_product': 'Scanned Product',
 
+      // Page Title & Headers
+      'add_new_inventory': 'Add New Inventory',
+
+      // Form Fields
+      'barcode_required': 'Barcode *',
+      'product_id_required': 'Product ID *',
+
+      'cost_price_lak_required': 'Cost Price (LAK) *',
+      'unit_price_lak_required': 'Unit Price (LAK) *',
+
+      'store': 'Store',
+
+      // Dropdowns
+      'select_store': 'Select store',
+      'unknown_location': 'Unknown Location',
+      'unknown_store': 'Unknown Store',
+
+      // Buttons
+      'creating_inventory': 'Creating...',
+      'dismiss': 'Dismiss',
+      'confirm_exit': 'Confirm Exit',
+      'stay': 'Stay',
+      'exit': 'Exit',
+
+      // Scanner
+      'initializing_camera': 'Initializing camera...',
+      'camera_error': 'Camera error occurred',
+      'barcode_detected': 'Barcode detected',
+
+      // Loading States
+      'loading_data': 'Loading data...',
+      'loading_locations': 'Loading locations...',
+      'loading_stores': 'Loading stores...',
+
+      // Error Messages - Validation
+      'please_fill_required_fields': 'Please fill all required fields',
+      'please_select_location': 'Please select a location',
+      'please_select_store': 'Please select a store',
+      'please_enter_valid_product_id': 'Please enter a valid Product ID',
+      'please_enter_valid_stock_quantity':
+          'Please enter a valid Stock Quantity (greater than 0)',
+      'please_enter_valid_minimum_stock':
+          'Please enter a valid Minimum Stock (0 or greater)',
+      'please_enter_valid_cost_price': 'Please enter a valid Cost Price',
+      'please_enter_valid_unit_price': 'Please enter a valid Unit Price',
+      'location_required': 'Location is required',
+      'store_required': 'Store is required',
+
+      // Error Messages - API/Network
+      'failed_load_locations': 'Failed to load locations. Please try again.',
+      'server_error_locations': 'Server error while loading locations',
+      'error_loading_locations':
+          'Error loading locations. Check your connection.',
+      'failed_load_stores': 'Failed to load stores. Please try again.',
+      'server_error_stores': 'Server error while loading stores',
+      'error_loading_stores': 'Error loading stores. Check your connection.',
+
+      'product_not_found_message':
+          'Product not found. Please check the barcode.',
+
+      'validation_error': 'Validation error. Please check your input.',
+      'data_validation_failed':
+          'Data validation failed. Please verify your information.',
+      'server_error_try_again':
+          'Server error occurred. Please try again later.',
+
+      'network_error_check_connection':
+          'Network error. Please check your internet connection.',
+      'invalid_data_format': 'Invalid data format. Please check your input.',
+
+      // Confirmation Messages
+      'creating_inventory_exit_warning':
+          'Inventory creation is in progress. Are you sure you want to exit?',
     },
     'la': {
       'searching_nearby_customers': 'ກໍາລັງຊອກຫາລູກຄ້າໃກ້ຄຽງ...',
@@ -1054,16 +1123,17 @@ class SimpleTranslations {
       "description_hint": "ລາຍລະອຽດສິນຄ້າ...",
       "notes_hint": "ໝາຍເຫດເພີ່ມເຕີມກ່ຽວກັບສິນຄ້າ...",
 
-   // Authentication & Loading
-      'auth_token_not_found': 'ບໍ່ພົບໂທເຄນການເຂົ້າສູ່ລະບົບ. ກະລຸນາເຂົ້າສູ່ລະບົບອີກຄັ້ງ.',
+      // Authentication & Loading
+      'auth_token_not_found':
+          'ບໍ່ພົບໂທເຄນການເຂົ້າສູ່ລະບົບ. ກະລຸນາເຂົ້າສູ່ລະບົບອີກຄັ້ງ.',
       'session_expired': 'ໝົດອາຍຸການເຂົ້າສູ່ລະບົບ. ກະລຸນາເຂົ້າສູ່ລະບົບອີກຄັ້ງ.',
       'failed_to_load_inventory': 'ໂຫຼດຂໍ້ມູນສິນຄ້າບໍ່ສຳເລັດ',
-      
+
       // Page Title & Navigation
       'add_stock': 'ເພີ່ມສິນຄ້າ',
       'create_new': 'ສ້າງໃໝ່',
       'add_to_existing': 'ເພີ່ມໃສ່ທີ່ມີຢູ່',
-      
+
       // Form Labels - Basic Info
       'product_id': 'ລະຫັດສິນຄ້າ',
       'location_id': 'ລະຫັດສະຖານທີ່',
@@ -1073,11 +1143,11 @@ class SimpleTranslations {
       'batch_number_optional': 'ເລກລອດ (ທາງເລືອກ)',
       'block_location': 'ບ່ອນເກັບ',
       'expire_date': 'ວັນໝົດອາຍຸ',
-      
+
       // Form Labels - Dropdowns
       'currency': 'ສະກຸນເງິນ',
       'reserved': 'ສຳຮອງ',
-      
+
       // Sections & Headers
       'create_new_inventory_item': 'ສ້າງລາຍການສິນຄ້າໃໝ່',
       'add_stock_to_existing_item': 'ເພີ່ມສິນຄ້າໃສ່ລາຍການທີ່ມີຢູ່',
@@ -1087,7 +1157,7 @@ class SimpleTranslations {
       'stock_info': 'ຂໍ້ມູນສິນຄ້າ',
       'pricing_info': 'ຂໍ້ມູນລາຄາ',
       'additional_info': 'ຂໍ້ມູນເພີ່ມເຕີມ',
-      
+
       // Form Actions & Buttons
       'create_inventory_item': 'ສ້າງລາຍການສິນຄ້າ',
       'quantity_to_add': 'ຈຳນວນທີ່ຈະເພີ່ມ',
@@ -1095,20 +1165,20 @@ class SimpleTranslations {
       'add_stock_button': 'ເພີ່ມສິນຄ້າ',
       'clear_form': 'ລຶບຂໍ້ມູນ',
       'reset': 'ຣີເຊັດ',
-      
+
       // Success Messages
       'inventory_created_success': 'ສ້າງລາຍການສິນຄ້າສຳເລັດແລ້ວ!',
       'stock_added_success': 'ເພີ່ມສິນຄ້າສຳເລັດແລ້ວ!',
       'form_submitted_success': 'ສົ່ງຟອມສຳເລັດແລ້ວ!',
       'data_saved_success': 'ບັນທຶກຂໍ້ມູນສຳເລັດແລ້ວ!',
-      
+
       // Error Messages - API
       'failed_to_create_inventory': 'ສ້າງລາຍການສິນຄ້າບໍ່ສຳເລັດ',
       'failed_to_add_stock': 'ເພີ່ມສິນຄ້າບໍ່ສຳເລັດ',
       'error_creating_inventory': 'ເກີດຂໍ້ຜິດພາດໃນການສ້າງລາຍການສິນຄ້າ',
       'error_adding_stock': 'ເກີດຂໍ້ຜິດພາດໃນການເພີ່ມສິນຄ້າ',
       'api_error': 'ເກີດຂໍ້ຜິດພາດ API',
-      
+
       // Error Messages - Validation
       'fill_all_required_fields': 'ກະລຸນາປ້ອນຂໍ້ມູນທີ່ຈຳເປັນໃຫ້ຄົບ',
       'enter_valid_number': 'ກະລຸນາປ້ອນຕົວເລກທີ່ຖືກຕ້ອງ',
@@ -1118,7 +1188,7 @@ class SimpleTranslations {
       'invalid_phone_format': 'ຮູບແບບເບີໂທບໍ່ຖືກຕ້ອງ',
       'password_too_short': 'ລະຫັດຜ່ານສັ້ນເກີນໄປ',
       'passwords_dont_match': 'ລະຫັດຜ່ານບໍ່ກົງກັນ',
-      
+
       // Inventory Related Terms
       'location': 'ສະຖານທີ່',
       'current_stock': 'ສະຕ໋ອກປັດຈຸບັນ',
@@ -1132,7 +1202,7 @@ class SimpleTranslations {
       'supplier': 'ຜູ້ສະໜອງ',
       'batch': 'ລອດ',
       'expiry': 'ໝົດອາຍຸ',
-      
+
       // Dropdown Hints & Placeholders
       'select_inventory_item_hint': 'ເລືອກລາຍການສິນຄ້າ',
       'select_product': 'ເລືອກສິນຄ້າ',
@@ -1140,9 +1210,8 @@ class SimpleTranslations {
       'select_supplier': 'ເລືອກຜູ້ສະໜອງ',
       'choose_option': 'ເລືອກຕົວເລືອກ',
       'no_options_available': 'ບໍ່ມີຕົວເລືອກ',
-      
-      // General UI Text
 
+      // General UI Text
       'filter': 'ຕອງ',
       'sort': 'ຈັດຮຽງ',
       'view': 'ເບິ່ງ',
@@ -1150,19 +1219,18 @@ class SimpleTranslations {
       'information': 'ຂໍ້ມູນ',
       'profile': 'ໂປຣໄຟລ໌',
 
-      
       // Date & Time
       'last_week': 'ອາທິດແລ້ວ',
       'last_month': 'ເດືອນແລ້ວ',
       'date_format': 'ວັນ/ເດືອນ/ປີ',
-      
+
       // Confirmation Messages
       'are_you_sure': 'ທ່ານແນ່ໃຈບໍ?',
       'confirm_logout': 'ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການອອກຈາກລະບົບ?',
       'yes': 'ແມ່ນ',
       'no': 'ບໍ່',
       'ok': 'ຕົກລົງ',
-      
+
       // Status Messages
       'processing': 'ກຳລັງປະມວນຜົນ...',
 
@@ -1170,16 +1238,86 @@ class SimpleTranslations {
       'operation_failed': 'ດຳເນີນການບໍ່ສຳເລັດ',
 
       'no_results': 'ບໍ່ພົບຜົນການຄົ້ນຫາ',
-       'scan_barcode': 'ສະແກນບາໂຄດ',
+      'scan_barcode': 'ສະແກນບາໂຄດ',
       'scan_instruction': 'ຊີ້ກ້ອງຂອງທ່ານໃສ່ບາໂຄດເພື່ອສະແກນ',
-      'camera_permission_denied': 'ການອະນຸຍາດກ້ອງຖືກປະຕິເສດ. ກະລຸນາເປີດການເຂົ້າເຖິງກ້ອງໃນການຕັ້ງຄ່າ.',
+      'camera_permission_denied':
+          'ການອະນຸຍາດກ້ອງຖືກປະຕິເສດ. ກະລຸນາເປີດການເຂົ້າເຖິງກ້ອງໃນການຕັ້ງຄ່າ.',
       'product_found_success': 'ພົບສິນຄ້າສຳເລັດແລ້ວ!',
       'product_not_found': 'ບໍ່ພົບສິນຄ້າດ້ວຍບາໂຄດນີ້',
       'failed_to_lookup_product': 'ຄົ້ນຫາສິນຄ້າບໍ່ສຳເລັດ',
       'error_looking_up_product': 'ເກີດຂໍ້ຜິດພາດໃນການຄົ້ນຫາສິນຄ້າ',
       'scanned_product': 'ສິນຄ້າທີ່ສະແກນ',
-   
-      
+
+      // Page Title & Headers
+      'add_new_inventory': 'ເພີ່ມສາງຄັງໃໝ່',
+
+      // Form Fields
+      'barcode_required': 'ບາໂຄດ *',
+      'product_id_required': 'ລະຫັດສິນຄ້າ *',
+
+      'cost_price_lak_required': 'ລາຄາທຶນ (ກີບ) *',
+      'unit_price_lak_required': 'ລາຄາຂາຍ (ກີບ) *',
+
+      'store': 'ຮ້ານ',
+
+      // Dropdowns
+      'select_store': 'ເລືອກຮ້ານ',
+      'unknown_location': 'ສະຖານທີ່ບໍ່ທາງ',
+      'unknown_store': 'ຮ້ານບໍ່ທາງ',
+
+      // Buttons
+      'creating_inventory': 'ກຳລັງສ້າງ...',
+      'dismiss': 'ປິດ',
+      'confirm_exit': 'ຢືນຢັນອອກ',
+      'stay': 'ຢູ່ຕໍ່',
+      'exit': 'ອອກ',
+
+      // Scanner
+      'initializing_camera': 'ກຳລັງເປີດກ້ອງ...',
+      'camera_error': 'ເກີດຂໍ້ຜິດພາດກ້ອງ',
+      'barcode_detected': 'ພົບບາໂຄດແລ້ວ',
+
+      // Loading States
+      'loading_data': 'ກຳລັງໂຫຼດຂໍ້ມູນ...',
+      'loading_locations': 'ກຳລັງໂຫຼດສະຖານທີ່...',
+      'loading_stores': 'ກຳລັງໂຫຼດຮ້ານ...',
+
+      // Error Messages - Validation
+      'please_fill_required_fields': 'ກະລຸນາຕື່ມຂໍ້ມູນທີ່ຈຳເປັນໃຫ້ຄົບ',
+      'please_select_location': 'ກະລຸນາເລືອກສະຖານທີ່',
+      'please_select_store': 'ກະລຸນາເລືອກຮ້ານ',
+      'please_enter_valid_product_id': 'ກະລຸນາໃສ່ລະຫັດສິນຄ້າທີ່ຖືກຕ້ອງ',
+      'please_enter_valid_stock_quantity':
+          'ກະລຸນາໃສ່ຈຳນວນສາງທີ່ຖືກຕ້ອງ (ຫຼາຍກວ່າ 0)',
+      'please_enter_valid_minimum_stock':
+          'ກະລຸນາໃສ່ສາງຕ່ຳສຸດທີ່ຖືກຕ້ອງ (0 ຫຼື ຫຼາຍກວ່າ)',
+      'please_enter_valid_cost_price': 'ກະລຸນາໃສ່ລາຄາທຶນທີ່ຖືກຕ້ອງ',
+      'please_enter_valid_unit_price': 'ກະລຸນາໃສ່ລາຄາຂາຍທີ່ຖືກຕ້ອງ',
+      'location_required': 'ຕ້ອງມີສະຖານທີ່',
+      'store_required': 'ຕ້ອງມີຮ້ານ',
+
+      // Error Messages - API/Network
+      'failed_load_locations': 'ບໍ່ສາມາດໂຫຼດສະຖານທີ່ໄດ້. ກະລຸນາລອງໃໝ່.',
+      'server_error_locations': 'ເກີດຂໍ້ຜິດພາດເຊີເວີໃນການໂຫຼດສະຖານທີ່',
+      'error_loading_locations':
+          'ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດສະຖານທີ່. ກວດສອບການເຊື່ອມຕໍ່.',
+      'failed_load_stores': 'ບໍ່ສາມາດໂຫຼດຮ້ານໄດ້. ກະລຸນາລອງໃໝ່.',
+      'server_error_stores': 'ເກີດຂໍ້ຜິດພາດເຊີເວີໃນການໂຫຼດຮ້ານ',
+      'error_loading_stores': 'ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດຮ້ານ. ກວດສອບການເຊື່ອມຕໍ່.',
+
+      'product_not_found_message': 'ບໍ່ພົບສິນຄ້າ. ກະລຸນາກວດສອບບາໂຄດ.',
+
+      'validation_error': 'ເກີດຂໍ້ຜິດພາດໃນການກວດສອບ. ກະລຸນາກວດສອບຂໍ້ມູນ.',
+      'data_validation_failed': 'ການກວດສອບຂໍ້ມູນລົ້ມເຫຼວ. ກະລຸນາກວດສອບຂໍ້ມູນ.',
+      'server_error_try_again': 'ເກີດຂໍ້ຜິດພາດເຊີເວີ. ກະລຸນາລອງໃໝ່ພາຍຫຼັງ.',
+
+      'network_error_check_connection':
+          'ເກີດຂໍ້ຜິດພາດເຄືອຂ່າຍ. ກວດສອບການເຊື່ອມຕໍ່ອິນເຕີເນັດ.',
+      'invalid_data_format': 'ຮູບແບບຂໍ້ມູນບໍ່ຖືກຕ້ອງ. ກວດສອບຂໍ້ມູນ.',
+
+      // Confirmation Messages
+      'creating_inventory_exit_warning':
+          'ກຳລັງສ້າງສິນຄ້າໃນສາງຄັງ. ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການອອກ?',
     },
   };
 

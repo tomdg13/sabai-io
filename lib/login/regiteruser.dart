@@ -807,7 +807,7 @@ class _RegisterUserPageState extends State<RegisterUserPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: DropdownButtonFormField<int>(
-        initialValue: selected,
+        value: selected,
         style: TextStyle(color: ThemeConfig.getTextColor(currentTheme)),
         decoration: InputDecoration(
           labelText: SimpleTranslations.get(langCodes, labelKey),

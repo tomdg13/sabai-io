@@ -11,7 +11,7 @@ import 'dart:convert';
 
 class AddStockPage extends StatefulWidget {
   final String? currentTheme;
-  
+
   const AddStockPage({Key? key, this.currentTheme}) : super(key: key);
 
   @override
@@ -22,7 +22,7 @@ class _AddStockPageState extends State<AddStockPage> {
   String? accessToken;
   String langCode = 'en';
   int? companyId;
-  
+
   // Form controllers
   final _formKey = GlobalKey<FormState>();
   final _productIdController = TextEditingController();
@@ -35,35 +35,32 @@ class _AddStockPageState extends State<AddStockPage> {
   final _batchNumberController = TextEditingController();
   final _supplierIdController = TextEditingController();
   final _blockLocationController = TextEditingController();
-  final _reasonController = TextEditingController();
-  
+
   // State management
   bool isLoading = false;
   bool isSubmitting = false;
-  bool isCreateMode = true;
-  bool isScanning = false;
   bool isLoadingLocations = false;
   bool isLoadingStores = false;
-  List<Map<String, dynamic>> existingInventory = [];
   List<Map<String, dynamic>> locations = [];
   List<Map<String, dynamic>> stores = [];
-  Map<String, dynamic>? selectedInventoryItem;
   Map<String, dynamic>? scannedProduct;
   Map<String, dynamic>? selectedLocation;
   Map<String, dynamic>? selectedStore;
-  
+
   // Dropdown values
   String selectedCurrency = 'LAK';
   String selectedStatus = 'ACTIVE';
   DateTime? selectedExpireDate;
-  
+
   // Cache primary color for performance
   late Color primaryColor;
 
   @override
   void initState() {
     super.initState();
-    primaryColor = ThemeConfig.getPrimaryColor(widget.currentTheme ?? 'default');
+    primaryColor = ThemeConfig.getPrimaryColor(
+      widget.currentTheme ?? 'default',
+    );
     _initializeAuth();
   }
 
@@ -72,19 +69,20 @@ class _AddStockPageState extends State<AddStockPage> {
     accessToken = prefs.getString('access_token');
     langCode = prefs.getString('languageCode') ?? 'en';
     companyId = prefs.getInt('company_id') ?? 1;
-    
+
     if (accessToken != null) {
       await _loadLocations();
       await _loadStores();
-      await _loadExistingInventory();
     } else {
-      _showErrorSnackBar(SimpleTranslations.get(langCode, 'auth_token_not_found'));
+      _showErrorSnackBar(
+        SimpleTranslations.get(langCode, 'auth_token_not_found'),
+      );
     }
   }
 
   Future<void> _loadLocations() async {
     if (accessToken == null || companyId == null) return;
-    
+
     setState(() => isLoadingLocations = true);
 
     try {
@@ -112,7 +110,9 @@ class _AddStockPageState extends State<AddStockPage> {
       } else if (response.statusCode == 401) {
         _handleAuthError();
       } else {
-        _showErrorSnackBar('Failed to load locations: Server error ${response.statusCode}');
+        _showErrorSnackBar(
+          'Failed to load locations: Server error ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('❌ DEBUG: Error loading locations: $e');
@@ -124,7 +124,7 @@ class _AddStockPageState extends State<AddStockPage> {
 
   Future<void> _loadStores() async {
     if (accessToken == null || companyId == null) return;
-    
+
     setState(() => isLoadingStores = true);
 
     try {
@@ -152,7 +152,9 @@ class _AddStockPageState extends State<AddStockPage> {
       } else if (response.statusCode == 401) {
         _handleAuthError();
       } else {
-        _showErrorSnackBar('Failed to load stores: Server error ${response.statusCode}');
+        _showErrorSnackBar(
+          'Failed to load stores: Server error ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('❌ DEBUG: Error loading stores: $e');
@@ -167,10 +169,8 @@ class _AddStockPageState extends State<AddStockPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => BarcodeScannerPage(
-          langCode: langCode,
-          primaryColor: primaryColor,
-        ),
+        builder: (context) =>
+            BarcodeScannerPage(langCode: langCode, primaryColor: primaryColor),
       ),
     );
 
@@ -200,67 +200,112 @@ class _AddStockPageState extends State<AddStockPage> {
           setState(() {
             scannedProduct = data['data'];
             _barcodeController.text = scannedProduct!['barcode'] ?? '';
-            _productIdController.text = scannedProduct!['product_id'].toString();
+            _productIdController.text = scannedProduct!['product_id']
+                .toString();
           });
           print('✅ DEBUG: Product found: ${scannedProduct!['product_name']}');
-          _showSuccessSnackBar(SimpleTranslations.get(langCode, 'product_found_success'));
+          _showSuccessSnackBar(
+            SimpleTranslations.get(langCode, 'product_found_success'),
+          );
         } else {
           _showErrorSnackBar('Product not found: ${data['message']}');
         }
       } else if (response.statusCode == 404) {
-        _showErrorSnackBar(SimpleTranslations.get(langCode, 'product_not_found'));
+        _showErrorSnackBar(
+          SimpleTranslations.get(langCode, 'product_not_found'),
+        );
       } else if (response.statusCode == 401) {
         _handleAuthError();
       } else {
-        _showErrorSnackBar(SimpleTranslations.get(langCode, 'failed_to_lookup_product'));
+        _showErrorSnackBar(
+          SimpleTranslations.get(langCode, 'failed_to_lookup_product'),
+        );
       }
     } catch (e) {
       print('❌ DEBUG: Error looking up product: $e');
-      _showErrorSnackBar('${SimpleTranslations.get(langCode, 'error_looking_up_product')}: $e');
-    } finally {
-      setState(() => isLoading = false);
-    }
-  }
-
-  Future<void> _loadExistingInventory() async {
-    if (accessToken == null) return;
-    
-    setState(() => isLoading = true);
-
-    try {
-      final response = await http.get(
-        AppConfig.api('/api/inventory'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
+      _showErrorSnackBar(
+        '${SimpleTranslations.get(langCode, 'error_looking_up_product')}: $e',
       );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          existingInventory = List<Map<String, dynamic>>.from(data['data'] ?? []);
-        });
-      } else if (response.statusCode == 401) {
-        _handleAuthError();
-      }
-    } catch (e) {
-      _showErrorSnackBar('${SimpleTranslations.get(langCode, 'failed_to_load_inventory')}: $e');
     } finally {
       setState(() => isLoading = false);
     }
   }
 
   Future<void> _createNewInventory() async {
-    if (!_formKey.currentState!.validate() || accessToken == null) return;
-
-    if (selectedLocation == null) {
-      _showErrorSnackBar('Please select a location');
+    // Validate form fields
+    if (!_formKey.currentState!.validate()) {
+      _showErrorSnackBar(
+        SimpleTranslations.get(langCode, 'please_fill_required_fields'),
+      );
       return;
     }
 
+    // Check authentication
+    if (accessToken == null) {
+      _showErrorSnackBar(
+        SimpleTranslations.get(langCode, 'auth_token_not_found'),
+      );
+      return;
+    }
+
+    // Validate location selection
+    if (selectedLocation == null) {
+      _showErrorSnackBar(
+        SimpleTranslations.get(langCode, 'please_select_location'),
+      );
+      return;
+    }
+
+    // Validate store selection
     if (selectedStore == null) {
-      _showErrorSnackBar('Please select a store');
+      _showErrorSnackBar(
+        SimpleTranslations.get(langCode, 'please_select_store'),
+      );
+      return;
+    }
+
+    // Validate numeric inputs
+    if (_productIdController.text.isEmpty ||
+        int.tryParse(_productIdController.text) == null) {
+      _showErrorSnackBar(
+        SimpleTranslations.get(langCode, 'please_enter_valid_product_id'),
+      );
+      return;
+    }
+
+    if (_stockQuantityController.text.isEmpty ||
+        int.tryParse(_stockQuantityController.text) == null ||
+        int.parse(_stockQuantityController.text) <= 0) {
+      _showErrorSnackBar(
+        SimpleTranslations.get(langCode, 'please_enter_valid_stock_quantity'),
+      );
+      return;
+    }
+
+    if (_minimumStockController.text.isEmpty ||
+        int.tryParse(_minimumStockController.text) == null ||
+        int.parse(_minimumStockController.text) < 0) {
+      _showErrorSnackBar(
+        SimpleTranslations.get(langCode, 'please_enter_valid_minimum_stock'),
+      );
+      return;
+    }
+
+    if (_costPriceController.text.isEmpty ||
+        double.tryParse(_costPriceController.text) == null ||
+        double.parse(_costPriceController.text) < 0) {
+      _showErrorSnackBar(
+        SimpleTranslations.get(langCode, 'please_enter_valid_cost_price'),
+      );
+      return;
+    }
+
+    if (_unitPriceController.text.isEmpty ||
+        double.tryParse(_unitPriceController.text) == null ||
+        double.parse(_unitPriceController.text) < 0) {
+      _showErrorSnackBar(
+        SimpleTranslations.get(langCode, 'please_enter_valid_unit_price'),
+      );
       return;
     }
 
@@ -268,26 +313,34 @@ class _AddStockPageState extends State<AddStockPage> {
 
     try {
       final requestBody = {
-        'barcode': _barcodeController.text.trim().isNotEmpty ? _barcodeController.text.trim() : null,
+        'barcode': _barcodeController.text.trim().isNotEmpty
+            ? _barcodeController.text.trim()
+            : null,
         'product_id': int.parse(_productIdController.text),
         'location_id': selectedLocation!['location_id'],
         'store_id': selectedStore!['store_id'],
         'stock_quantity': int.parse(_stockQuantityController.text),
         'minimum_stock': int.parse(_minimumStockController.text),
-        'reserved_quantity': int.parse(_reservedQuantityController.text.isEmpty ? '0' : _reservedQuantityController.text),
+        'reserved_quantity': _reservedQuantityController.text.isEmpty
+            ? 0
+            : int.parse(_reservedQuantityController.text),
         'cost_price_lak': double.parse(_costPriceController.text),
         'unit_price_lak': double.parse(_unitPriceController.text),
         'currency_primary': selectedCurrency,
-        'batch_number': _batchNumberController.text.isEmpty ? null : _batchNumberController.text,
-        'supplier_id': _supplierIdController.text.isEmpty ? null : int.tryParse(_supplierIdController.text),
+        'batch_number': _batchNumberController.text.trim().isNotEmpty
+            ? _batchNumberController.text.trim()
+            : null,
+        'supplier_id': _supplierIdController.text.trim().isNotEmpty
+            ? int.tryParse(_supplierIdController.text)
+            : null,
         'expire_date': selectedExpireDate?.toIso8601String().split('T')[0],
-        'block_location': _blockLocationController.text.isEmpty ? null : _blockLocationController.text,
+        'block_location': _blockLocationController.text.trim().isNotEmpty
+            ? _blockLocationController.text.trim()
+            : null,
         'status': selectedStatus,
       };
-      print('🆕 DEBUG: Create Inventory Request Body: $requestBody');
-      
 
-      
+      print('🆕 DEBUG: Create Inventory Request Body: $requestBody');
 
       final response = await http.post(
         AppConfig.api('/api/inventory'),
@@ -295,74 +348,116 @@ class _AddStockPageState extends State<AddStockPage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
         },
-        
         body: json.encode(requestBody),
       );
+
       print('🆕 DEBUG: Create Inventory API Response: ${response.statusCode}');
       print('🆕 DEBUG: Create Inventory API Body: ${response.body}');
-      
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _showSuccessSnackBar(SimpleTranslations.get(langCode, 'inventory_created_success'));
+        // Show success message
+        _showSuccessSnackBar(
+          SimpleTranslations.get(langCode, 'inventory_created_success'),
+        );
+
+        // Clear form
         _clearForm();
-        // Navigate back to main screen
-        Navigator.of(context).popUntil(ModalRoute.withName('/main'));
+
+        // Navigate to InventoryDashboard after success
+        if (mounted) {
+          try {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                // Navigate to InventoryDashboard and remove all previous routes
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/inventory-dashboard',
+                  (route) => false,
+                );
+              }
+            });
+          } catch (e) {
+            print('Navigation to InventoryDashboard error: $e');
+            // Fallback: try simple navigation
+            try {
+              Navigator.of(
+                context,
+              ).pushReplacementNamed('/inventory-dashboard');
+            } catch (e2) {
+              print('Fallback navigation error: $e2');
+              // Final fallback: just go back
+              if (mounted && Navigator.of(context).canPop()) {
+                Navigator.of(context).pop(true);
+              }
+            }
+          }
+        }
       } else if (response.statusCode == 401) {
         _handleAuthError();
-      } else {
+      } else if (response.statusCode == 400) {
         final errorData = json.decode(response.body);
-        _showErrorSnackBar('${SimpleTranslations.get(langCode, 'failed_to_create_inventory')}: ${errorData['message']}');
+        _showErrorSnackBar(
+          '${SimpleTranslations.get(langCode, 'validation_error')}: ${errorData['message'] ?? 'Bad request'}',
+        );
+      } else if (response.statusCode == 422) {
+        final errorData = json.decode(response.body);
+        _showErrorSnackBar(
+          '${SimpleTranslations.get(langCode, 'data_validation_failed')}: ${errorData['message'] ?? 'Invalid data'}',
+        );
+      } else if (response.statusCode >= 500) {
+        _showErrorSnackBar(
+          '${SimpleTranslations.get(langCode, 'server_error')}: ${SimpleTranslations.get(langCode, 'please_try_again_later')}',
+        );
+      } else {
+        try {
+          final errorData = json.decode(response.body);
+          _showErrorSnackBar(
+            '${SimpleTranslations.get(langCode, 'failed_to_create_inventory')}: ${errorData['message'] ?? 'Unknown error'}',
+          );
+        } catch (e) {
+          _showErrorSnackBar(
+            '${SimpleTranslations.get(langCode, 'failed_to_create_inventory')}: Server returned status ${response.statusCode}',
+          );
+        }
       }
     } catch (e) {
-      _showErrorSnackBar('${SimpleTranslations.get(langCode, 'error_creating_inventory')}: $e');
-    } finally {
-      setState(() => isSubmitting = false);
-    }
-  }
-
-  Future<void> _addStockToExisting() async {
-    if (selectedInventoryItem == null || _stockQuantityController.text.isEmpty || _reasonController.text.isEmpty || accessToken == null) {
-      _showErrorSnackBar(SimpleTranslations.get(langCode, 'fill_all_required_fields'));
-      return;
-    }
-
-    setState(() => isSubmitting = true);
-
-    try {
-      final requestBody = {
-        'stock_in_quantity': int.parse(_stockQuantityController.text),
-        'reason': _reasonController.text,
-      };
-
-      final response = await http.put(
-        AppConfig.api('/api/inventory/${selectedInventoryItem!['inventory_id']}/stock-movement'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: json.encode(requestBody),
-      );
-
-      if (response.statusCode == 200 && response.statusCode == 201 ) {
-        _showSuccessSnackBar(SimpleTranslations.get(langCode, 'stock_added_success'));
-        _clearForm();
-        // Navigate back to main screen
-        Navigator.of(context).popUntil(ModalRoute.withName('/main'));
-      } else if (response.statusCode == 401) {
-        _handleAuthError();
+      print('❌ DEBUG: Error creating inventory: $e');
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('TimeoutException')) {
+        _showErrorSnackBar(
+          SimpleTranslations.get(langCode, 'network_error_check_connection'),
+        );
+      } else if (e.toString().contains('FormatException')) {
+        _showErrorSnackBar(
+          SimpleTranslations.get(langCode, 'invalid_data_format'),
+        );
       } else {
-        final errorData = json.decode(response.body);
-        _showErrorSnackBar('${SimpleTranslations.get(langCode, 'failed_to_add_stock')}: ${errorData['message']}');
+        _showErrorSnackBar(
+          '${SimpleTranslations.get(langCode, 'error_creating_inventory')}: ${e.toString()}',
+        );
       }
-    } catch (e) {
-      _showErrorSnackBar('${SimpleTranslations.get(langCode, 'error_adding_stock')}: $e');
     } finally {
-      setState(() => isSubmitting = false);
+      if (mounted) {
+        setState(() => isSubmitting = false);
+      }
     }
   }
 
   void _handleAuthError() {
     _showErrorSnackBar(SimpleTranslations.get(langCode, 'session_expired'));
+    // Safe navigation with proper checks
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        try {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          });
+        } catch (e) {
+          print('Auth error navigation failed: $e');
+        }
+      }
+    });
   }
 
   void _clearForm() {
@@ -376,10 +471,8 @@ class _AddStockPageState extends State<AddStockPage> {
     _batchNumberController.clear();
     _supplierIdController.clear();
     _blockLocationController.clear();
-    _reasonController.clear();
     setState(() {
       selectedExpireDate = null;
-      selectedInventoryItem = null;
       selectedLocation = null;
       selectedStore = null;
       selectedCurrency = 'LAK';
@@ -391,7 +484,25 @@ class _AddStockPageState extends State<AddStockPage> {
   void _showErrorSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: SimpleTranslations.get(langCode, 'dismiss'),
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
       );
     }
   }
@@ -399,7 +510,18 @@ class _AddStockPageState extends State<AddStockPage> {
   void _showSuccessSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.green),
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_outline, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
@@ -416,15 +538,80 @@ class _AddStockPageState extends State<AddStockPage> {
     _batchNumberController.dispose();
     _supplierIdController.dispose();
     _blockLocationController.dispose();
-    _reasonController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          SimpleTranslations.get(langCode, 'add_new_inventory'),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (isSubmitting) {
+              // Show confirmation dialog if submitting
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (BuildContext dialogContext) {
+                  return AlertDialog(
+                    title: Text(
+                      SimpleTranslations.get(langCode, 'confirm_exit'),
+                    ),
+                    content: Text(
+                      SimpleTranslations.get(
+                        langCode,
+                        'creating_inventory_exit_warning',
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: Text(SimpleTranslations.get(langCode, 'stay')),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop(); // Close dialog
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop(); // Go back
+                          }
+                        },
+                        child: Text(SimpleTranslations.get(langCode, 'exit')),
+                      ),
+                    ],
+                  );
+                },
+              );
+            } else {
+              // Safe navigation check
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            }
+          },
+        ),
+      ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: primaryColor),
+                  const SizedBox(height: 16),
+                  Text(
+                    SimpleTranslations.get(langCode, 'loading_data'),
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            )
           : Column(
               children: [
                 // Scanned Product Info
@@ -447,7 +634,11 @@ class _AddStockPageState extends State<AddStockPage> {
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.green[300]!),
                           ),
-                          child: scannedProduct!['image_url'] != null && scannedProduct!['image_url'].toString().isNotEmpty
+                          child:
+                              scannedProduct!['image_url'] != null &&
+                                  scannedProduct!['image_url']
+                                      .toString()
+                                      .isNotEmpty
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(7),
                                   child: Image.network(
@@ -463,22 +654,27 @@ class _AddStockPageState extends State<AddStockPage> {
                                         ),
                                       );
                                     },
-                                    loadingBuilder: (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Container(
-                                        color: Colors.green[100],
-                                        child: Center(
-                                          child: SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.green[600]!),
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
+                                          if (loadingProgress == null)
+                                            return child;
+                                          return Container(
+                                            color: Colors.green[100],
+                                            child: Center(
+                                              child: SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Colors.green[600]!),
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                        ),
-                                      );
-                                    },
+                                          );
+                                        },
                                   ),
                                 )
                               : Container(
@@ -497,10 +693,17 @@ class _AddStockPageState extends State<AddStockPage> {
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.check_circle, color: Colors.green[600], size: 20),
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green[600],
+                                    size: 20,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    SimpleTranslations.get(langCode, 'scanned_product'),
+                                    SimpleTranslations.get(
+                                      langCode,
+                                      'scanned_product',
+                                    ),
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: Colors.green[700],
@@ -548,11 +751,9 @@ class _AddStockPageState extends State<AddStockPage> {
                     ),
                   ),
                 ],
-                
+
                 // Form Content
-                Expanded(
-                  child: isCreateMode ? _buildCreateForm() : _buildAddForm(),
-                ),
+                Expanded(child: _buildCreateForm()),
               ],
             ),
     );
@@ -567,11 +768,11 @@ class _AddStockPageState extends State<AddStockPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              SimpleTranslations.get(langCode, 'create_new_inventory_item'), 
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)
+              SimpleTranslations.get(langCode, 'create_new_inventory_item'),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-            
+
             // Barcode Scanner (Primary)
             Row(
               children: [
@@ -592,7 +793,10 @@ class _AddStockPageState extends State<AddStockPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+                    icon: const Icon(
+                      Icons.qr_code_scanner,
+                      color: Colors.white,
+                    ),
                     onPressed: _scanBarcode,
                     tooltip: SimpleTranslations.get(langCode, 'scan_barcode'),
                   ),
@@ -600,7 +804,7 @@ class _AddStockPageState extends State<AddStockPage> {
               ],
             ),
             const SizedBox(height: 16),
-            
+
             // Product ID (Auto-populated from barcode scan)
             _FastTextField(
               controller: _productIdController,
@@ -610,7 +814,7 @@ class _AddStockPageState extends State<AddStockPage> {
               langCode: langCode,
             ),
             const SizedBox(height: 16),
-            
+
             // Location Dropdown
             _buildLocationDropdown(),
             const SizedBox(height: 16),
@@ -618,106 +822,160 @@ class _AddStockPageState extends State<AddStockPage> {
             // Store Dropdown
             _buildStoreDropdown(),
             const SizedBox(height: 16),
-            
+
             // Stock Quantities
             Row(
               children: [
-                Expanded(child: _FastTextField(
-                  controller: _stockQuantityController,
-                  label: SimpleTranslations.get(langCode, 'stock_quantity'),
-                  keyboardType: TextInputType.number,
-                  required: true,
-                  langCode: langCode,
-                )),
+                Expanded(
+                  child: _FastTextField(
+                    controller: _stockQuantityController,
+                    label: SimpleTranslations.get(langCode, 'stock_quantity'),
+                    keyboardType: TextInputType.number,
+                    required: true,
+                    langCode: langCode,
+                  ),
+                ),
                 const SizedBox(width: 16),
-                Expanded(child: _FastTextField(
-                  controller: _minimumStockController,
-                  label: SimpleTranslations.get(langCode, 'minimum_stock'),
-                  keyboardType: TextInputType.number,
-                  required: true,
-                  langCode: langCode,
-                )),
+                Expanded(
+                  child: _FastTextField(
+                    controller: _minimumStockController,
+                    label: SimpleTranslations.get(langCode, 'minimum_stock'),
+                    keyboardType: TextInputType.number,
+                    required: true,
+                    langCode: langCode,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
-            
+
             // Prices
             Row(
               children: [
-                Expanded(child: _FastTextField(
-                  controller: _costPriceController,
-                  label: SimpleTranslations.get(langCode, 'cost_price_lak'),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  required: true,
-                  langCode: langCode,
-                )),
+                Expanded(
+                  child: _FastTextField(
+                    controller: _costPriceController,
+                    label: SimpleTranslations.get(langCode, 'cost_price_lak'),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    required: true,
+                    langCode: langCode,
+                  ),
+                ),
                 const SizedBox(width: 16),
-                Expanded(child: _FastTextField(
-                  controller: _unitPriceController,
-                  label: SimpleTranslations.get(langCode, 'unit_price_lak'),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  required: true,
-                  langCode: langCode,
-                )),
+                Expanded(
+                  child: _FastTextField(
+                    controller: _unitPriceController,
+                    label: SimpleTranslations.get(langCode, 'unit_price_lak'),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    required: true,
+                    langCode: langCode,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
-            
+
             // Optional fields
             _FastTextField(
               controller: _reservedQuantityController,
-              label: SimpleTranslations.get(langCode, 'reserved_quantity_optional'),
+              label: SimpleTranslations.get(
+                langCode,
+                'reserved_quantity_optional',
+              ),
               keyboardType: TextInputType.number,
               langCode: langCode,
             ),
             const SizedBox(height: 16),
-            
+
             _FastTextField(
               controller: _batchNumberController,
               label: SimpleTranslations.get(langCode, 'batch_number_optional'),
               langCode: langCode,
             ),
             const SizedBox(height: 16),
-            
+
             // Dropdowns
             Row(
               children: [
-                Expanded(child: _FastDropdown(
-                  value: selectedCurrency,
-                  label: SimpleTranslations.get(langCode, 'currency'),
-                  items: const ['LAK', 'THB'],
-                  onChanged: (value) => setState(() => selectedCurrency = value!),
-                )),
+                Expanded(
+                  child: _FastDropdown(
+                    value: selectedCurrency,
+                    label: SimpleTranslations.get(langCode, 'currency'),
+                    items: const ['LAK', 'THB'],
+                    onChanged: (value) =>
+                        setState(() => selectedCurrency = value!),
+                  ),
+                ),
                 const SizedBox(width: 16),
-                Expanded(child: _FastDropdown(
-                  value: selectedStatus,
-                  label: SimpleTranslations.get(langCode, 'status'),
-                  items: const ['ACTIVE', 'INACTIVE', 'RESERVED'],
-                  onChanged: (value) => setState(() => selectedStatus = value!),
-                )),
+                Expanded(
+                  child: _FastDropdown(
+                    value: selectedStatus,
+                    label: SimpleTranslations.get(langCode, 'status'),
+                    items: const ['ACTIVE', 'INACTIVE', 'RESERVED'],
+                    onChanged: (value) =>
+                        setState(() => selectedStatus = value!),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 32),
-            
+
             // Submit Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: isSubmitting ? null : _createNewInventory,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
+                  backgroundColor: isSubmitting ? Colors.grey : primaryColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: isSubmitting ? 0 : 2,
                 ),
                 child: isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)),
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation(Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            SimpleTranslations.get(
+                              langCode,
+                              'creating_inventory',
+                            ),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       )
-                    : Text(
-                        SimpleTranslations.get(langCode, 'create_inventory_item'), 
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.add_box, size: 24),
+                          const SizedBox(width: 8),
+                          Text(
+                            SimpleTranslations.get(
+                              langCode,
+                              'create_inventory_item',
+                            ),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
               ),
             ),
@@ -768,7 +1026,10 @@ class _AddStockPageState extends State<AddStockPage> {
                       return DropdownMenuItem<Map<String, dynamic>>(
                         value: location,
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           child: Row(
                             children: [
                               // Location Image
@@ -779,35 +1040,49 @@ class _AddStockPageState extends State<AddStockPage> {
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(color: Colors.grey[300]!),
                                 ),
-                                child: location['image_url'] != null && location['image_url'].toString().isNotEmpty
+                                child:
+                                    location['image_url'] != null &&
+                                        location['image_url']
+                                            .toString()
+                                            .isNotEmpty
                                     ? ClipRRect(
                                         borderRadius: BorderRadius.circular(5),
                                         child: Image.network(
                                           location['image_url'],
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Container(
-                                              color: Colors.grey[100],
-                                              child: Icon(
-                                                Icons.location_on,
-                                                color: Colors.grey[400],
-                                                size: 16,
-                                              ),
-                                            );
-                                          },
-                                          loadingBuilder: (context, child, loadingProgress) {
-                                            if (loadingProgress == null) return child;
-                                            return Container(
-                                              color: Colors.grey[100],
-                                              child: const Center(
-                                                child: SizedBox(
-                                                  width: 12,
-                                                  height: 12,
-                                                  child: CircularProgressIndicator(strokeWidth: 1.5),
-                                                ),
-                                              ),
-                                            );
-                                          },
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                                return Container(
+                                                  color: Colors.grey[100],
+                                                  child: Icon(
+                                                    Icons.location_on,
+                                                    color: Colors.grey[400],
+                                                    size: 16,
+                                                  ),
+                                                );
+                                              },
+                                          loadingBuilder:
+                                              (
+                                                context,
+                                                child,
+                                                loadingProgress,
+                                              ) {
+                                                if (loadingProgress == null)
+                                                  return child;
+                                                return Container(
+                                                  color: Colors.grey[100],
+                                                  child: const Center(
+                                                    child: SizedBox(
+                                                      width: 12,
+                                                      height: 12,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 1.5,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                );
+                                              },
                                         ),
                                       )
                                     : Container(
@@ -835,7 +1110,8 @@ class _AddStockPageState extends State<AddStockPage> {
                         ),
                       );
                     }).toList(),
-                    onChanged: (value) => setState(() => selectedLocation = value),
+                    onChanged: (value) =>
+                        setState(() => selectedLocation = value),
                   ),
                 ),
         ),
@@ -892,7 +1168,10 @@ class _AddStockPageState extends State<AddStockPage> {
                       return DropdownMenuItem<Map<String, dynamic>>(
                         value: storeData,
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           child: Row(
                             children: [
                               // Store Image
@@ -903,35 +1182,49 @@ class _AddStockPageState extends State<AddStockPage> {
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(color: Colors.grey[300]!),
                                 ),
-                                child: storeData['image_url'] != null && storeData['image_url'].toString().isNotEmpty
+                                child:
+                                    storeData['image_url'] != null &&
+                                        storeData['image_url']
+                                            .toString()
+                                            .isNotEmpty
                                     ? ClipRRect(
                                         borderRadius: BorderRadius.circular(5),
                                         child: Image.network(
                                           storeData['image_url'],
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Container(
-                                              color: Colors.grey[100],
-                                              child: Icon(
-                                                Icons.store,
-                                                color: Colors.grey[400],
-                                                size: 16,
-                                              ),
-                                            );
-                                          },
-                                          loadingBuilder: (context, child, loadingProgress) {
-                                            if (loadingProgress == null) return child;
-                                            return Container(
-                                              color: Colors.grey[100],
-                                              child: const Center(
-                                                child: SizedBox(
-                                                  width: 12,
-                                                  height: 12,
-                                                  child: CircularProgressIndicator(strokeWidth: 1.5),
-                                                ),
-                                              ),
-                                            );
-                                          },
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                                return Container(
+                                                  color: Colors.grey[100],
+                                                  child: Icon(
+                                                    Icons.store,
+                                                    color: Colors.grey[400],
+                                                    size: 16,
+                                                  ),
+                                                );
+                                              },
+                                          loadingBuilder:
+                                              (
+                                                context,
+                                                child,
+                                                loadingProgress,
+                                              ) {
+                                                if (loadingProgress == null)
+                                                  return child;
+                                                return Container(
+                                                  color: Colors.grey[100],
+                                                  child: const Center(
+                                                    child: SizedBox(
+                                                      width: 12,
+                                                      height: 12,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 1.5,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                );
+                                              },
                                         ),
                                       )
                                     : Container(
@@ -947,7 +1240,9 @@ class _AddStockPageState extends State<AddStockPage> {
                               // Store Name
                               Expanded(
                                 child: Text(
-                                  storeData['store_name'] ?? storeData['name'] ?? 'Unknown Store',
+                                  storeData['store_name'] ??
+                                      storeData['name'] ??
+                                      'Unknown Store',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 14,
@@ -974,127 +1269,6 @@ class _AddStockPageState extends State<AddStockPage> {
       ],
     );
   }
-
-  Widget _buildAddForm() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            SimpleTranslations.get(langCode, 'add_stock_to_existing_item'), 
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)
-          ),
-          const SizedBox(height: 20),
-          
-          // Inventory Selector
-          Text(
-            SimpleTranslations.get(langCode, 'select_inventory_item'), 
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)
-          ),
-          const SizedBox(height: 8),
-          
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<Map<String, dynamic>>(
-                value: selectedInventoryItem,
-                hint: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(SimpleTranslations.get(langCode, 'select_inventory_item_hint')),
-                ),
-                isExpanded: true,
-                items: existingInventory.map((item) {
-                  return DropdownMenuItem<Map<String, dynamic>>(
-                    value: item,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text('${SimpleTranslations.get(langCode, 'product')} ${item['product_id']} - ${SimpleTranslations.get(langCode, 'location')} ${item['location_id']} (${SimpleTranslations.get(langCode, 'stock')}: ${item['stock_quantity']})'),
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) => setState(() => selectedInventoryItem = value),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Selected Item Details
-          if (selectedInventoryItem != null) ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue[200]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    SimpleTranslations.get(langCode, 'selected_item_details'), 
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
-                  ),
-                  const SizedBox(height: 8),
-                  Text('${SimpleTranslations.get(langCode, 'product_id')}: ${selectedInventoryItem!['product_id']}'),
-                  Text('${SimpleTranslations.get(langCode, 'location_id')}: ${selectedInventoryItem!['location_id']}'),
-                  Text('${SimpleTranslations.get(langCode, 'current_stock')}: ${selectedInventoryItem!['stock_quantity']}'),
-                  Text('${SimpleTranslations.get(langCode, 'available')}: ${selectedInventoryItem!['available_quantity']}'),
-                  Text('${SimpleTranslations.get(langCode, 'status')}: ${selectedInventoryItem!['status']}'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-          
-          // Quantity and Reason
-          _FastTextField(
-            controller: _stockQuantityController,
-            label: SimpleTranslations.get(langCode, 'quantity_to_add'),
-            keyboardType: TextInputType.number,
-            required: true,
-            langCode: langCode,
-          ),
-          const SizedBox(height: 16),
-          
-          _FastTextField(
-            controller: _reasonController,
-            label: SimpleTranslations.get(langCode, 'reason_for_stock_addition'),
-            maxLines: 3,
-            required: true,
-            langCode: langCode,
-          ),
-          const SizedBox(height: 32),
-          
-          // Submit Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: isSubmitting ? null : _addStockToExisting,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)),
-                    )
-                  : Text(
-                      SimpleTranslations.get(langCode, 'add_stock'), 
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // Barcode Scanner Page
@@ -1112,7 +1286,8 @@ class BarcodeScannerPage extends StatefulWidget {
   State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
 }
 
-class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBindingObserver {
+class _BarcodeScannerPageState extends State<BarcodeScannerPage>
+    with WidgetsBindingObserver {
   late MobileScannerController cameraController;
   bool isScanned = false;
   bool isInitialized = false;
@@ -1130,7 +1305,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
       facing: CameraFacing.back,
       torchEnabled: false,
     );
-    
+
     // Add a small delay to ensure camera is properly initialized
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
@@ -1175,16 +1350,24 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
         setState(() {
           isScanned = true;
         });
-        
+
         // Add haptic feedback
         if (Platform.isAndroid || Platform.isIOS) {
           HapticFeedback.lightImpact();
         }
-        
+
         // Small delay to show visual feedback before closing
         Future.delayed(const Duration(milliseconds: 300), () {
           if (mounted) {
-            Navigator.pop(context, barcodes.first.rawValue);
+            try {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && Navigator.of(context).canPop()) {
+                  Navigator.pop(context, barcodes.first.rawValue);
+                }
+              });
+            } catch (e) {
+              print('Barcode scanner navigation error: $e');
+            }
           }
         });
       }
@@ -1203,7 +1386,10 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
                   CircularProgressIndicator(color: widget.primaryColor),
                   const SizedBox(height: 16),
                   Text(
-                    SimpleTranslations.get(widget.langCode, 'initializing_camera'),
+                    SimpleTranslations.get(
+                      widget.langCode,
+                      'initializing_camera',
+                    ),
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ],
@@ -1229,7 +1415,10 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              SimpleTranslations.get(widget.langCode, 'camera_error'),
+                              SimpleTranslations.get(
+                                widget.langCode,
+                                'camera_error',
+                              ),
                               style: TextStyle(
                                 color: Colors.grey[400],
                                 fontSize: 16,
@@ -1243,7 +1432,12 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
                                 backgroundColor: widget.primaryColor,
                                 foregroundColor: Colors.white,
                               ),
-                              child: Text(SimpleTranslations.get(widget.langCode, 'close')),
+                              child: Text(
+                                SimpleTranslations.get(
+                                  widget.langCode,
+                                  'close',
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -1251,7 +1445,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
                     );
                   },
                 ),
-                
+
                 // Scanner Overlay
                 CustomPaint(
                   painter: ScannerOverlay(
@@ -1261,7 +1455,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
                   ),
                   child: const SizedBox.expand(),
                 ),
-                
+
                 // Success Indicator
                 if (isScanned)
                   Center(
@@ -1277,14 +1471,20 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
                           const Icon(Icons.check_circle, color: Colors.white),
                           const SizedBox(width: 8),
                           Text(
-                            SimpleTranslations.get(widget.langCode, 'barcode_detected'),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            SimpleTranslations.get(
+                              widget.langCode,
+                              'barcode_detected',
+                            ),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                
+
                 // Bottom Instructions
                 Positioned(
                   bottom: 0,
@@ -1312,7 +1512,10 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBin
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          SimpleTranslations.get(widget.langCode, 'scan_instruction'),
+                          SimpleTranslations.get(
+                            widget.langCode,
+                            'scan_instruction',
+                          ),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -1362,16 +1565,18 @@ class ScannerOverlay extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final backgroundPath = Path()
       ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    
+
     final scanAreaPath = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(size.width / 2, size.height / 2),
-          width: scanAreaSize,
-          height: scanAreaSize,
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(size.width / 2, size.height / 2),
+            width: scanAreaSize,
+            height: scanAreaSize,
+          ),
+          const Radius.circular(12),
         ),
-        const Radius.circular(12),
-      ));
+      );
 
     final overlayPath = Path.combine(
       PathOperation.difference,
@@ -1379,9 +1584,8 @@ class ScannerOverlay extends CustomPainter {
       scanAreaPath,
     );
 
-    final overlayPaint = Paint()
-      ..color = Colors.black.withOpacity(0.5);
-    
+    final overlayPaint = Paint()..color = Colors.black.withOpacity(0.5);
+
     canvas.drawPath(overlayPath, overlayPaint);
 
     // Draw corner brackets
@@ -1397,7 +1601,7 @@ class ScannerOverlay extends CustomPainter {
     );
 
     const cornerLength = 20.0;
-    
+
     // Top-left corner
     canvas.drawLine(
       Offset(scanRect.left, scanRect.top + cornerLength),
@@ -1478,22 +1682,28 @@ class _FastTextField extends StatelessWidget {
       inputFormatters: keyboardType == TextInputType.number
           ? [FilteringTextInputFormatter.digitsOnly]
           : keyboardType == const TextInputType.numberWithOptions(decimal: true)
-              ? [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))]
-              : null,
+          ? [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))]
+          : null,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
       ),
       validator: required
           ? (value) {
               if (value == null || value.isEmpty) {
                 return SimpleTranslations.get(langCode, 'field_required');
               }
-              if (keyboardType == TextInputType.number && int.tryParse(value) == null) {
+              if (keyboardType == TextInputType.number &&
+                  int.tryParse(value) == null) {
                 return SimpleTranslations.get(langCode, 'enter_valid_number');
               }
-              if (keyboardType == const TextInputType.numberWithOptions(decimal: true) && double.tryParse(value) == null) {
+              if (keyboardType ==
+                      const TextInputType.numberWithOptions(decimal: true) &&
+                  double.tryParse(value) == null) {
                 return SimpleTranslations.get(langCode, 'enter_valid_price');
               }
               return null;
@@ -1533,7 +1743,11 @@ class _FastDropdown extends StatelessWidget {
               value: value,
               isExpanded: true,
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              items: items.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
+              items: items
+                  .map(
+                    (item) => DropdownMenuItem(value: item, child: Text(item)),
+                  )
+                  .toList(),
               onChanged: onChanged,
             ),
           ),

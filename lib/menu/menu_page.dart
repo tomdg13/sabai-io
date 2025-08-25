@@ -65,7 +65,8 @@ class _MenuPageState extends State<MenuPage> {
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+    final savedTheme =
+        prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     if (mounted) {
       setState(() {
         currentTheme = savedTheme;
@@ -94,10 +95,17 @@ class _MenuPageState extends State<MenuPage> {
       case 'driver':
       default:
         return [
-        
-          _TabItem(t('Stock'), Icons.message, const  AddStockPage ()), // Fixed: added const
-          _TabItem(t('car'), Icons.directions_car, const mycar_ctrl.MyCarPage()), // Fixed: added const
-          _TabItem(t('setting'), Icons.settings, const MenuSettingsPage()), // Fixed: proper instantiation
+          _TabItem(
+            t('Stock'),
+            Icons.shelves,
+            const AddStockPage(),
+          ), // Fixed: added const
+
+          _TabItem(
+            t('setting'),
+            Icons.settings,
+            const MenuSettingsPage(),
+          ), // Fixed: proper instantiation
         ];
     }
   }
@@ -105,11 +113,11 @@ class _MenuPageState extends State<MenuPage> {
   Future<void> _updateTheme(String themeName) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selectedTheme', themeName);
-    
+
     if (widget.setTheme != null) {
       await widget.setTheme!(themeName);
     }
-    
+
     setState(() {
       currentTheme = themeName;
     });
@@ -133,36 +141,24 @@ class _MenuPageState extends State<MenuPage> {
           ),
           title: Row(
             children: [
-              Icon(
-                Icons.logout,
-                color: primaryColor,
-                size: 24,
-              ),
+              Icon(Icons.logout, color: primaryColor, size: 24),
               const SizedBox(width: 8),
               Text(
                 SimpleTranslations.get(langCode, 'logout'),
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
               ),
             ],
           ),
           content: Text(
             SimpleTranslations.get(langCode, 'logout_confirm'),
-            style: TextStyle(
-              color: textColor,
-              fontSize: 16,
-            ),
+            style: TextStyle(color: textColor, fontSize: 16),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: Text(
                 SimpleTranslations.get(langCode, 'cancel'),
-                style: TextStyle(
-                  color: textColor.withOpacity(0.7),
-                ),
+                style: TextStyle(color: textColor.withOpacity(0.7)),
               ),
             ),
             ElevatedButton(
@@ -171,7 +167,9 @@ class _MenuPageState extends State<MenuPage> {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.clear(); // Clear all stored data
                 if (mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
+                  Navigator.of(
+                    context,
+                  ).pushNamedAndRemoveUntil('/', (r) => false);
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -217,16 +215,13 @@ class _MenuPageState extends State<MenuPage> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              
+
               // Header
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.palette,
-                      color: primaryColor,
-                    ),
+                    Icon(Icons.palette, color: primaryColor),
                     const SizedBox(width: 8),
                     Text(
                       SimpleTranslations.get(langCode, 'select_theme'),
@@ -239,9 +234,9 @@ class _MenuPageState extends State<MenuPage> {
                   ],
                 ),
               ),
-              
+
               const Divider(height: 1),
-              
+
               // Theme list
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 400),
@@ -266,7 +261,9 @@ class _MenuPageState extends State<MenuPage> {
                           child: isSelected
                               ? Icon(
                                   Icons.check,
-                                  color: ThemeConfig.getButtonTextColor(themeName),
+                                  color: ThemeConfig.getButtonTextColor(
+                                    themeName,
+                                  ),
                                   size: 18,
                                 )
                               : null,
@@ -288,10 +285,7 @@ class _MenuPageState extends State<MenuPage> {
                           ),
                         ),
                         trailing: isSelected
-                            ? Icon(
-                                Icons.check_circle,
-                                color: primaryColor,
-                              )
+                            ? Icon(Icons.check_circle, color: primaryColor)
                             : null,
                         onTap: () async {
                           await _updateTheme(themeName);
@@ -302,7 +296,7 @@ class _MenuPageState extends State<MenuPage> {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
             ],
           ),
@@ -343,10 +337,7 @@ class _MenuPageState extends State<MenuPage> {
       appBar: AppBar(
         title: Text(
           tabs[_idx].label,
-          style: TextStyle(
-            color: buttonTextColor,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: buttonTextColor, fontWeight: FontWeight.w600),
         ),
         backgroundColor: primaryColor,
         foregroundColor: buttonTextColor,
@@ -362,17 +353,13 @@ class _MenuPageState extends State<MenuPage> {
                   color: buttonTextColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  Icons.palette,
-                  color: buttonTextColor,
-                  size: 20,
-                ),
+                child: Icon(Icons.palette, color: buttonTextColor, size: 20),
               ),
               tooltip: SimpleTranslations.get(langCode, 'change_theme'),
               onPressed: _showThemeSelector,
             ),
           ),
-          
+
           // Logout button
           Container(
             margin: const EdgeInsets.only(right: 8),
@@ -383,11 +370,7 @@ class _MenuPageState extends State<MenuPage> {
                   color: buttonTextColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  Icons.logout,
-                  color: buttonTextColor,
-                  size: 20,
-                ),
+                child: Icon(Icons.logout, color: buttonTextColor, size: 20),
               ),
               tooltip: SimpleTranslations.get(langCode, 'logout'),
               onPressed: _showLogoutDialog,
@@ -438,16 +421,15 @@ class _MenuPageState extends State<MenuPage> {
                     ),
                   ),
                   activeIcon: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 4,
+                      horizontal: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: primaryColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(
-                      t.icon,
-                      size: 26,
-                      color: primaryColor,
-                    ),
+                    child: Icon(t.icon, size: 26, color: primaryColor),
                   ),
                   label: t.label,
                 ),

@@ -16,7 +16,8 @@ class ProductAddPage extends StatefulWidget {
   State<ProductAddPage> createState() => _ProductAddPageState();
 }
 
-class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStateMixin {
+class _ProductAddPageState extends State<ProductAddPage>
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _productNameController = TextEditingController();
   final _productCodeController = TextEditingController();
@@ -37,7 +38,7 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
   // Animation controllers
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
-  
+
   // Focus nodes for better keyboard navigation
   final _productNameFocus = FocusNode();
   final _productCodeFocus = FocusNode();
@@ -67,7 +68,8 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
   void _loadCurrentTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      currentTheme =
+          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     });
   }
 
@@ -203,14 +205,14 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
         final File imageFile = File(image.path);
         final Uint8List imageBytes = await imageFile.readAsBytes();
         final String base64String = base64Encode(imageBytes);
-        
+
         setState(() {
           _imageFile = imageFile;
           _base64Image = 'data:image/jpeg;base64,$base64String';
         });
 
         print('📷 DEBUG: Image selected and converted to base64');
-        
+
         // Show success feedback
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -283,7 +285,7 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
   Future<void> _createProduct() async {
     // Dismiss keyboard
     FocusScope.of(context).unfocus();
-    
+
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -314,36 +316,36 @@ class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStat
 
       // In your _createProduct() method, change this line:
 
-final productData = {
-  'company_id': companyId,
-  'product_name': _productNameController.text.trim(),
-  'product_code': _productCodeController.text.trim().isNotEmpty 
-      ? _productCodeController.text.trim() 
-      : null,
-  'description': _descriptionController.text.trim().isNotEmpty 
-      ? _descriptionController.text.trim() 
-      : null,
-  'category': _categoryController.text.trim().isNotEmpty 
-      ? _categoryController.text.trim() 
-      : null,
-  'brand': _brandController.text.trim().isNotEmpty 
-      ? _brandController.text.trim() 
-      : null,
-  'barcode': _barcodeController.text.trim().isNotEmpty 
-      ? _barcodeController.text.trim() 
-      : null,
-  'supplier_id': _supplierIdController.text.trim().isNotEmpty 
-      ? int.tryParse(_supplierIdController.text.trim()) 
-      : null,
-  'notes': _notesController.text.trim().isNotEmpty 
-      ? _notesController.text.trim() 
-      : null,
-  'unit': _unitController.text.trim().isNotEmpty 
-      ? int.tryParse(_unitController.text.trim()) 
-      : null,
-  'status': _selectedStatus,
-  'image': _base64Image,  // ✅ Changed from 'image_url' to 'image'
-};
+      final productData = {
+        'company_id': companyId,
+        'product_name': _productNameController.text.trim(),
+        'product_code': _productCodeController.text.trim().isNotEmpty
+            ? _productCodeController.text.trim()
+            : null,
+        'description': _descriptionController.text.trim().isNotEmpty
+            ? _descriptionController.text.trim()
+            : null,
+        'category': _categoryController.text.trim().isNotEmpty
+            ? _categoryController.text.trim()
+            : null,
+        'brand': _brandController.text.trim().isNotEmpty
+            ? _brandController.text.trim()
+            : null,
+        'barcode': _barcodeController.text.trim().isNotEmpty
+            ? _barcodeController.text.trim()
+            : null,
+        'supplier_id': _supplierIdController.text.trim().isNotEmpty
+            ? int.tryParse(_supplierIdController.text.trim())
+            : null,
+        'notes': _notesController.text.trim().isNotEmpty
+            ? _notesController.text.trim()
+            : null,
+        'unit': _unitController.text.trim().isNotEmpty
+            ? int.tryParse(_unitController.text.trim())
+            : null,
+        'status': _selectedStatus,
+        'image': _base64Image, // ✅ Changed from 'image_url' to 'image'
+      };
       print('📝 DEBUG: Product data: ${productData.toString()}');
 
       final response = await http.post(
@@ -368,7 +370,9 @@ final productData = {
         }
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
+        throw Exception(
+          errorData['message'] ?? 'Server error: ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('❌ DEBUG: Error creating product: $e');
@@ -393,7 +397,9 @@ final productData = {
             Text('Success!'),
           ],
         ),
-        content: Text('Product "${_productNameController.text}" has been created successfully.'),
+        content: Text(
+          'Product "${_productNameController.text}" has been created successfully.',
+        ),
         actions: [
           TextButton(
             onPressed: () {
@@ -463,7 +469,9 @@ final productData = {
         keyboardType: keyboardType,
         maxLines: maxLines,
         validator: validator,
-        textInputAction: nextFocus != null ? TextInputAction.next : TextInputAction.done,
+        textInputAction: nextFocus != null
+            ? TextInputAction.next
+            : TextInputAction.done,
         onFieldSubmitted: (_) {
           if (nextFocus != null) {
             FocusScope.of(context).requestFocus(nextFocus);
@@ -486,9 +494,7 @@ final productData = {
                   tooltip: 'Scan barcode',
                 )
               : null,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(
@@ -516,9 +522,7 @@ final productData = {
       opacity: _fadeAnimation,
       child: Card(
         elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: EdgeInsets.all(20),
           child: Column(
@@ -599,7 +603,7 @@ final productData = {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: _imageFile != null 
+                            color: _imageFile != null
                                 ? ThemeConfig.getPrimaryColor(currentTheme)
                                 : Colors.grey[300]!,
                             width: 2,
@@ -630,7 +634,9 @@ final productData = {
                                         padding: EdgeInsets.all(4),
                                         decoration: BoxDecoration(
                                           color: Colors.black.withOpacity(0.6),
-                                          borderRadius: BorderRadius.circular(20),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
                                         ),
                                         child: Icon(
                                           Icons.edit,
@@ -648,7 +654,9 @@ final productData = {
                                   Icon(
                                     Icons.add_a_photo,
                                     size: 48,
-                                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                                    color: ThemeConfig.getPrimaryColor(
+                                      currentTheme,
+                                    ),
                                   ),
                                   SizedBox(height: 12),
                                   Text(
@@ -674,7 +682,7 @@ final productData = {
                   ),
                 ],
               ),
-              
+
               SizedBox(height: 20),
 
               // Basic Information
@@ -696,7 +704,7 @@ final productData = {
                       return null;
                     },
                   ),
-                  
+
                   _buildEnhancedTextField(
                     controller: _productCodeController,
                     label: 'Product Code',
@@ -707,7 +715,7 @@ final productData = {
                     showScanButton: true,
                     scanType: 'product_code',
                   ),
-                  
+
                   _buildEnhancedTextField(
                     controller: _categoryController,
                     label: 'Category',
@@ -716,7 +724,7 @@ final productData = {
                     nextFocus: _brandFocus,
                     hint: 'Enter product category',
                   ),
-                  
+
                   _buildEnhancedTextField(
                     controller: _brandController,
                     label: 'Brand',
@@ -742,7 +750,7 @@ final productData = {
                     showScanButton: true,
                     scanType: 'barcode',
                   ),
-                  
+
                   _buildEnhancedTextField(
                     controller: _supplierIdController,
                     label: 'Supplier ID',
@@ -750,7 +758,7 @@ final productData = {
                     keyboardType: TextInputType.number,
                     hint: 'Enter supplier ID',
                   ),
-                  
+
                   _buildEnhancedTextField(
                     controller: _unitController,
                     label: 'Unit Quantity',
@@ -758,11 +766,11 @@ final productData = {
                     keyboardType: TextInputType.number,
                     hint: 'Enter quantity in stock',
                   ),
-                  
+
                   Container(
                     margin: EdgeInsets.only(bottom: 16),
                     child: DropdownButtonFormField<String>(
-                      initialValue: _selectedStatus,
+                      value: _selectedStatus,
                       decoration: InputDecoration(
                         labelText: 'Status',
                         prefixIcon: Icon(
@@ -825,7 +833,7 @@ final productData = {
                     maxLines: 3,
                     hint: 'Enter product description',
                   ),
-                  
+
                   _buildEnhancedTextField(
                     controller: _notesController,
                     label: 'Notes',
@@ -846,13 +854,19 @@ final productData = {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _createProduct,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                      foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                      backgroundColor: ThemeConfig.getPrimaryColor(
+                        currentTheme,
+                      ),
+                      foregroundColor: ThemeConfig.getButtonTextColor(
+                        currentTheme,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                       elevation: 4,
-                      shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+                      shadowColor: ThemeConfig.getPrimaryColor(
+                        currentTheme,
+                      ).withOpacity(0.3),
                     ),
                     child: _isLoading
                         ? Row(
@@ -864,14 +878,19 @@ final productData = {
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    ThemeConfig.getButtonTextColor(currentTheme),
+                                    ThemeConfig.getButtonTextColor(
+                                      currentTheme,
+                                    ),
                                   ),
                                 ),
                               ),
                               SizedBox(width: 16),
                               Text(
                                 'Creating Product...',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           )
@@ -882,7 +901,10 @@ final productData = {
                               SizedBox(width: 12),
                               Text(
                                 'Create Product',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
@@ -916,7 +938,8 @@ final productData = {
 class BarcodeScannerPage extends StatefulWidget {
   final String fieldType;
 
-  const BarcodeScannerPage({Key? key, required this.fieldType}) : super(key: key);
+  const BarcodeScannerPage({Key? key, required this.fieldType})
+    : super(key: key);
 
   @override
   State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
@@ -934,8 +957,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         title: Text(
-          widget.fieldType == 'product_code' 
-              ? 'Scan Product Code' 
+          widget.fieldType == 'product_code'
+              ? 'Scan Product Code'
               : 'Scan Barcode',
         ),
         actions: [
@@ -958,14 +981,14 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
               if (!isScanned) {
                 isScanned = true;
                 final List<Barcode> barcodes = capture.barcodes;
-                
+
                 if (barcodes.isNotEmpty) {
                   final String code = barcodes.first.displayValue ?? '';
-                  
+
                   if (code.isNotEmpty) {
                     // Vibrate on successful scan (if available)
                     // HapticFeedback.mediumImpact();
-                    
+
                     // Return the scanned code
                     Navigator.of(context).pop(code);
                   } else {
@@ -977,7 +1000,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
               }
             },
           ),
-          
+
           // Scanner Overlay
           Container(
             decoration: ShapeDecoration(
@@ -990,7 +1013,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
               ),
             ),
           ),
-          
+
           // Instructions
           Positioned(
             bottom: 100,
@@ -1024,7 +1047,10 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.black,
-                      padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(25),
                       ),
@@ -1084,7 +1110,12 @@ class QrScannerOverlayShape extends ShapeBorder {
       return Path()
         ..moveTo(rect.left, rect.bottom)
         ..lineTo(rect.left, rect.top + borderRadius)
-        ..quadraticBezierTo(rect.left, rect.top, rect.left + borderRadius, rect.top)
+        ..quadraticBezierTo(
+          rect.left,
+          rect.top,
+          rect.left + borderRadius,
+          rect.top,
+        )
         ..lineTo(rect.right, rect.top);
     }
 
@@ -1092,7 +1123,12 @@ class QrScannerOverlayShape extends ShapeBorder {
       return Path()
         ..moveTo(rect.left, rect.top)
         ..lineTo(rect.right - borderRadius, rect.top)
-        ..quadraticBezierTo(rect.right, rect.top, rect.right, rect.top + borderRadius)
+        ..quadraticBezierTo(
+          rect.right,
+          rect.top,
+          rect.right,
+          rect.top + borderRadius,
+        )
         ..lineTo(rect.right, rect.bottom);
     }
 
@@ -1100,7 +1136,12 @@ class QrScannerOverlayShape extends ShapeBorder {
       return Path()
         ..moveTo(rect.right, rect.top)
         ..lineTo(rect.right, rect.bottom - borderRadius)
-        ..quadraticBezierTo(rect.right, rect.bottom, rect.right - borderRadius, rect.bottom)
+        ..quadraticBezierTo(
+          rect.right,
+          rect.bottom,
+          rect.right - borderRadius,
+          rect.bottom,
+        )
         ..lineTo(rect.left, rect.bottom);
     }
 
@@ -1108,7 +1149,12 @@ class QrScannerOverlayShape extends ShapeBorder {
       return Path()
         ..moveTo(rect.right, rect.bottom)
         ..lineTo(rect.left + borderRadius, rect.bottom)
-        ..quadraticBezierTo(rect.left, rect.bottom, rect.left, rect.bottom - borderRadius)
+        ..quadraticBezierTo(
+          rect.left,
+          rect.bottom,
+          rect.left,
+          rect.bottom - borderRadius,
+        )
         ..lineTo(rect.left, rect.top);
     }
 
@@ -1119,7 +1165,9 @@ class QrScannerOverlayShape extends ShapeBorder {
     // ignore: unused_local_variable
     final borderHeightSize = height / 2;
     final cutOutWidth = cutOutSize < width ? cutOutSize : width - borderWidth;
-    final cutOutHeight = cutOutSize < height ? cutOutSize : height - borderWidth;
+    final cutOutHeight = cutOutSize < height
+        ? cutOutSize
+        : height - borderWidth;
 
     final cutOutRect = Rect.fromLTWH(
       rect.left + (width - cutOutWidth) / 2 + borderWidth,
@@ -1182,7 +1230,9 @@ class QrScannerOverlayShape extends ShapeBorder {
     // ignore: unused_local_variable
     final borderHeightSize = height / 2;
     final cutOutWidth = cutOutSize < width ? cutOutSize : width - borderWidth;
-    final cutOutHeight = cutOutSize < height ? cutOutSize : height - borderWidth;
+    final cutOutHeight = cutOutSize < height
+        ? cutOutSize
+        : height - borderWidth;
 
     final cutOutRect = Rect.fromLTWH(
       rect.left + (width - cutOutWidth) / 2 + borderWidth,
@@ -1197,7 +1247,9 @@ class QrScannerOverlayShape extends ShapeBorder {
 
     final backgroundPath = Path()
       ..addRect(rect)
-      ..addRRect(RRect.fromRectAndRadius(cutOutRect, Radius.circular(borderRadius)));
+      ..addRRect(
+        RRect.fromRectAndRadius(cutOutRect, Radius.circular(borderRadius)),
+      );
 
     canvas.drawPath(backgroundPath, paint..blendMode = BlendMode.srcOver);
 
@@ -1208,10 +1260,13 @@ class QrScannerOverlayShape extends ShapeBorder {
 
     // Draw corner borders
     final path = Path();
-    
+
     // Left top corner
     path.moveTo(cutOutRect.left - borderWidth, cutOutRect.top + borderLength);
-    path.lineTo(cutOutRect.left - borderWidth, cutOutRect.top - borderWidth + borderRadius);
+    path.lineTo(
+      cutOutRect.left - borderWidth,
+      cutOutRect.top - borderWidth + borderRadius,
+    );
     path.arcToPoint(
       Offset(cutOutRect.left + borderRadius, cutOutRect.top - borderWidth),
       radius: Radius.circular(borderRadius),
@@ -1228,22 +1283,40 @@ class QrScannerOverlayShape extends ShapeBorder {
     path.lineTo(cutOutRect.right + borderWidth, cutOutRect.top + borderLength);
 
     // Right bottom corner
-    path.moveTo(cutOutRect.right + borderWidth, cutOutRect.bottom - borderLength);
-    path.lineTo(cutOutRect.right + borderWidth, cutOutRect.bottom - borderRadius);
+    path.moveTo(
+      cutOutRect.right + borderWidth,
+      cutOutRect.bottom - borderLength,
+    );
+    path.lineTo(
+      cutOutRect.right + borderWidth,
+      cutOutRect.bottom - borderRadius,
+    );
     path.arcToPoint(
       Offset(cutOutRect.right - borderRadius, cutOutRect.bottom + borderWidth),
       radius: Radius.circular(borderRadius),
     );
-    path.lineTo(cutOutRect.right - borderLength, cutOutRect.bottom + borderWidth);
+    path.lineTo(
+      cutOutRect.right - borderLength,
+      cutOutRect.bottom + borderWidth,
+    );
 
     // Left bottom corner
-    path.moveTo(cutOutRect.left + borderLength, cutOutRect.bottom + borderWidth);
-    path.lineTo(cutOutRect.left + borderRadius, cutOutRect.bottom + borderWidth);
+    path.moveTo(
+      cutOutRect.left + borderLength,
+      cutOutRect.bottom + borderWidth,
+    );
+    path.lineTo(
+      cutOutRect.left + borderRadius,
+      cutOutRect.bottom + borderWidth,
+    );
     path.arcToPoint(
       Offset(cutOutRect.left - borderWidth, cutOutRect.bottom - borderRadius),
       radius: Radius.circular(borderRadius),
     );
-    path.lineTo(cutOutRect.left - borderWidth, cutOutRect.bottom - borderLength);
+    path.lineTo(
+      cutOutRect.left - borderWidth,
+      cutOutRect.bottom - borderLength,
+    );
 
     canvas.drawPath(path, borderPaint);
   }

@@ -93,8 +93,8 @@ class _LoginPageState extends State<LoginPage> {
     } else {
       await prefs.remove('pass');
 
-        // Save company_id preference
-    await prefs.setInt('company_id', 1);
+      // Save company_id preference
+      await prefs.setInt('company_id', 1);
     }
   }
 
@@ -139,7 +139,7 @@ class _LoginPageState extends State<LoginPage> {
 
     final data = jsonDecode(response.body);
 
-  //  print(data);
+    //  print(data);
 
     final code = data['responseCode'];
     final token = data['data']?['access_token'];
@@ -515,58 +515,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
 
               const SizedBox(height: 24),
-
-              // Register and Forget Password buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const VerifyOtpPage(),
-                        ),
-                      );
-                    },
-                    child: Text(
-                      _getText('register'),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: primaryColor,
-                        decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    ' | ',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: textColor.withOpacity(0.6),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const VerifyOtpforgetpassPage(),
-                        ),
-                      );
-                    },
-                    child: Text(
-                      _getText('forget password'),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: primaryColor,
-                        decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
