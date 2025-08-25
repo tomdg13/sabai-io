@@ -4,6 +4,8 @@ import 'package:inventory/business/ProductPage.dart';
 import 'package:flutter/material.dart';
 
 import 'package:inventory/business/UserPage.dart';
+import 'package:inventory/business/VendorPage.dart';
+
 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart'; // Import your existing ThemeConfig
@@ -156,7 +158,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
           childAspectRatio: 0.9,
           children: [
             _buildGridItem(
-              icon: Icons.group,
+              icon: Icons.business_outlined,
               title: 'Branch',
               color: Colors.blue,
               onTap: _navigateToBranchPage,
@@ -410,12 +412,10 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
 
   /// Navigate to Vender page (placeholder)
   void _navigateToVenderPage() {
-    _showSnackBar('Vender feature coming soon');
-    // TODO: Replace with actual VenderPage when implemented
-    // Navigator.push(
-    //   context,
-    //   MaterialPageRoute(builder: (context) => const VenderPage()),
-    // );
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => vendorPage() ),  // TODO: Replace with actual VenderPage when implemented
+    );
   }
 
   /// Navigate to Store page (placeholder)
@@ -574,4 +574,8 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       ),
     );
   }
+}
+
+class VendorPage {
+  const VendorPage();
 }
