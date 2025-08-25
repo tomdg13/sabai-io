@@ -2,11 +2,9 @@ import 'package:inventory/business/BranchPage.dart';
 import 'package:inventory/business/LocationPage.dart';
 import 'package:inventory/business/ProductPage.dart';
 import 'package:flutter/material.dart';
-
+import 'package:inventory/business/StorePage.dart';
 import 'package:inventory/business/UserPage.dart';
 import 'package:inventory/business/VendorPage.dart';
-
-
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart'; // Import your existing ThemeConfig
 
@@ -420,12 +418,11 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
 
   /// Navigate to Store page (placeholder)
   void _navigateToStorePage() {
-    _showSnackBar('Store feature coming soon');
-    // TODO: Replace with actual StorePage when implemented
-    // Navigator.push(
-    //   context,
-    //   MaterialPageRoute(builder: (context) => const StorePage()),
-    // );
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const storePage()),  // TODO: Replace with actual StorePage when implemented
+    );
   }
 
   /// Show language selection dialog
