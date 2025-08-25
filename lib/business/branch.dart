@@ -25,7 +25,7 @@ class _BranchPageState extends State<BranchPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          SimpleTranslations.get(langCode, 'branches') ?? 'Branches',
+          SimpleTranslations.get(langCode, 'branches'),
           style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
         ),
       ),

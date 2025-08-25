@@ -25,7 +25,7 @@ class _CustomerPageState extends State<CustomerPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          SimpleTranslations.get(langCode, 'customers') ?? 'Customers',
+          SimpleTranslations.get(langCode, 'customers'),
           style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
         ),
       ),
