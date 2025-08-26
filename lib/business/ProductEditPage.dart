@@ -568,7 +568,7 @@ class _ProductEditPageState extends State<ProductEditPage> {
                       SizedBox(height: 16),
 
                       DropdownButtonFormField<String>(
-                        value: _selectedStatus,
+                        initialValue: _selectedStatus,
                         decoration: InputDecoration(
                           labelText: 'Status',
                           border: OutlineInputBorder(),

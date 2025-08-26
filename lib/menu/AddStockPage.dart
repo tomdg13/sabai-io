@@ -1669,6 +1669,7 @@ class _FastTextField extends StatelessWidget {
     required this.label,
     this.keyboardType,
     this.required = false,
+    // ignore: unused_element_parameter
     this.maxLines = 1,
     required this.langCode,
   });

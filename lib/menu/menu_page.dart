@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:inventory/car/mycar.dart' as mycar_ctrl;
 import 'package:inventory/config/theme.dart';
 import 'package:inventory/menu/AddStockPage.dart';
 

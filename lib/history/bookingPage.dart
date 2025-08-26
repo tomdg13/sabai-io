@@ -318,7 +318,7 @@ class _BookingPageState extends State<BookingPage> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: _selectedCarTypeId,
+              initialValue: _selectedCarTypeId,
               decoration: InputDecoration(
                 labelText: SimpleTranslations.get(langCode, 'car_type'),
                 border: const OutlineInputBorder(),

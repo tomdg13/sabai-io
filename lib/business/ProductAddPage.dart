@@ -770,7 +770,7 @@ class _ProductAddPageState extends State<ProductAddPage>
                   Container(
                     margin: EdgeInsets.only(bottom: 16),
                     child: DropdownButtonFormField<String>(
-                      value: _selectedStatus,
+                      initialValue: _selectedStatus,
                       decoration: InputDecoration(
                         labelText: 'Status',
                         prefixIcon: Icon(

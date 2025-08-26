@@ -21,6 +21,10 @@ class _UserAddPageState extends State<UserAddPage> {
   final _phoneController = TextEditingController();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _documentIdController = TextEditingController();
+  final _accountNoController = TextEditingController();
+  final _accountNameController = TextEditingController();
+  final _usernameController = TextEditingController();
 
   String _selectedRole = 'office';
   File? _selectedImage;
@@ -33,6 +37,11 @@ class _UserAddPageState extends State<UserAddPage> {
   int? _companyId;
   String _companyName = '';
   bool _isLoadingCompany = true;
+
+  // Branch data
+  List<Map<String, dynamic>> _branches = [];
+  Map<String, dynamic>? _selectedBranch;
+  bool _isLoadingBranches = false;
 
   final List<String> _roles = ['office', 'admin', 'user'];
   final ImagePicker _picker = ImagePicker();
@@ -77,6 +86,9 @@ class _UserAddPageState extends State<UserAddPage> {
         _showErrorSnackBar(
           SimpleTranslations.get(langCode, 'no_company_found_login_again'),
         );
+      } else {
+        // Load branches after company data is loaded
+        _loadBranches();
       }
     } catch (e) {
       setState(() {
@@ -84,6 +96,69 @@ class _UserAddPageState extends State<UserAddPage> {
       });
       _showErrorSnackBar(
         SimpleTranslations.get(langCode, 'error_loading_company_info'),
+      );
+    }
+  }
+
+  Future<void> _loadBranches() async {
+    setState(() {
+      _isLoadingBranches = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+
+      final url = AppConfig.api('/api/iobranch');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['status'] == 'success' && data['data'] != null) {
+          final List<dynamic> branchList = data['data'];
+          
+          setState(() {
+            _branches = branchList.map((branch) => {
+              'id': branch['branch_id'],
+              'branch_name': branch['branch_name'] ?? 'Unknown Branch',
+              'branch_code': branch['branch_code'] ?? '',
+              'address': branch['address'] ?? '',
+              'image_url': branch['image_url'] ?? '',
+            }).toList();
+            
+            // Don't auto-select first branch, let user choose
+            _isLoadingBranches = false;
+          });
+        } else {
+          setState(() {
+            _isLoadingBranches = false;
+          });
+          _showErrorSnackBar(
+            SimpleTranslations.get(langCode, 'no_branches_found'),
+          );
+        }
+      } else {
+        setState(() {
+          _isLoadingBranches = false;
+        });
+        _showErrorSnackBar(
+          'Failed to load branches: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingBranches = false;
+      });
+      _showErrorSnackBar(
+        'Error loading branches: $e',
       );
     }
   }
@@ -180,6 +255,13 @@ class _UserAddPageState extends State<UserAddPage> {
       return;
     }
 
+    if (_selectedBranch == null) {
+      _showErrorSnackBar(
+        'Please select a branch',
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -196,8 +278,14 @@ class _UserAddPageState extends State<UserAddPage> {
         'email': _emailController.text.trim(),
         'role': _selectedRole,
         'company_id': _companyId,
+        'branch_id': _selectedBranch!['id'], // Add branch_id to the request
         'photo': _base64Image,
         'status': 'active',
+        'document_id': _documentIdController.text.trim().isEmpty ? null : _documentIdController.text.trim(),
+        'username': _usernameController.text.trim().isEmpty ? null : _usernameController.text.trim(),
+        'account_no': _accountNoController.text.trim().isEmpty ? null : _accountNoController.text.trim(),
+        'account_name': _accountNameController.text.trim().isEmpty ? null : _accountNameController.text.trim(),
+        'language': langCode, // Use current language
       };
 
       final response = await http.post(
@@ -249,6 +337,151 @@ class _UserAddPageState extends State<UserAddPage> {
     }
   }
 
+  Widget _buildBranchDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${SimpleTranslations.get(langCode, 'branch') ?? 'Branch'} *',
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: _isLoadingBranches
+              ? Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            ThemeConfig.getPrimaryColor(currentTheme),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text('Loading branches...'),
+                    ],
+                  ),
+                )
+              : DropdownButtonHideUnderline(
+                  child: DropdownButton<Map<String, dynamic>>(
+                    value: _selectedBranch,
+                    hint: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('Select branch'),
+                    ),
+                    isExpanded: true,
+                    items: _branches.map((branch) {
+                      return DropdownMenuItem<Map<String, dynamic>>(
+                        value: branch,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              // branch Image
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.grey[300]!),
+                                ),
+                                child: branch['image_url'] != null &&
+                                        branch['image_url']
+                                            .toString()
+                                            .isNotEmpty
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(5),
+                                        child: Image.network(
+                                          branch['image_url'],
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                            return Container(
+                                              color: Colors.grey[100],
+                                              child: Icon(
+                                                Icons.location_on,
+                                                color: Colors.grey[400],
+                                                size: 16,
+                                              ),
+                                            );
+                                          },
+                                          loadingBuilder: (
+                                            context,
+                                            child,
+                                            loadingProgress,
+                                          ) {
+                                            if (loadingProgress == null)
+                                              return child;
+                                            return Container(
+                                              color: Colors.grey[100],
+                                              child: const Center(
+                                                child: SizedBox(
+                                                  width: 12,
+                                                  height: 12,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 1.5,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      )
+                                    : Container(
+                                        color: Colors.grey[100],
+                                        child: Icon(
+                                          Icons.location_on,
+                                          color: Colors.grey[400],
+                                          size: 16,
+                                        ),
+                                      ),
+                              ),
+                              const SizedBox(width: 10),
+                              // branch Name
+                              Expanded(
+                                child: Text(
+                                  branch['branch_name'] ?? 'Unknown',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) => setState(() => _selectedBranch = value),
+                  ),
+                ),
+        ),
+        if (_selectedBranch == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 8),
+            child: Text(
+              'Branch is required',
+              style: TextStyle(color: Colors.red[700], fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -278,6 +511,10 @@ class _UserAddPageState extends State<UserAddPage> {
     _phoneController.dispose();
     _nameController.dispose();
     _emailController.dispose();
+    _documentIdController.dispose();
+    _accountNoController.dispose();
+    _accountNameController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
@@ -435,6 +672,127 @@ class _UserAddPageState extends State<UserAddPage> {
                     ),
                     const SizedBox(height: 16),
 
+                    // Username Field (Optional)
+                    TextFormField(
+                      controller: _usernameController,
+                      decoration: InputDecoration(
+                        labelText: 'Username (Optional)',
+                        hintText: 'Enter username',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: ThemeConfig.getPrimaryColor(
+                              currentTheme,
+                            ),
+                            width: 2,
+                          ),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.account_circle,
+                          color: ThemeConfig.getPrimaryColor(
+                            currentTheme,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Document ID Field (Optional)
+                    TextFormField(
+                      controller: _documentIdController,
+                      decoration: InputDecoration(
+                        labelText: 'Document ID (Optional)',
+                        hintText: 'Enter document/ID number',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: ThemeConfig.getPrimaryColor(
+                              currentTheme,
+                            ),
+                            width: 2,
+                          ),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.badge,
+                          color: ThemeConfig.getPrimaryColor(
+                            currentTheme,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Account Name Field (Optional)
+                    TextFormField(
+                      controller: _accountNameController,
+                      decoration: InputDecoration(
+                        labelText: 'Account Name (Optional)',
+                        hintText: 'Enter bank account name',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: ThemeConfig.getPrimaryColor(
+                              currentTheme,
+                            ),
+                            width: 2,
+                          ),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.account_balance,
+                          color: ThemeConfig.getPrimaryColor(
+                            currentTheme,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Account Number Field (Optional)
+                    TextFormField(
+                      controller: _accountNoController,
+                      keyboardType: TextInputType.text,
+                      decoration: InputDecoration(
+                        labelText: 'Account Number (Optional)',
+                        hintText: 'Enter bank account number',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: ThemeConfig.getPrimaryColor(
+                              currentTheme,
+                            ),
+                            width: 2,
+                          ),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.credit_card,
+                          color: ThemeConfig.getPrimaryColor(
+                            currentTheme,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
                     // Phone Field
                     TextFormField(
                       controller: _phoneController,
@@ -541,9 +899,13 @@ class _UserAddPageState extends State<UserAddPage> {
                     ),
                     const SizedBox(height: 16),
 
+                    // Branch Dropdown
+                    _buildBranchDropdown(),
+                    const SizedBox(height: 16),
+
                     // Role Dropdown
                     DropdownButtonFormField<String>(
-                      value: _selectedRole,
+                      initialValue: _selectedRole,
                       decoration: InputDecoration(
                         labelText: SimpleTranslations.get(
                           langCode,
@@ -597,11 +959,11 @@ class _UserAddPageState extends State<UserAddPage> {
 
                     // Add User Button
                     ElevatedButton(
-                      onPressed: (_isLoading || _companyId == null)
+                      onPressed: (_isLoading || _companyId == null || _selectedBranch == null)
                           ? null
                           : _addUser,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _companyId != null
+                        backgroundColor: (_companyId != null && _selectedBranch != null)
                             ? ThemeConfig.getPrimaryColor(
                                 currentTheme,
                               ) // Use theme color
@@ -629,15 +991,12 @@ class _UserAddPageState extends State<UserAddPage> {
                               ),
                             )
                           : Text(
-                              _companyId != null
+                              (_companyId != null && _selectedBranch != null)
                                   ? SimpleTranslations.get(
                                       langCode,
                                       'add_user',
                                     ).toUpperCase()
-                                  : SimpleTranslations.get(
-                                      langCode,
-                                      'no_company_selected',
-                                    ).toUpperCase(),
+                                  : 'SELECT COMPANY & BRANCH',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,

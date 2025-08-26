@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:inventory/login/verifyOtp.dart';
-import 'package:inventory/login/VerifyOtpforgetpassPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';

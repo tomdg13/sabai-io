@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:inventory/business/UserAdd.dart';
 import 'package:inventory/business/UserEdit.dart';
 import 'package:inventory/config/config.dart';
-import 'package:inventory/config/theme.dart'; // Add this import
+import 'package:inventory/config/theme.dart';
 import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,7 +22,7 @@ class _userpageState extends State<userpage> {
   List<User> filteredUsers = [];
   bool loading = true;
   String? error;
-  String currentTheme = ThemeConfig.defaultTheme; // Add theme variable
+  String currentTheme = ThemeConfig.defaultTheme;
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -32,7 +32,7 @@ class _userpageState extends State<userpage> {
     debugPrint('Language code: $langCode');
 
     _loadLangCode();
-    _loadCurrentTheme(); // Add theme loading
+    _loadCurrentTheme();
     fetchUsersByRole('Admin');
     _searchController.addListener(() {
       filterUsers(_searchController.text);
@@ -46,7 +46,6 @@ class _userpageState extends State<userpage> {
     });
   }
 
-  // Add theme loading method
   void _loadCurrentTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -64,7 +63,6 @@ class _userpageState extends State<userpage> {
     final lowerQuery = query.toLowerCase();
     setState(() {
       filteredUsers = users.where((user) {
-        // First filter out deleted users, then apply search filter
         if (user.status == 'delete') return false;
         
         final nameLower = user.name.toLowerCase();
@@ -75,7 +73,6 @@ class _userpageState extends State<userpage> {
     });
   }
 
-  // Helper method to filter out deleted users
   List<User> _getActiveUsers(List<User> allUsers) {
     return allUsers.where((user) => user.status != 'delete').toList();
   }
@@ -152,7 +149,7 @@ class _userpageState extends State<userpage> {
       return Center(
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation<Color>(
-            ThemeConfig.getPrimaryColor(currentTheme), // Use theme color
+            ThemeConfig.getPrimaryColor(currentTheme),
           ),
         ),
       );
@@ -163,7 +160,7 @@ class _userpageState extends State<userpage> {
         child: Text(
           error!,
           style: TextStyle(
-            color: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red, // Use theme color
+            color: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
           ),
         ),
       );
@@ -176,8 +173,8 @@ class _userpageState extends State<userpage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${SimpleTranslations.get(langCode, 'users')} (${filteredUsers.length})'),
-        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme), // Use theme color
-        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme), // Use theme color
+        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         actions: [
           IconButton(
             onPressed: () => fetchUsersByRole('Admin'),
@@ -196,7 +193,7 @@ class _userpageState extends State<userpage> {
                 labelText: SimpleTranslations.get(langCode, 'search'),
                 prefixIcon: Icon(
                   Icons.search,
-                  color: ThemeConfig.getPrimaryColor(currentTheme), // Use theme color
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -204,7 +201,7 @@ class _userpageState extends State<userpage> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
-                    color: ThemeConfig.getPrimaryColor(currentTheme), // Use theme color
+                    color: ThemeConfig.getPrimaryColor(currentTheme),
                     width: 2,
                   ),
                 ),
@@ -247,19 +244,32 @@ class _userpageState extends State<userpage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(u.phone),
-                           
+                              if (u.role != null) 
+                                Text('Role: ${u.role}', 
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 12,
+                                  ),
+                                ),
                             ],
                           ),
                           trailing: Icon(
                             Icons.edit,
-                            color: ThemeConfig.getPrimaryColor(currentTheme), // Use theme color
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
                           ),
                           onTap: () async {
+                            print('=== PASSING USER DATA TO EDIT ===');
+                            print('User branch_id: ${u.branchId}');
+                            print('User role: ${u.role}');
+                            print('User status: ${u.status}');
+                            print('=================================');
+                            
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => UserEditPage(
                                   userData: {
+                                    'user_id': u.userId,
                                     'username': u.username,
                                     'phone': u.phone,
                                     'email': u.email,
@@ -267,19 +277,24 @@ class _userpageState extends State<userpage> {
                                     'photo': u.photo,
                                     'photo_id': u.photo_id,
                                     'document_id': u.documentId ?? '',
-                                    'bank_name': u.bankName ?? '',
-                                    'province_name': u.provinceName ?? '',
-                                    'district_name': u.districtName ?? '',
-                                    'village_name': u.villageName ?? '',
                                     'account_no': u.accountNo ?? '',
                                     'account_name': u.accountName ?? '',
-                                    'status': u.status ?? '',
+                                    'status': u.status ?? 'active',
+                                    'role': u.role ?? 'user',
+                                    'branch_id': u.branchId, // Now included!
+                                    'company_id': u.companyId,
+                                    'bio': u.bio ?? '',
+                                    'language': u.language ?? 'en',
+                                    // Geographic data
+                                    'village_id': u.villageId,
+                                    'district_id': u.districtId,
+                                    'province_id': u.provinceId,
+                                    'account_bank_id': u.accountBankId,
                                   },
                                 ),
                               ),
                             );
 
-                            // Handle both update and delete results
                             if (result == true || result == 'deleted') {
                               print('User operation completed, refreshing list...');
                               fetchUsersByRole('Admin');
@@ -288,7 +303,7 @@ class _userpageState extends State<userpage> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text('User removed from list'),
-                                    backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green, // Use theme color
+                                    backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
                                   ),
                                 );
                               }
@@ -303,8 +318,8 @@ class _userpageState extends State<userpage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _onAddUser,
-        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme), // Use theme color
-        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme), // Use theme color
+        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         tooltip: SimpleTranslations.get(langCode, 'add_user'),
         child: const Icon(Icons.add),
       ),
@@ -313,6 +328,7 @@ class _userpageState extends State<userpage> {
 }
 
 class User {
+  final int? userId;
   final String username;
   final String name;
   final String email;
@@ -320,15 +336,22 @@ class User {
   final String photo;
   final String photo_id;
   final String? documentId;
-  final String? bankName;
-  final String? provinceName;
-  final String? districtName;
-  final String? villageName;
   final String? accountNo;
   final String? accountName;
-  final String? status; // Added status field
+  final String? status;
+  final String? role;
+  final int? branchId; // Added branch_id
+  final int? companyId; // Added company_id
+  final String? bio;
+  final String? language;
+  // Geographic fields
+  final int? villageId;
+  final int? districtId;
+  final int? provinceId;
+  final int? accountBankId;
   
   User({
+    this.userId,
     required this.username,
     required this.name,
     required this.email,
@@ -336,17 +359,23 @@ class User {
     required this.photo,
     required this.photo_id,
     this.documentId,
-    this.bankName,
-    this.provinceName,
-    this.districtName,
-    this.villageName,
     this.accountNo,
     this.accountName,
-    this.status, // Added status parameter
+    this.status,
+    this.role,
+    this.branchId, // Added branch_id parameter
+    this.companyId, // Added company_id parameter
+    this.bio,
+    this.language,
+    this.villageId,
+    this.districtId,
+    this.provinceId,
+    this.accountBankId,
   });
   
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
+      userId: json['user_id'],
       username: json['username'] ?? '',
       name: json['name'] ?? '',
       email: json['email'] ?? '',
@@ -354,13 +383,18 @@ class User {
       photo: json['photo'] ?? '',
       photo_id: json['photo_id'] ?? '',
       documentId: json['document_id'],
-      bankName: json['bank_name'],
-      provinceName: json['province_name'],
-      districtName: json['district_name'],
-      villageName: json['village_name'],
       accountNo: json['account_no'],
       accountName: json['account_name'],
-      status: json['status'], // Added status parsing
+      status: json['status'],
+      role: json['role'],
+      branchId: json['branch_id'], // Added branch_id parsing
+      companyId: json['company_id'], // Added company_id parsing
+      bio: json['bio'],
+      language: json['language'],
+      villageId: json['village_id'],
+      districtId: json['district_id'],
+      provinceId: json['province_id'],
+      accountBankId: json['account_bank_id'],
     );
   }
 }
