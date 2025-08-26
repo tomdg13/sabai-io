@@ -31,11 +31,11 @@ class _AddStockPageState extends State<AddStockPage> {
   final Map<String, TextEditingController> _controllers = {
     'productId': TextEditingController(),
     'barcode': TextEditingController(),
-    'stockQuantity': TextEditingController(),
-    'minimumStock': TextEditingController(),
     'reservedQuantity': TextEditingController(),
-    'costPrice': TextEditingController(),
-    'unitPrice': TextEditingController(),
+    'stockQuantity': TextEditingController(text: '0'),
+    'minimumStock': TextEditingController(text: '0'),
+    'costPrice': TextEditingController(text: '0'),
+    'unitPrice': TextEditingController(text: '0'),
     'batchNumber': TextEditingController(),
     'supplierId': TextEditingController(),
     'blockLocation': TextEditingController(),
@@ -273,17 +273,22 @@ class _AddStockPageState extends State<AddStockPage> {
     return _validateNumericInputs();
   }
 
-  bool _validateNumericInputs() {
-    final validations = [
-      _validateField('productId', isInteger: true, required: true),
-      _validateField('stockQuantity', isInteger: true, required: true, positive: true),
-      _validateField('minimumStock', isInteger: true, required: true, nonNegative: true),
-      _validateField('costPrice', isDouble: true, required: true, nonNegative: true),
-      _validateField('unitPrice', isDouble: true, required: true, nonNegative: true),
-    ];
 
-    return validations.every((isValid) => isValid);
-  }
+bool _validateNumericInputs() {
+  final validations = [
+    _validateField('productId', isInteger: true, required: true),
+    // Allow 0 for stockQuantity (for defunct items)
+    _validateField('stockQuantity', isInteger: true, required: true, nonNegative: true),
+    // Allow 0 for minimumStock (for defunct items)
+    _validateField('minimumStock', isInteger: true, required: true, nonNegative: true),
+    // Allow 0 for costPrice (for defunct items)
+    _validateField('costPrice', isDouble: true, required: true, nonNegative: true),
+    // Allow 0 for unitPrice (for defunct items)
+    _validateField('unitPrice', isDouble: true, required: true, nonNegative: true),
+  ];
+
+  return validations.every((isValid) => isValid);
+}
 
   bool _validateField(String fieldKey, {
     bool isInteger = false,
@@ -1223,7 +1228,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
     );
   }
 
-  Widget _buildErrorState(BuildContext context, MobileScannerException error, Widget? child) {
+  // FIXED: Updated errorBuilder signature for mobile_scanner 7.0.1
+  Widget _buildErrorState(BuildContext context, MobileScannerException error) {
     return Container(
       color: Colors.black,
       child: Center(
