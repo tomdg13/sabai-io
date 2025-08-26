@@ -23,8 +23,8 @@ class _AddStockPageState extends State<AddStockPage> {
   String? _accessToken;
   String _langCode = 'en';
   int? _companyId;
-  int? _userId;
-  int? _branchId;
+  String? _userId;
+
 
   // Form controllers
   final _formKey = GlobalKey<FormState>();
@@ -83,8 +83,8 @@ class _AddStockPageState extends State<AddStockPage> {
       _accessToken = prefs.getString('access_token');
       _langCode = prefs.getString('languageCode') ?? 'en';
       _companyId = prefs.getInt('company_id') ?? 1;
-      _userId = prefs.getInt('user_id');
-      _branchId = prefs.getInt('branch_id') ?? 4;
+      _userId = prefs.getString('user');
+     
 
       if (_accessToken != null) {
         await Future.wait([_loadLocations(), _loadStores()]);
@@ -208,33 +208,41 @@ class _AddStockPageState extends State<AddStockPage> {
 
   // Form Operations
   Future<void> _createNewInventory() async {
-    if (!_validateForm()) return;
+  if (!_validateForm()) return;
 
-    setState(() => _isSubmitting = true);
+  setState(() => _isSubmitting = true);
 
-    try {
-      final requestBody = _buildRequestBody();
-      final response = await _makeApiRequest(
-        '/api/inventory',
-        method: 'POST',
-        body: requestBody,
-      );
+  try {
+    final requestBody = _buildRequestBody();
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _showSuccessSnackBar(SimpleTranslations.get(_langCode, 'inventory_created_success'));
-        _clearForm();
-        _navigateToInventoryDashboard();
-      } else {
-        _handleApiError(response, 'Failed to create inventory');
-      }
-    } catch (e) {
-      _handleCreateInventoryError(e);
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-      }
+    // ✅ Log the request body for debugging
+    debugPrint('📦 DEBUG: Request Body: $requestBody');
+
+    final response = await _makeApiRequest(
+      '/api/inventory',
+      method: 'POST',
+      body: requestBody,
+    );
+
+    print('📡 DEBUG: Response Status: ${response.statusCode}');
+    print('📝 DEBUG: Response Body: ${response.body}');
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      _showSuccessSnackBar(SimpleTranslations.get(_langCode, 'inventory_created_success'));
+      _clearForm();
+      _navigateToInventoryDashboard();
+    } else {
+      _handleApiError(response, 'Failed to create inventory');
+    }
+  } catch (e) {
+    _handleCreateInventoryError(e);
+  } finally {
+    if (mounted) {
+      setState(() => _isSubmitting = false);
     }
   }
+}
+
 
   bool _validateForm() {
     if (!_formKey.currentState!.validate()) {
@@ -247,10 +255,10 @@ class _AddStockPageState extends State<AddStockPage> {
       return false;
     }
 
-    if (_userId == null || _branchId == null) {
-      _showErrorSnackBar('User ID or Branch ID not found');
-      return false;
-    }
+    // if (_userId == null || _branchId == null) {
+    //   _showErrorSnackBar('User ID or Branch ID not found');
+    //   return false;
+    // }
 
     if (_selectedLocation == null) {
       _showErrorSnackBar(SimpleTranslations.get(_langCode, 'please_select_location'));
@@ -314,7 +322,7 @@ class _AddStockPageState extends State<AddStockPage> {
   Map<String, dynamic> _buildRequestBody() {
     return {
       'user_id': _userId,
-      'branch_id': _branchId,
+      
       'barcode': _controllers['barcode']!.text.trim().isNotEmpty 
           ? _controllers['barcode']!.text.trim() : null,
       'product_id': int.parse(_controllers['productId']!.text),
