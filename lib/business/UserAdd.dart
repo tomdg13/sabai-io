@@ -342,7 +342,7 @@ class _UserAddPageState extends State<UserAddPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${SimpleTranslations.get(langCode, 'branch') ?? 'Branch'} *',
+          '${SimpleTranslations.get(langCode, 'branch')} *',
           style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 4),

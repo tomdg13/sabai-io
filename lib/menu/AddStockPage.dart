@@ -12,750 +12,658 @@ import 'dart:convert';
 class AddStockPage extends StatefulWidget {
   final String? currentTheme;
 
-  const AddStockPage({Key? key, this.currentTheme}) : super(key: key);
+  const AddStockPage({super.key, this.currentTheme});
 
   @override
   State<AddStockPage> createState() => _AddStockPageState();
 }
 
 class _AddStockPageState extends State<AddStockPage> {
-  String? accessToken;
-  String langCode = 'en';
-  int? companyId;
+  // Authentication
+  String? _accessToken;
+  String _langCode = 'en';
+  int? _companyId;
+  int? _userId;
+  int? _branchId;
 
   // Form controllers
   final _formKey = GlobalKey<FormState>();
-  final _productIdController = TextEditingController();
-  final _barcodeController = TextEditingController();
-  final _stockQuantityController = TextEditingController();
-  final _minimumStockController = TextEditingController();
-  final _reservedQuantityController = TextEditingController();
-  final _costPriceController = TextEditingController();
-  final _unitPriceController = TextEditingController();
-  final _batchNumberController = TextEditingController();
-  final _supplierIdController = TextEditingController();
-  final _blockLocationController = TextEditingController();
+  final Map<String, TextEditingController> _controllers = {
+    'productId': TextEditingController(),
+    'barcode': TextEditingController(),
+    'stockQuantity': TextEditingController(),
+    'minimumStock': TextEditingController(),
+    'reservedQuantity': TextEditingController(),
+    'costPrice': TextEditingController(),
+    'unitPrice': TextEditingController(),
+    'batchNumber': TextEditingController(),
+    'supplierId': TextEditingController(),
+    'blockLocation': TextEditingController(),
+  };
 
   // State management
-  bool isLoading = false;
-  bool isSubmitting = false;
-  bool isLoadingLocations = false;
-  bool isLoadingStores = false;
-  List<Map<String, dynamic>> locations = [];
-  List<Map<String, dynamic>> stores = [];
-  Map<String, dynamic>? scannedProduct;
-  Map<String, dynamic>? selectedLocation;
-  Map<String, dynamic>? selectedStore;
+  bool _isLoading = false;
+  bool _isSubmitting = false;
+  bool _isLoadingLocations = false;
+  bool _isLoadingStores = false;
+  
+  List<Map<String, dynamic>> _locations = [];
+  List<Map<String, dynamic>> _stores = [];
+  Map<String, dynamic>? _scannedProduct;
+  Map<String, dynamic>? _selectedLocation;
+  Map<String, dynamic>? _selectedStore;
 
   // Dropdown values
-  String selectedCurrency = 'LAK';
-  String selectedStatus = 'ACTIVE';
-  DateTime? selectedExpireDate;
+  String _selectedCurrency = 'LAK';
+  String _selectedStatus = 'ACTIVE';
+  DateTime? _selectedExpireDate;
 
   // Cache primary color for performance
-  late Color primaryColor;
+  late Color _primaryColor;
 
   @override
   void initState() {
     super.initState();
-    primaryColor = ThemeConfig.getPrimaryColor(
-      widget.currentTheme ?? 'default',
-    );
+    _primaryColor = ThemeConfig.getPrimaryColor(widget.currentTheme ?? 'default');
     _initializeAuth();
   }
 
-  Future<void> _initializeAuth() async {
-    final prefs = await SharedPreferences.getInstance();
-    accessToken = prefs.getString('access_token');
-    langCode = prefs.getString('languageCode') ?? 'en';
-    companyId = prefs.getInt('company_id') ?? 1;
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
-    if (accessToken != null) {
-      await _loadLocations();
-      await _loadStores();
-    } else {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'auth_token_not_found'),
-      );
+  // Authentication and Data Loading
+  Future<void> _initializeAuth() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _accessToken = prefs.getString('access_token');
+      _langCode = prefs.getString('languageCode') ?? 'en';
+      _companyId = prefs.getInt('company_id') ?? 1;
+      _userId = prefs.getInt('user_id');
+      _branchId = prefs.getInt('branch_id') ?? 4;
+
+      if (_accessToken != null) {
+        await Future.wait([_loadLocations(), _loadStores()]);
+      } else {
+        _showErrorSnackBar(SimpleTranslations.get(_langCode, 'auth_token_not_found'));
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to initialize: $e');
     }
   }
 
   Future<void> _loadLocations() async {
-    if (accessToken == null || companyId == null) return;
+    if (_accessToken == null || _companyId == null) return;
 
-    setState(() => isLoadingLocations = true);
+    setState(() => _isLoadingLocations = true);
 
     try {
-      final response = await http.get(
-        AppConfig.api('/api/iolocation?status=admin&company_id=$companyId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
+      final response = await _makeApiRequest(
+        '/api/iolocation?status=admin&company_id=$_companyId',
+        method: 'GET',
       );
-
-      print('📍 DEBUG: Locations API Response: ${response.statusCode}');
-      print('📍 DEBUG: Locations API Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 'success') {
           setState(() {
-            locations = List<Map<String, dynamic>>.from(data['data'] ?? []);
+            _locations = List<Map<String, dynamic>>.from(data['data'] ?? []);
           });
-          print('📍 DEBUG: Loaded ${locations.length} locations');
         } else {
           _showErrorSnackBar('Failed to load locations: ${data['message']}');
         }
-      } else if (response.statusCode == 401) {
-        _handleAuthError();
       } else {
-        _showErrorSnackBar(
-          'Failed to load locations: Server error ${response.statusCode}',
-        );
+        _handleApiError(response, 'Failed to load locations');
       }
     } catch (e) {
-      print('❌ DEBUG: Error loading locations: $e');
       _showErrorSnackBar('Error loading locations: $e');
     } finally {
-      setState(() => isLoadingLocations = false);
+      setState(() => _isLoadingLocations = false);
     }
   }
 
   Future<void> _loadStores() async {
-    if (accessToken == null || companyId == null) return;
+    if (_accessToken == null || _companyId == null) return;
 
-    setState(() => isLoadingStores = true);
+    setState(() => _isLoadingStores = true);
 
     try {
-      final response = await http.get(
-        AppConfig.api('/api/iostore?status=admin&company_id=$companyId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
+      final response = await _makeApiRequest(
+        '/api/iostore?status=admin&company_id=$_companyId',
+        method: 'GET',
       );
-
-      print('🏪 DEBUG: Stores API Response: ${response.statusCode}');
-      print('🏪 DEBUG: Stores API Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 'success') {
           setState(() {
-            stores = List<Map<String, dynamic>>.from(data['data'] ?? []);
+            _stores = List<Map<String, dynamic>>.from(data['data'] ?? []);
           });
-          print('🏪 DEBUG: Loaded ${stores.length} stores');
         } else {
           _showErrorSnackBar('Failed to load stores: ${data['message']}');
         }
-      } else if (response.statusCode == 401) {
-        _handleAuthError();
       } else {
-        _showErrorSnackBar(
-          'Failed to load stores: Server error ${response.statusCode}',
-        );
+        _handleApiError(response, 'Failed to load stores');
       }
     } catch (e) {
-      print('❌ DEBUG: Error loading stores: $e');
       _showErrorSnackBar('Error loading stores: $e');
     } finally {
-      setState(() => isLoadingStores = false);
+      setState(() => _isLoadingStores = false);
     }
   }
 
+  // Barcode Operations
   Future<void> _scanBarcode() async {
-    // Navigate to barcode scanner
-    final result = await Navigator.push(
+    final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            BarcodeScannerPage(langCode: langCode, primaryColor: primaryColor),
+        builder: (context) => BarcodeScannerPage(
+          langCode: _langCode,
+          primaryColor: _primaryColor,
+        ),
       ),
     );
 
-    if (result != null && result is String) {
+    if (result != null) {
       await _lookupProductByBarcode(result);
     }
   }
 
   Future<void> _lookupProductByBarcode(String barcode) async {
-    setState(() => isLoading = true);
+    setState(() => _isLoading = true);
 
     try {
-      final response = await http.get(
-        AppConfig.api('/api/ioproduct/barcode/$barcode'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
+      final response = await _makeApiRequest(
+        '/api/ioproduct/barcode/$barcode',
+        method: 'GET',
       );
-
-      print('🔍 DEBUG: Barcode API Response: ${response.statusCode}');
-      print('🔍 DEBUG: Barcode API Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 'success') {
           setState(() {
-            scannedProduct = data['data'];
-            _barcodeController.text = scannedProduct!['barcode'] ?? '';
-            _productIdController.text = scannedProduct!['product_id']
-                .toString();
+            _scannedProduct = data['data'];
+            _controllers['barcode']!.text = _scannedProduct!['barcode'] ?? '';
+            _controllers['productId']!.text = _scannedProduct!['product_id'].toString();
           });
-          print('✅ DEBUG: Product found: ${scannedProduct!['product_name']}');
-          _showSuccessSnackBar(
-            SimpleTranslations.get(langCode, 'product_found_success'),
-          );
+          _showSuccessSnackBar(SimpleTranslations.get(_langCode, 'product_found_success'));
         } else {
           _showErrorSnackBar('Product not found: ${data['message']}');
         }
       } else if (response.statusCode == 404) {
-        _showErrorSnackBar(
-          SimpleTranslations.get(langCode, 'product_not_found'),
-        );
-      } else if (response.statusCode == 401) {
-        _handleAuthError();
+        _showErrorSnackBar(SimpleTranslations.get(_langCode, 'product_not_found'));
       } else {
-        _showErrorSnackBar(
-          SimpleTranslations.get(langCode, 'failed_to_lookup_product'),
-        );
+        _handleApiError(response, 'Failed to lookup product');
       }
     } catch (e) {
-      print('❌ DEBUG: Error looking up product: $e');
-      _showErrorSnackBar(
-        '${SimpleTranslations.get(langCode, 'error_looking_up_product')}: $e',
-      );
+      _showErrorSnackBar('Error looking up product: $e');
     } finally {
-      setState(() => isLoading = false);
+      setState(() => _isLoading = false);
     }
   }
 
+  // Form Operations
   Future<void> _createNewInventory() async {
-    // Validate form fields
-    if (!_formKey.currentState!.validate()) {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'please_fill_required_fields'),
-      );
-      return;
-    }
+    if (!_validateForm()) return;
 
-    // Check authentication
-    if (accessToken == null) {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'auth_token_not_found'),
-      );
-      return;
-    }
-
-    // Validate location selection
-    if (selectedLocation == null) {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'please_select_location'),
-      );
-      return;
-    }
-
-    // Validate store selection
-    if (selectedStore == null) {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'please_select_store'),
-      );
-      return;
-    }
-
-    // Validate numeric inputs
-    if (_productIdController.text.isEmpty ||
-        int.tryParse(_productIdController.text) == null) {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'please_enter_valid_product_id'),
-      );
-      return;
-    }
-
-    if (_stockQuantityController.text.isEmpty ||
-        int.tryParse(_stockQuantityController.text) == null ||
-        int.parse(_stockQuantityController.text) <= 0) {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'please_enter_valid_stock_quantity'),
-      );
-      return;
-    }
-
-    if (_minimumStockController.text.isEmpty ||
-        int.tryParse(_minimumStockController.text) == null ||
-        int.parse(_minimumStockController.text) < 0) {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'please_enter_valid_minimum_stock'),
-      );
-      return;
-    }
-
-    if (_costPriceController.text.isEmpty ||
-        double.tryParse(_costPriceController.text) == null ||
-        double.parse(_costPriceController.text) < 0) {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'please_enter_valid_cost_price'),
-      );
-      return;
-    }
-
-    if (_unitPriceController.text.isEmpty ||
-        double.tryParse(_unitPriceController.text) == null ||
-        double.parse(_unitPriceController.text) < 0) {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'please_enter_valid_unit_price'),
-      );
-      return;
-    }
-
-    setState(() => isSubmitting = true);
+    setState(() => _isSubmitting = true);
 
     try {
-      final requestBody = {
-        'barcode': _barcodeController.text.trim().isNotEmpty
-            ? _barcodeController.text.trim()
-            : null,
-        'product_id': int.parse(_productIdController.text),
-        'location_id': selectedLocation!['location_id'],
-        'store_id': selectedStore!['store_id'],
-        'stock_quantity': int.parse(_stockQuantityController.text),
-        'minimum_stock': int.parse(_minimumStockController.text),
-        'reserved_quantity': _reservedQuantityController.text.isEmpty
-            ? 0
-            : int.parse(_reservedQuantityController.text),
-        'cost_price_lak': double.parse(_costPriceController.text),
-        'unit_price_lak': double.parse(_unitPriceController.text),
-        'currency_primary': selectedCurrency,
-        'batch_number': _batchNumberController.text.trim().isNotEmpty
-            ? _batchNumberController.text.trim()
-            : null,
-        'supplier_id': _supplierIdController.text.trim().isNotEmpty
-            ? int.tryParse(_supplierIdController.text)
-            : null,
-        'expire_date': selectedExpireDate?.toIso8601String().split('T')[0],
-        'block_location': _blockLocationController.text.trim().isNotEmpty
-            ? _blockLocationController.text.trim()
-            : null,
-        'status': selectedStatus,
-      };
-
-      print('🆕 DEBUG: Create Inventory Request Body: $requestBody');
-
-      final response = await http.post(
-        AppConfig.api('/api/inventory'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: json.encode(requestBody),
+      final requestBody = _buildRequestBody();
+      final response = await _makeApiRequest(
+        '/api/inventory',
+        method: 'POST',
+        body: requestBody,
       );
 
-      print('🆕 DEBUG: Create Inventory API Response: ${response.statusCode}');
-      print('🆕 DEBUG: Create Inventory API Body: ${response.body}');
-
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Show success message
-        _showSuccessSnackBar(
-          SimpleTranslations.get(langCode, 'inventory_created_success'),
-        );
-
-        // Clear form
+        _showSuccessSnackBar(SimpleTranslations.get(_langCode, 'inventory_created_success'));
         _clearForm();
-
-        // Navigate to InventoryDashboard after success
-        if (mounted) {
-          try {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                // Navigate to InventoryDashboard and remove all previous routes
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/inventory-dashboard',
-                  (route) => false,
-                );
-              }
-            });
-          } catch (e) {
-            print('Navigation to InventoryDashboard error: $e');
-            // Fallback: try simple navigation
-            try {
-              Navigator.of(
-                context,
-              ).pushReplacementNamed('/inventory-dashboard');
-            } catch (e2) {
-              print('Fallback navigation error: $e2');
-              // Final fallback: just go back
-              if (mounted && Navigator.of(context).canPop()) {
-                Navigator.of(context).pop(true);
-              }
-            }
-          }
-        }
-      } else if (response.statusCode == 401) {
-        _handleAuthError();
-      } else if (response.statusCode == 400) {
-        final errorData = json.decode(response.body);
-        _showErrorSnackBar(
-          '${SimpleTranslations.get(langCode, 'validation_error')}: ${errorData['message'] ?? 'Bad request'}',
-        );
-      } else if (response.statusCode == 422) {
-        final errorData = json.decode(response.body);
-        _showErrorSnackBar(
-          '${SimpleTranslations.get(langCode, 'data_validation_failed')}: ${errorData['message'] ?? 'Invalid data'}',
-        );
-      } else if (response.statusCode >= 500) {
-        _showErrorSnackBar(
-          '${SimpleTranslations.get(langCode, 'server_error')}: ${SimpleTranslations.get(langCode, 'please_try_again_later')}',
-        );
+        _navigateToInventoryDashboard();
       } else {
-        try {
-          final errorData = json.decode(response.body);
-          _showErrorSnackBar(
-            '${SimpleTranslations.get(langCode, 'failed_to_create_inventory')}: ${errorData['message'] ?? 'Unknown error'}',
-          );
-        } catch (e) {
-          _showErrorSnackBar(
-            '${SimpleTranslations.get(langCode, 'failed_to_create_inventory')}: Server returned status ${response.statusCode}',
-          );
-        }
+        _handleApiError(response, 'Failed to create inventory');
       }
     } catch (e) {
-      print('❌ DEBUG: Error creating inventory: $e');
-      if (e.toString().contains('SocketException') ||
-          e.toString().contains('TimeoutException')) {
-        _showErrorSnackBar(
-          SimpleTranslations.get(langCode, 'network_error_check_connection'),
-        );
-      } else if (e.toString().contains('FormatException')) {
-        _showErrorSnackBar(
-          SimpleTranslations.get(langCode, 'invalid_data_format'),
-        );
-      } else {
-        _showErrorSnackBar(
-          '${SimpleTranslations.get(langCode, 'error_creating_inventory')}: ${e.toString()}',
-        );
-      }
+      _handleCreateInventoryError(e);
     } finally {
       if (mounted) {
-        setState(() => isSubmitting = false);
+        setState(() => _isSubmitting = false);
       }
     }
   }
 
-  void _handleAuthError() {
-    _showErrorSnackBar(SimpleTranslations.get(langCode, 'session_expired'));
-    // Safe navigation with proper checks
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) {
-        try {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            }
-          });
-        } catch (e) {
-          print('Auth error navigation failed: $e');
+  bool _validateForm() {
+    if (!_formKey.currentState!.validate()) {
+      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'please_fill_required_fields'));
+      return false;
+    }
+
+    if (_accessToken == null) {
+      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'auth_token_not_found'));
+      return false;
+    }
+
+    if (_userId == null || _branchId == null) {
+      _showErrorSnackBar('User ID or Branch ID not found');
+      return false;
+    }
+
+    if (_selectedLocation == null) {
+      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'please_select_location'));
+      return false;
+    }
+
+    if (_selectedStore == null) {
+      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'please_select_store'));
+      return false;
+    }
+
+    return _validateNumericInputs();
+  }
+
+  bool _validateNumericInputs() {
+    final validations = [
+      _validateField('productId', isInteger: true, required: true),
+      _validateField('stockQuantity', isInteger: true, required: true, positive: true),
+      _validateField('minimumStock', isInteger: true, required: true, nonNegative: true),
+      _validateField('costPrice', isDouble: true, required: true, nonNegative: true),
+      _validateField('unitPrice', isDouble: true, required: true, nonNegative: true),
+    ];
+
+    return validations.every((isValid) => isValid);
+  }
+
+  bool _validateField(String fieldKey, {
+    bool isInteger = false,
+    bool isDouble = false,
+    bool required = false,
+    bool positive = false,
+    bool nonNegative = false,
+  }) {
+    final controller = _controllers[fieldKey]!;
+    final value = controller.text.trim();
+
+    if (required && value.isEmpty) {
+      _showErrorSnackBar('Please enter a valid ${fieldKey.toLowerCase()}');
+      return false;
+    }
+
+    if (value.isNotEmpty) {
+      if (isInteger) {
+        final intValue = int.tryParse(value);
+        if (intValue == null || (positive && intValue <= 0) || (nonNegative && intValue < 0)) {
+          _showErrorSnackBar('Please enter a valid ${fieldKey.toLowerCase()}');
+          return false;
+        }
+      } else if (isDouble) {
+        final doubleValue = double.tryParse(value);
+        if (doubleValue == null || (nonNegative && doubleValue < 0)) {
+          _showErrorSnackBar('Please enter a valid ${fieldKey.toLowerCase()}');
+          return false;
         }
       }
-    });
+    }
+
+    return true;
+  }
+
+  Map<String, dynamic> _buildRequestBody() {
+    return {
+      'user_id': _userId,
+      'branch_id': _branchId,
+      'barcode': _controllers['barcode']!.text.trim().isNotEmpty 
+          ? _controllers['barcode']!.text.trim() : null,
+      'product_id': int.parse(_controllers['productId']!.text),
+      'location_id': _selectedLocation!['location_id'],
+      'store_id': _selectedStore!['store_id'],
+      'stock_quantity': int.parse(_controllers['stockQuantity']!.text),
+      'minimum_stock': int.parse(_controllers['minimumStock']!.text),
+      'reserved_quantity': _controllers['reservedQuantity']!.text.isEmpty 
+          ? 0 : int.parse(_controllers['reservedQuantity']!.text),
+      'cost_price_lak': double.parse(_controllers['costPrice']!.text),
+      'unit_price_lak': double.parse(_controllers['unitPrice']!.text),
+      'currency_primary': _selectedCurrency,
+      'batch_number': _controllers['batchNumber']!.text.trim().isNotEmpty 
+          ? _controllers['batchNumber']!.text.trim() : null,
+      'supplier_id': _controllers['supplierId']!.text.trim().isNotEmpty 
+          ? int.tryParse(_controllers['supplierId']!.text) : null,
+      'expire_date': _selectedExpireDate?.toIso8601String().split('T')[0],
+      'block_location': _controllers['blockLocation']!.text.trim().isNotEmpty 
+          ? _controllers['blockLocation']!.text.trim() : null,
+      'status': _selectedStatus,
+    };
   }
 
   void _clearForm() {
-    _barcodeController.clear();
-    _productIdController.clear();
-    _stockQuantityController.clear();
-    _minimumStockController.clear();
-    _reservedQuantityController.clear();
-    _costPriceController.clear();
-    _unitPriceController.clear();
-    _batchNumberController.clear();
-    _supplierIdController.clear();
-    _blockLocationController.clear();
+    for (final controller in _controllers.values) {
+      controller.clear();
+    }
     setState(() {
-      selectedExpireDate = null;
-      selectedLocation = null;
-      selectedStore = null;
-      selectedCurrency = 'LAK';
-      selectedStatus = 'ACTIVE';
-      scannedProduct = null;
+      _selectedExpireDate = null;
+      _selectedLocation = null;
+      _selectedStore = null;
+      _selectedCurrency = 'LAK';
+      _selectedStatus = 'ACTIVE';
+      _scannedProduct = null;
     });
   }
 
-  void _showErrorSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(child: Text(message)),
-            ],
-          ),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: SimpleTranslations.get(langCode, 'dismiss'),
-            textColor: Colors.white,
-            onPressed: () {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            },
-          ),
-        ),
-      );
+  // API Helper Methods
+  Future<http.Response> _makeApiRequest(
+    String endpoint, {
+    required String method,
+    Map<String, dynamic>? body,
+  }) async {
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $_accessToken',
+    };
+
+    switch (method.toUpperCase()) {
+      case 'GET':
+        return http.get(AppConfig.api(endpoint), headers: headers);
+      case 'POST':
+        return http.post(
+          AppConfig.api(endpoint),
+          headers: headers,
+          body: body != null ? json.encode(body) : null,
+        );
+      default:
+        throw ArgumentError('Unsupported HTTP method: $method');
     }
+  }
+
+  void _handleApiError(http.Response response, String defaultMessage) {
+    if (response.statusCode == 401) {
+      _handleAuthError();
+    } else {
+      try {
+        final errorData = json.decode(response.body);
+        _showErrorSnackBar('$defaultMessage: ${errorData['message'] ?? 'Server error ${response.statusCode}'}');
+      } catch (e) {
+        _showErrorSnackBar('$defaultMessage: Server returned status ${response.statusCode}');
+      }
+    }
+  }
+
+  void _handleCreateInventoryError(dynamic error) {
+    String message;
+    if (error.toString().contains('SocketException') || 
+        error.toString().contains('TimeoutException')) {
+      message = SimpleTranslations.get(_langCode, 'network_error_check_connection');
+    } else if (error.toString().contains('FormatException')) {
+      message = SimpleTranslations.get(_langCode, 'invalid_data_format');
+    } else {
+      message = '${SimpleTranslations.get(_langCode, 'error_creating_inventory')}: $error';
+    }
+    _showErrorSnackBar(message);
+  }
+
+  void _handleAuthError() {
+    _showErrorSnackBar(SimpleTranslations.get(_langCode, 'session_expired'));
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
+  void _navigateToInventoryDashboard() {
+    if (!mounted) return;
+    
+    try {
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/inventory-dashboard',
+        (route) => false,
+      );
+    } catch (e) {
+      try {
+        Navigator.of(context).pushReplacementNamed('/inventory-dashboard');
+      } catch (e2) {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(true);
+        }
+      }
+    }
+  }
+
+  // UI Helper Methods
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: SimpleTranslations.get(_langCode, 'dismiss'),
+          textColor: Colors.white,
+          onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+        ),
+      ),
+    );
   }
 
   void _showSuccessSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_outline, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(child: Text(message)),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_outline, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
         ),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _barcodeController.dispose();
-    _productIdController.dispose();
-    _stockQuantityController.dispose();
-    _minimumStockController.dispose();
-    _reservedQuantityController.dispose();
-    _costPriceController.dispose();
-    _unitPriceController.dispose();
-    _batchNumberController.dispose();
-    _supplierIdController.dispose();
-    _blockLocationController.dispose();
-    super.dispose();
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          SimpleTranslations.get(langCode, 'add_new_inventory'),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (isSubmitting) {
-              // Show confirmation dialog if submitting
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (BuildContext dialogContext) {
-                  return AlertDialog(
-                    title: Text(
-                      SimpleTranslations.get(langCode, 'confirm_exit'),
-                    ),
-                    content: Text(
-                      SimpleTranslations.get(
-                        langCode,
-                        'creating_inventory_exit_warning',
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        child: Text(SimpleTranslations.get(langCode, 'stay')),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop(); // Close dialog
-                          if (Navigator.of(context).canPop()) {
-                            Navigator.of(context).pop(); // Go back
-                          }
-                        },
-                        child: Text(SimpleTranslations.get(langCode, 'exit')),
-                      ),
-                    ],
-                  );
-                },
-              );
-            } else {
-              // Safe navigation check
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              }
-            }
-          },
-        ),
+      appBar: _buildAppBar(),
+      body: _isLoading ? _buildLoadingState() : _buildContent(),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: Text(
+        SimpleTranslations.get(_langCode, 'add_new_inventory'),
+        style: const TextStyle(fontWeight: FontWeight.bold),
       ),
-      body: isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: primaryColor),
-                  const SizedBox(height: 16),
-                  Text(
-                    SimpleTranslations.get(langCode, 'loading_data'),
-                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                  ),
-                ],
+      backgroundColor: _primaryColor,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: _handleBackPress,
+      ),
+    );
+  }
+
+  void _handleBackPress() {
+    if (_isSubmitting) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text(SimpleTranslations.get(_langCode, 'confirm_exit')),
+          content: Text(SimpleTranslations.get(_langCode, 'creating_inventory_exit_warning')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(SimpleTranslations.get(_langCode, 'stay')),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              },
+              child: Text(SimpleTranslations.get(_langCode, 'exit')),
+            ),
+          ],
+        ),
+      );
+    } else if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: _primaryColor),
+          const SizedBox(height: 16),
+          Text(
+            SimpleTranslations.get(_langCode, 'loading_data'),
+            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    return Column(
+      children: [
+        if (_scannedProduct != null) _buildScannedProductInfo(),
+        Expanded(child: _buildCreateForm()),
+      ],
+    );
+  }
+
+  Widget _buildScannedProductInfo() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green[200]!),
+      ),
+      child: Row(
+        children: [
+          _buildProductImage(),
+          const SizedBox(width: 12),
+          Expanded(child: _buildProductDetails()),
+          IconButton(
+            icon: Icon(Icons.close, color: Colors.grey[600]),
+            onPressed: () {
+              setState(() {
+                _scannedProduct = null;
+                _controllers['productId']!.clear();
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductImage() {
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green[300]!),
+      ),
+      child: _scannedProduct!['image_url'] != null && 
+             _scannedProduct!['image_url'].toString().isNotEmpty
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: Image.network(
+                _scannedProduct!['image_url'],
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _buildPlaceholderIcon(),
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return _buildLoadingIcon();
+                },
               ),
             )
-          : Column(
-              children: [
-                // Scanned Product Info
-                if (scannedProduct != null) ...[
-                  Container(
-                    margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.green[200]!),
-                    ),
-                    child: Row(
-                      children: [
-                        // Product Image
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.green[300]!),
-                          ),
-                          child:
-                              scannedProduct!['image_url'] != null &&
-                                  scannedProduct!['image_url']
-                                      .toString()
-                                      .isNotEmpty
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(7),
-                                  child: Image.network(
-                                    scannedProduct!['image_url'],
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        color: Colors.green[100],
-                                        child: Icon(
-                                          Icons.inventory,
-                                          color: Colors.green[600],
-                                          size: 24,
-                                        ),
-                                      );
-                                    },
-                                    loadingBuilder:
-                                        (context, child, loadingProgress) {
-                                          if (loadingProgress == null)
-                                            return child;
-                                          return Container(
-                                            color: Colors.green[100],
-                                            child: Center(
-                                              child: SizedBox(
-                                                width: 20,
-                                                height: 20,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                        Color
-                                                      >(Colors.green[600]!),
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                  ),
-                                )
-                              : Container(
-                                  color: Colors.green[100],
-                                  child: Icon(
-                                    Icons.inventory,
-                                    color: Colors.green[600],
-                                    size: 24,
-                                  ),
-                                ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    color: Colors.green[600],
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    SimpleTranslations.get(
-                                      langCode,
-                                      'scanned_product',
-                                    ),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green[700],
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${SimpleTranslations.get(langCode, 'product_name')}: ${scannedProduct!['product_name'] ?? 'N/A'}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              Text(
-                                '${SimpleTranslations.get(langCode, 'product_id')}: ${scannedProduct!['product_id']}',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 13,
-                                ),
-                              ),
-                              if (scannedProduct!['barcode'] != null)
-                                Text(
-                                  'Barcode: ${scannedProduct!['barcode']}',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 13,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.close, color: Colors.grey[600]),
-                          onPressed: () {
-                            setState(() {
-                              scannedProduct = null;
-                              _productIdController.clear();
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+          : _buildPlaceholderIcon(),
+    );
+  }
 
-                // Form Content
-                Expanded(child: _buildCreateForm()),
-              ],
+  Widget _buildPlaceholderIcon() {
+    return Container(
+      color: Colors.green[100],
+      child: Icon(Icons.inventory, color: Colors.green[600], size: 24),
+    );
+  }
+
+  Widget _buildLoadingIcon() {
+    return Container(
+      color: Colors.green[100],
+      child: Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.green[600]!),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductDetails() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green[600], size: 20),
+            const SizedBox(width: 8),
+            Text(
+              SimpleTranslations.get(_langCode, 'scanned_product'),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.green[700],
+                fontSize: 14,
+              ),
             ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${SimpleTranslations.get(_langCode, 'product_name')}: ${_scannedProduct!['product_name'] ?? 'N/A'}',
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
+        Text(
+          '${SimpleTranslations.get(_langCode, 'product_id')}: ${_scannedProduct!['product_id']}',
+          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+        ),
+        if (_scannedProduct!['barcode'] != null)
+          Text(
+            'Barcode: ${_scannedProduct!['barcode']}',
+            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+          ),
+      ],
     );
   }
 
@@ -768,229 +676,350 @@ class _AddStockPageState extends State<AddStockPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              SimpleTranslations.get(langCode, 'create_new_inventory_item'),
+              SimpleTranslations.get(_langCode, 'create_new_inventory_item'),
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-
-            // Barcode Scanner (Primary)
-            Row(
-              children: [
-                Expanded(
-                  child: _FastTextField(
-                    controller: _barcodeController,
-                    label: 'Barcode *',
-                    keyboardType: TextInputType.text,
-                    required: true,
-                    langCode: langCode,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: primaryColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.qr_code_scanner,
-                      color: Colors.white,
-                    ),
-                    onPressed: _scanBarcode,
-                    tooltip: SimpleTranslations.get(langCode, 'scan_barcode'),
-                  ),
-                ),
-              ],
-            ),
+            _buildBarcodeSection(),
             const SizedBox(height: 16),
-
-            // Product ID (Auto-populated from barcode scan)
             _FastTextField(
-              controller: _productIdController,
-              label: SimpleTranslations.get(langCode, 'product_id'),
+              controller: _controllers['productId']!,
+              label: SimpleTranslations.get(_langCode, 'product_id'),
               keyboardType: TextInputType.number,
               required: true,
-              langCode: langCode,
+              langCode: _langCode,
             ),
             const SizedBox(height: 16),
-
-            // Location Dropdown
             _buildLocationDropdown(),
             const SizedBox(height: 16),
-
-            // Store Dropdown
             _buildStoreDropdown(),
             const SizedBox(height: 16),
-
-            // Stock Quantities
-            Row(
-              children: [
-                Expanded(
-                  child: _FastTextField(
-                    controller: _stockQuantityController,
-                    label: SimpleTranslations.get(langCode, 'stock_quantity'),
-                    keyboardType: TextInputType.number,
-                    required: true,
-                    langCode: langCode,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _FastTextField(
-                    controller: _minimumStockController,
-                    label: SimpleTranslations.get(langCode, 'minimum_stock'),
-                    keyboardType: TextInputType.number,
-                    required: true,
-                    langCode: langCode,
-                  ),
-                ),
-              ],
-            ),
+            _buildQuantitySection(),
             const SizedBox(height: 16),
-
-            // Prices
-            Row(
-              children: [
-                Expanded(
-                  child: _FastTextField(
-                    controller: _costPriceController,
-                    label: SimpleTranslations.get(langCode, 'cost_price_lak'),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    required: true,
-                    langCode: langCode,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _FastTextField(
-                    controller: _unitPriceController,
-                    label: SimpleTranslations.get(langCode, 'unit_price_lak'),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    required: true,
-                    langCode: langCode,
-                  ),
-                ),
-              ],
-            ),
+            _buildPriceSection(),
             const SizedBox(height: 16),
-
-            // Optional fields
-            _FastTextField(
-              controller: _reservedQuantityController,
-              label: SimpleTranslations.get(
-                langCode,
-                'reserved_quantity_optional',
-              ),
-              keyboardType: TextInputType.number,
-              langCode: langCode,
-            ),
+            _buildOptionalFields(),
             const SizedBox(height: 16),
-
-            _FastTextField(
-              controller: _batchNumberController,
-              label: SimpleTranslations.get(langCode, 'batch_number_optional'),
-              langCode: langCode,
-            ),
-            const SizedBox(height: 16),
-
-            // Dropdowns
-            Row(
-              children: [
-                Expanded(
-                  child: _FastDropdown(
-                    value: selectedCurrency,
-                    label: SimpleTranslations.get(langCode, 'currency'),
-                    items: const ['LAK', 'THB'],
-                    onChanged: (value) =>
-                        setState(() => selectedCurrency = value!),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _FastDropdown(
-                    value: selectedStatus,
-                    label: SimpleTranslations.get(langCode, 'status'),
-                    items: const ['ACTIVE', 'INACTIVE', 'RESERVED'],
-                    onChanged: (value) =>
-                        setState(() => selectedStatus = value!),
-                  ),
-                ),
-              ],
-            ),
+            _buildStatusSection(),
             const SizedBox(height: 32),
-
-            // Submit Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isSubmitting ? null : _createNewInventory,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isSubmitting ? Colors.grey : primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  elevation: isSubmitting ? 0 : 2,
-                ),
-                child: isSubmitting
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation(Colors.white),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            SimpleTranslations.get(
-                              langCode,
-                              'creating_inventory',
-                            ),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.add_box, size: 24),
-                          const SizedBox(width: 8),
-                          Text(
-                            SimpleTranslations.get(
-                              langCode,
-                              'create_inventory_item',
-                            ),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-            ),
+            _buildSubmitButton(),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildBarcodeSection() {
+    return Row(
+      children: [
+        Expanded(
+          child: _FastTextField(
+            controller: _controllers['barcode']!,
+            label: 'Barcode *',
+            keyboardType: TextInputType.text,
+            required: true,
+            langCode: _langCode,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          height: 56,
+          decoration: BoxDecoration(
+            color: _primaryColor,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+            onPressed: _scanBarcode,
+            tooltip: SimpleTranslations.get(_langCode, 'scan_barcode'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuantitySection() {
+    return Row(
+      children: [
+        Expanded(
+          child: _FastTextField(
+            controller: _controllers['stockQuantity']!,
+            label: SimpleTranslations.get(_langCode, 'stock_quantity'),
+            keyboardType: TextInputType.number,
+            required: true,
+            langCode: _langCode,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _FastTextField(
+            controller: _controllers['minimumStock']!,
+            label: SimpleTranslations.get(_langCode, 'minimum_stock'),
+            keyboardType: TextInputType.number,
+            required: true,
+            langCode: _langCode,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPriceSection() {
+    return Row(
+      children: [
+        Expanded(
+          child: _FastTextField(
+            controller: _controllers['costPrice']!,
+            label: SimpleTranslations.get(_langCode, 'cost_price_lak'),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            required: true,
+            langCode: _langCode,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _FastTextField(
+            controller: _controllers['unitPrice']!,
+            label: SimpleTranslations.get(_langCode, 'unit_price_lak'),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            required: true,
+            langCode: _langCode,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOptionalFields() {
+    return Column(
+      children: [
+        _FastTextField(
+          controller: _controllers['reservedQuantity']!,
+          label: SimpleTranslations.get(_langCode, 'reserved_quantity_optional'),
+          keyboardType: TextInputType.number,
+          langCode: _langCode,
+        ),
+        const SizedBox(height: 16),
+        _FastTextField(
+          controller: _controllers['batchNumber']!,
+          label: SimpleTranslations.get(_langCode, 'batch_number_optional'),
+          langCode: _langCode,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusSection() {
+    return Row(
+      children: [
+        Expanded(
+          child: _FastDropdown(
+            value: _selectedCurrency,
+            label: SimpleTranslations.get(_langCode, 'currency'),
+            items: const ['LAK', 'THB'],
+            onChanged: (value) => setState(() => _selectedCurrency = value!),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _FastDropdown(
+            value: _selectedStatus,
+            label: SimpleTranslations.get(_langCode, 'status'),
+            items: const ['ACTIVE', 'INACTIVE', 'RESERVED'],
+            onChanged: (value) => setState(() => _selectedStatus = value!),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _isSubmitting ? null : _createNewInventory,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _isSubmitting ? Colors.grey : _primaryColor,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          elevation: _isSubmitting ? 0 : 2,
+        ),
+        child: _isSubmitting ? _buildSubmittingContent() : _buildSubmitContent(),
+      ),
+    );
+  }
+
+  Widget _buildSubmittingContent() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(Colors.white),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          SimpleTranslations.get(_langCode, 'creating_inventory'),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubmitContent() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.add_box, size: 24),
+        const SizedBox(width: 8),
+        Text(
+          SimpleTranslations.get(_langCode, 'create_inventory_item'),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  // Dropdown builders remain the same as they were well-structured
   Widget _buildLocationDropdown() {
+    return _DropdownField<Map<String, dynamic>>(
+      value: _selectedLocation,
+      label: SimpleTranslations.get(_langCode, 'location'),
+      hint: 'Select location',
+      items: _locations,
+      isLoading: _isLoadingLocations,
+      loadingText: 'Loading locations...',
+      onChanged: (value) => setState(() => _selectedLocation = value),
+      itemBuilder: (location) => _buildLocationItem(location),
+      validator: () => _selectedLocation == null ? 'Location is required' : null,
+    );
+  }
+
+  Widget _buildStoreDropdown() {
+    return _DropdownField<Map<String, dynamic>>(
+      value: _selectedStore,
+      label: SimpleTranslations.get(_langCode, 'store'),
+      hint: 'Select store',
+      items: _stores,
+      isLoading: _isLoadingStores,
+      loadingText: 'Loading stores...',
+      onChanged: (value) => setState(() => _selectedStore = value),
+      itemBuilder: (store) => _buildStoreItem(store),
+      validator: () => _selectedStore == null ? 'Store is required' : null,
+    );
+  }
+
+  Widget _buildLocationItem(Map<String, dynamic> location) {
+    return Row(
+      children: [
+        _buildItemImage(location['image_url'], Icons.location_on),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            location['location'] ?? 'Unknown',
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStoreItem(Map<String, dynamic> store) {
+    return Row(
+      children: [
+        _buildItemImage(store['image_url'], Icons.store),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            store['store_name'] ?? store['name'] ?? 'Unknown Store',
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildItemImage(String? imageUrl, IconData fallbackIcon) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: imageUrl != null && imageUrl.isNotEmpty
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _buildFallbackIcon(fallbackIcon),
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return _buildLoadingIndicator();
+                },
+              ),
+            )
+          : _buildFallbackIcon(fallbackIcon),
+    );
+  }
+
+  Widget _buildFallbackIcon(IconData icon) {
+    return Container(
+      color: Colors.grey[100],
+      child: Icon(icon, color: Colors.grey[400], size: 16),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return Container(
+      color: Colors.grey[100],
+      child: const Center(
+        child: SizedBox(
+          width: 12,
+          height: 12,
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+      ),
+    );
+  }
+}
+
+// Generic Dropdown Field Widget
+class _DropdownField<T> extends StatelessWidget {
+  final T? value;
+  final String label;
+  final String hint;
+  final List<T> items;
+  final bool isLoading;
+  final String loadingText;
+  final ValueChanged<T?> onChanged;
+  final Widget Function(T) itemBuilder;
+  final String? Function()? validator;
+
+  const _DropdownField({
+    required this.value,
+    required this.label,
+    required this.hint,
+    required this.items,
+    required this.isLoading,
+    required this.loadingText,
+    required this.onChanged,
+    required this.itemBuilder,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${SimpleTranslations.get(langCode, 'location')} *',
+          '$label *',
           style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 4),
@@ -999,127 +1028,13 @@ class _AddStockPageState extends State<AddStockPage> {
             border: Border.all(color: Colors.grey[300]!),
             borderRadius: BorderRadius.circular(4),
           ),
-          child: isLoadingLocations
-              ? Container(
-                  padding: const EdgeInsets.all(16),
-                  child: const Row(
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 12),
-                      Text('Loading locations...'),
-                    ],
-                  ),
-                )
-              : DropdownButtonHideUnderline(
-                  child: DropdownButton<Map<String, dynamic>>(
-                    value: selectedLocation,
-                    hint: const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Text('Select location'),
-                    ),
-                    isExpanded: true,
-                    items: locations.map((location) {
-                      return DropdownMenuItem<Map<String, dynamic>>(
-                        value: location,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            children: [
-                              // Location Image
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: Colors.grey[300]!),
-                                ),
-                                child:
-                                    location['image_url'] != null &&
-                                        location['image_url']
-                                            .toString()
-                                            .isNotEmpty
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(5),
-                                        child: Image.network(
-                                          location['image_url'],
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
-                                                return Container(
-                                                  color: Colors.grey[100],
-                                                  child: Icon(
-                                                    Icons.location_on,
-                                                    color: Colors.grey[400],
-                                                    size: 16,
-                                                  ),
-                                                );
-                                              },
-                                          loadingBuilder:
-                                              (
-                                                context,
-                                                child,
-                                                loadingProgress,
-                                              ) {
-                                                if (loadingProgress == null)
-                                                  return child;
-                                                return Container(
-                                                  color: Colors.grey[100],
-                                                  child: const Center(
-                                                    child: SizedBox(
-                                                      width: 12,
-                                                      height: 12,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                            strokeWidth: 1.5,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                        ),
-                                      )
-                                    : Container(
-                                        color: Colors.grey[100],
-                                        child: Icon(
-                                          Icons.location_on,
-                                          color: Colors.grey[400],
-                                          size: 16,
-                                        ),
-                                      ),
-                              ),
-                              const SizedBox(width: 10),
-                              // Location Name and ID
-                              Expanded(
-                                child: Text(
-                                  location['location'] ?? 'Unknown',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) =>
-                        setState(() => selectedLocation = value),
-                  ),
-                ),
+          child: isLoading ? _buildLoadingContent() : _buildDropdown(),
         ),
-        if (selectedLocation == null)
+        if (validator != null && validator!() != null)
           Padding(
             padding: const EdgeInsets.only(top: 4, left: 8),
             child: Text(
-              'Location is required',
+              validator!()!,
               style: TextStyle(color: Colors.red[700], fontSize: 12),
             ),
           ),
@@ -1127,146 +1042,43 @@ class _AddStockPageState extends State<AddStockPage> {
     );
   }
 
-  Widget _buildStoreDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${SimpleTranslations.get(langCode, 'store')} *',
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(4),
+  Widget _buildLoadingContent() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          child: isLoadingStores
-              ? Container(
-                  padding: const EdgeInsets.all(16),
-                  child: const Row(
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 12),
-                      Text('Loading stores...'),
-                    ],
-                  ),
-                )
-              : DropdownButtonHideUnderline(
-                  child: DropdownButton<Map<String, dynamic>>(
-                    value: selectedStore,
-                    hint: const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Text('Select store'),
-                    ),
-                    isExpanded: true,
-                    items: stores.map((storeData) {
-                      return DropdownMenuItem<Map<String, dynamic>>(
-                        value: storeData,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            children: [
-                              // Store Image
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: Colors.grey[300]!),
-                                ),
-                                child:
-                                    storeData['image_url'] != null &&
-                                        storeData['image_url']
-                                            .toString()
-                                            .isNotEmpty
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(5),
-                                        child: Image.network(
-                                          storeData['image_url'],
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
-                                                return Container(
-                                                  color: Colors.grey[100],
-                                                  child: Icon(
-                                                    Icons.store,
-                                                    color: Colors.grey[400],
-                                                    size: 16,
-                                                  ),
-                                                );
-                                              },
-                                          loadingBuilder:
-                                              (
-                                                context,
-                                                child,
-                                                loadingProgress,
-                                              ) {
-                                                if (loadingProgress == null)
-                                                  return child;
-                                                return Container(
-                                                  color: Colors.grey[100],
-                                                  child: const Center(
-                                                    child: SizedBox(
-                                                      width: 12,
-                                                      height: 12,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                            strokeWidth: 1.5,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                        ),
-                                      )
-                                    : Container(
-                                        color: Colors.grey[100],
-                                        child: Icon(
-                                          Icons.store,
-                                          color: Colors.grey[400],
-                                          size: 16,
-                                        ),
-                                      ),
-                              ),
-                              const SizedBox(width: 10),
-                              // Store Name
-                              Expanded(
-                                child: Text(
-                                  storeData['store_name'] ??
-                                      storeData['name'] ??
-                                      'Unknown Store',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) => setState(() => selectedStore = value),
-                  ),
-                ),
+          const SizedBox(width: 12),
+          Text(loadingText),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdown() {
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<T>(
+        value: value,
+        hint: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(hint),
         ),
-        if (selectedStore == null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, left: 8),
-            child: Text(
-              'Store is required',
-              style: TextStyle(color: Colors.red[700], fontSize: 12),
+        isExpanded: true,
+        items: items.map((item) {
+          return DropdownMenuItem<T>(
+            value: item,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: itemBuilder(item),
             ),
-          ),
-      ],
+          );
+        }).toList(),
+        onChanged: onChanged,
+      ),
     );
   }
 }
@@ -1277,10 +1089,10 @@ class BarcodeScannerPage extends StatefulWidget {
   final Color primaryColor;
 
   const BarcodeScannerPage({
-    Key? key,
+    super.key,
     required this.langCode,
     required this.primaryColor,
-  }) : super(key: key);
+  });
 
   @override
   State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
@@ -1288,9 +1100,9 @@ class BarcodeScannerPage extends StatefulWidget {
 
 class _BarcodeScannerPageState extends State<BarcodeScannerPage>
     with WidgetsBindingObserver {
-  late MobileScannerController cameraController;
-  bool isScanned = false;
-  bool isInitialized = false;
+  late MobileScannerController _cameraController;
+  bool _isScanned = false;
+  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -1299,252 +1111,209 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
     _initializeCamera();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraController.dispose();
+    super.dispose();
+  }
+
   void _initializeCamera() {
-    cameraController = MobileScannerController(
+    _cameraController = MobileScannerController(
       detectionSpeed: DetectionSpeed.noDuplicates,
       facing: CameraFacing.back,
       torchEnabled: false,
     );
 
-    // Add a small delay to ensure camera is properly initialized
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
-        setState(() {
-          isInitialized = true;
-        });
+        setState(() => _isInitialized = true);
       }
     });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!isInitialized) {
-      return;
-    }
+    if (!_isInitialized) return;
 
     switch (state) {
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
-        cameraController.stop();
+        _cameraController.stop();
         break;
       case AppLifecycleState.resumed:
-        cameraController.start();
+        _cameraController.start();
         break;
       case AppLifecycleState.inactive:
         break;
     }
   }
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    cameraController.dispose();
-    super.dispose();
-  }
-
   void _onDetect(BarcodeCapture capture) {
-    if (!isScanned && mounted) {
-      final List<Barcode> barcodes = capture.barcodes;
-      if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
-        setState(() {
-          isScanned = true;
-        });
+    if (_isScanned || !mounted) return;
 
-        // Add haptic feedback
-        if (Platform.isAndroid || Platform.isIOS) {
-          HapticFeedback.lightImpact();
-        }
+    final barcodes = capture.barcodes;
+    if (barcodes.isEmpty || barcodes.first.rawValue == null) return;
 
-        // Small delay to show visual feedback before closing
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) {
-            try {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted && Navigator.of(context).canPop()) {
-                  Navigator.pop(context, barcodes.first.rawValue);
-                }
-              });
-            } catch (e) {
-              print('Barcode scanner navigation error: $e');
-            }
-          }
-        });
-      }
+    setState(() => _isScanned = true);
+
+    if (Platform.isAndroid || Platform.isIOS) {
+      HapticFeedback.lightImpact();
     }
+
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.pop(context, barcodes.first.rawValue);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: !isInitialized
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: widget.primaryColor),
-                  const SizedBox(height: 16),
-                  Text(
-                    SimpleTranslations.get(
-                      widget.langCode,
-                      'initializing_camera',
-                    ),
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              ),
-            )
-          : Stack(
-              children: [
-                // Camera View
-                MobileScanner(
-                  controller: cameraController,
-                  onDetect: _onDetect,
-                  errorBuilder: (context, error, child) {
-                    return Container(
-                      color: Colors.black,
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.camera_alt_outlined,
-                              size: 64,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              SimpleTranslations.get(
-                                widget.langCode,
-                                'camera_error',
-                              ),
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 16,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(context),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: widget.primaryColor,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: Text(
-                                SimpleTranslations.get(
-                                  widget.langCode,
-                                  'close',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+      body: !_isInitialized ? _buildInitializingState() : _buildScannerContent(),
+    );
+  }
 
-                // Scanner Overlay
-                CustomPaint(
-                  painter: ScannerOverlay(
-                    scanAreaSize: 250,
-                    borderColor: isScanned ? Colors.green : widget.primaryColor,
-                    borderWidth: 3,
-                  ),
-                  child: const SizedBox.expand(),
-                ),
+  Widget _buildInitializingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: widget.primaryColor),
+          const SizedBox(height: 16),
+          Text(
+            SimpleTranslations.get(widget.langCode, 'initializing_camera'),
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
 
-                // Success Indicator
-                if (isScanned)
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.check_circle, color: Colors.white),
-                          const SizedBox(width: 8),
-                          Text(
-                            SimpleTranslations.get(
-                              widget.langCode,
-                              'barcode_detected',
-                            ),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+  Widget _buildScannerContent() {
+    return Stack(
+      children: [
+        MobileScanner(
+          controller: _cameraController,
+          onDetect: _onDetect,
+          errorBuilder: _buildErrorState,
+        ),
+        CustomPaint(
+          painter: ScannerOverlay(
+            scanAreaSize: 250,
+            borderColor: _isScanned ? Colors.green : widget.primaryColor,
+            borderWidth: 3,
+          ),
+          child: const SizedBox.expand(),
+        ),
+        if (_isScanned) _buildSuccessIndicator(),
+        _buildBottomInstructions(),
+      ],
+    );
+  }
 
-                // Bottom Instructions
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.8),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.qr_code_scanner,
-                          size: 48,
-                          color: widget.primaryColor,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          SimpleTranslations.get(
-                            widget.langCode,
-                            'scan_instruction',
-                          ),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.grey[800],
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                            child: Text(
-                              SimpleTranslations.get(widget.langCode, 'cancel'),
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+  Widget _buildErrorState(BuildContext context, MobileScannerException error, Widget? child) {
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.camera_alt_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              SimpleTranslations.get(widget.langCode, 'camera_error'),
+              style: TextStyle(color: Colors.grey[400], fontSize: 16),
+              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(SimpleTranslations.get(widget.langCode, 'close')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuccessIndicator() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              SimpleTranslations.get(widget.langCode, 'barcode_detected'),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomInstructions() {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.qr_code_scanner, size: 48, color: widget.primaryColor),
+            const SizedBox(height: 16),
+            Text(
+              SimpleTranslations.get(widget.langCode, 'scan_instruction'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[800],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: Text(
+                  SimpleTranslations.get(widget.langCode, 'cancel'),
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1555,7 +1324,7 @@ class ScannerOverlay extends CustomPainter {
   final Color borderColor;
   final double borderWidth;
 
-  ScannerOverlay({
+  const ScannerOverlay({
     required this.scanAreaSize,
     required this.borderColor,
     required this.borderWidth,
@@ -1563,11 +1332,8 @@ class ScannerOverlay extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final backgroundPath = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    final scanAreaPath = Path()
-      ..addRRect(
+    final backgroundPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final scanAreaPath = Path()..addRRect(
         RRect.fromRectAndRadius(
           Rect.fromCenter(
             center: Offset(size.width / 2, size.height / 2),
@@ -1578,17 +1344,13 @@ class ScannerOverlay extends CustomPainter {
         ),
       );
 
-    final overlayPath = Path.combine(
-      PathOperation.difference,
-      backgroundPath,
-      scanAreaPath,
-    );
+    final overlayPath = Path.combine(PathOperation.difference, backgroundPath, scanAreaPath);
+    canvas.drawPath(overlayPath, Paint()..color = Colors.black.withOpacity(0.5));
 
-    final overlayPaint = Paint()..color = Colors.black.withOpacity(0.5);
+    _drawCornerBrackets(canvas, size);
+  }
 
-    canvas.drawPath(overlayPath, overlayPaint);
-
-    // Draw corner brackets
+  void _drawCornerBrackets(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = borderColor
       ..strokeWidth = borderWidth
@@ -1601,67 +1363,36 @@ class ScannerOverlay extends CustomPainter {
     );
 
     const cornerLength = 20.0;
+    
+    // Draw all four corners
+    _drawCorner(canvas, paint, scanRect.topLeft, cornerLength, true, true);
+    _drawCorner(canvas, paint, scanRect.topRight, cornerLength, false, true);
+    _drawCorner(canvas, paint, scanRect.bottomLeft, cornerLength, true, false);
+    _drawCorner(canvas, paint, scanRect.bottomRight, cornerLength, false, false);
+  }
 
-    // Top-left corner
-    canvas.drawLine(
-      Offset(scanRect.left, scanRect.top + cornerLength),
-      Offset(scanRect.left, scanRect.top),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(scanRect.left, scanRect.top),
-      Offset(scanRect.left + cornerLength, scanRect.top),
-      paint,
-    );
+  void _drawCorner(Canvas canvas, Paint paint, Offset corner, double length, 
+                  bool isLeft, bool isTop) {
+    final horizontalStart = isLeft ? corner : Offset(corner.dx - length, corner.dy);
+    final horizontalEnd = isLeft ? Offset(corner.dx + length, corner.dy) : corner;
+    
+    final verticalStart = isTop ? corner : Offset(corner.dx, corner.dy - length);
+    final verticalEnd = isTop ? Offset(corner.dx, corner.dy + length) : corner;
 
-    // Top-right corner
-    canvas.drawLine(
-      Offset(scanRect.right - cornerLength, scanRect.top),
-      Offset(scanRect.right, scanRect.top),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(scanRect.right, scanRect.top),
-      Offset(scanRect.right, scanRect.top + cornerLength),
-      paint,
-    );
-
-    // Bottom-left corner
-    canvas.drawLine(
-      Offset(scanRect.left, scanRect.bottom - cornerLength),
-      Offset(scanRect.left, scanRect.bottom),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(scanRect.left, scanRect.bottom),
-      Offset(scanRect.left + cornerLength, scanRect.bottom),
-      paint,
-    );
-
-    // Bottom-right corner
-    canvas.drawLine(
-      Offset(scanRect.right - cornerLength, scanRect.bottom),
-      Offset(scanRect.right, scanRect.bottom),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(scanRect.right, scanRect.bottom - cornerLength),
-      Offset(scanRect.right, scanRect.bottom),
-      paint,
-    );
+    canvas.drawLine(horizontalStart, horizontalEnd, paint);
+    canvas.drawLine(verticalStart, verticalEnd, paint);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// Fast, optimized custom widgets
+// Optimized custom widgets
 class _FastTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
   final TextInputType? keyboardType;
   final bool required;
-  final int maxLines;
   final String langCode;
 
   const _FastTextField({
@@ -1669,8 +1400,6 @@ class _FastTextField extends StatelessWidget {
     required this.label,
     this.keyboardType,
     this.required = false,
-    // ignore: unused_element_parameter
-    this.maxLines = 1,
     required this.langCode,
   });
 
@@ -1679,38 +1408,40 @@ class _FastTextField extends StatelessWidget {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
-      maxLines: maxLines,
-      inputFormatters: keyboardType == TextInputType.number
-          ? [FilteringTextInputFormatter.digitsOnly]
-          : keyboardType == const TextInputType.numberWithOptions(decimal: true)
-          ? [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))]
-          : null,
+      inputFormatters: _getInputFormatters(),
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 12,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       ),
-      validator: required
-          ? (value) {
-              if (value == null || value.isEmpty) {
-                return SimpleTranslations.get(langCode, 'field_required');
-              }
-              if (keyboardType == TextInputType.number &&
-                  int.tryParse(value) == null) {
-                return SimpleTranslations.get(langCode, 'enter_valid_number');
-              }
-              if (keyboardType ==
-                      const TextInputType.numberWithOptions(decimal: true) &&
-                  double.tryParse(value) == null) {
-                return SimpleTranslations.get(langCode, 'enter_valid_price');
-              }
-              return null;
-            }
-          : null,
+      validator: required ? _validator : null,
     );
+  }
+
+  List<TextInputFormatter>? _getInputFormatters() {
+    if (keyboardType == TextInputType.number) {
+      return [FilteringTextInputFormatter.digitsOnly];
+    } else if (keyboardType == const TextInputType.numberWithOptions(decimal: true)) {
+      return [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))];
+    }
+    return null;
+  }
+
+  String? _validator(String? value) {
+    if (value == null || value.isEmpty) {
+      return SimpleTranslations.get(langCode, 'field_required');
+    }
+
+    if (keyboardType == TextInputType.number && int.tryParse(value) == null) {
+      return SimpleTranslations.get(langCode, 'enter_valid_number');
+    }
+
+    if (keyboardType == const TextInputType.numberWithOptions(decimal: true) && 
+        double.tryParse(value) == null) {
+      return SimpleTranslations.get(langCode, 'enter_valid_price');
+    }
+
+    return null;
   }
 }
 
@@ -1744,11 +1475,7 @@ class _FastDropdown extends StatelessWidget {
               value: value,
               isExpanded: true,
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              items: items
-                  .map(
-                    (item) => DropdownMenuItem(value: item, child: Text(item)),
-                  )
-                  .toList(),
+              items: items.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
               onChanged: onChanged,
             ),
           ),

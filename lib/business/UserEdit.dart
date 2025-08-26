@@ -7,7 +7,6 @@ import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'dart:typed_data';
 
 class UserEditPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -370,7 +369,7 @@ class _UserEditPageState extends State<UserEditPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${SimpleTranslations.get(langCode, 'branch') ?? 'Branch'} *',
+          '${SimpleTranslations.get(langCode, 'branch')} *',
           style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 4),
@@ -884,7 +883,7 @@ class _UserEditPageState extends State<UserEditPage> {
 
                     // Role Dropdown
                     DropdownButtonFormField<String>(
-                      value: _selectedRole,
+                      initialValue: _selectedRole,
                       decoration: InputDecoration(
                         labelText: 'Role *',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -920,7 +919,7 @@ class _UserEditPageState extends State<UserEditPage> {
 
                     // Status Dropdown
                     DropdownButtonFormField<String>(
-                      value: _selectedStatus,
+                      initialValue: _selectedStatus,
                       decoration: InputDecoration(
                         labelText: 'Status *',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
