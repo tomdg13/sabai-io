@@ -165,57 +165,124 @@ class _LoginPageState extends State<LoginPage> {
     msg = '';
   });
 
-  final url = AppConfig.api('/api/auth/loginIOuser');
+  try {
+    final url = AppConfig.api('/api/auth/loginIOuser');
+    print('🚀 LOGIN: Starting login process');
+    print('📍 LOGIN: API URL: $url');
+    print('👤 LOGIN: Username: ${userCtrl.text.trim()}');
+    print('🔐 LOGIN: Password length: ${passCtrl.text.length}');
 
-  final response = await http.post(
-    url,
-    headers: {'Content-Type': 'application/json'},
-    body: jsonEncode({
+    final requestBody = {
       'userName': userCtrl.text.trim(),
       'password': passCtrl.text.trim(),
-    }),
-  );
+    };
+    print('📦 LOGIN: Request body: ${jsonEncode(requestBody)}');
 
-  final data = jsonDecode(response.body);
-  final code = data['responseCode'];
-  final token = data['data']?['access_token'];
-  final status = data['data']?['status']; // Add status check
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(requestBody),
+    );
 
-  if (code == '00' && token != null) {
-    // Check if user needs to reset password
-    if (status == 'resetpassword') {
+    print('📡 LOGIN: Response status code: ${response.statusCode}');
+    print('📝 LOGIN: Response headers: ${response.headers}');
+    print('📄 LOGIN: Raw response body: ${response.body}');
+
+    final data = jsonDecode(response.body);
+    print('🔍 LOGIN: Parsed response data: $data');
+    
+    // Check for password reset response (401 with resetpassword message)
+    if (response.statusCode == 401 && data['message'] == 'resetpassword') {
+      print('🔄 LOGIN: Password reset required - redirecting to ForgetPasswordPage');
       if (!mounted) return;
+      
+      final arguments = {
+        'userName': userCtrl.text.trim(),
+        'needsReset': true,
+      };
+      print('📋 LOGIN: Navigation arguments: $arguments');
+      
       Navigator.pushReplacementNamed(
         context,
         '/forgot-password',
-        arguments: {
-          'userName': userCtrl.text.trim(),
-          'token': token,
-        },
+        arguments: arguments,
       );
       setState(() => loading = false);
       return;
     }
 
-    // Normal login flow
-    await prefs.setString('access_token', token);
-    final role = _decodeRole(token);
-    await _savePrefs();
+    // Normal success response handling
+    final code = data['responseCode'];
+    final token = data['data']?['access_token'];
+    final status = data['data']?['status'];
+    
+    print('🔢 LOGIN: Response code: $code');
+    print('🎫 LOGIN: Token received: ${token != null ? "Yes (${token.length} chars)" : "No"}');
+    print('📊 LOGIN: User status: $status');
 
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(
-      context,
-      '/menu',
-      arguments: {'role': role ?? 'unknown', 'token': token},
-    );
-  } else {
-    final errorMessage = data['message'] ?? _getText('login_failed');
-    setState(() => msg = errorMessage);
+    if (code == '00' && token != null) {
+      print('✅ LOGIN: Login successful');
+      
+      // Check if user needs to reset password (from success response)
+      if (status == 'resetpassword') {
+        print('🔄 LOGIN: Password reset required from success response');
+        if (!mounted) return;
+        
+        final arguments = {
+          'userName': userCtrl.text.trim(),
+          'token': token,
+        };
+        print('📋 LOGIN: Navigation arguments: $arguments');
+        
+        Navigator.pushReplacementNamed(
+          context,
+          '/forgot-password',
+          arguments: arguments,
+        );
+        setState(() => loading = false);
+        return;
+      }
+
+      // Normal login flow
+      print('🏠 LOGIN: Proceeding with normal login flow');
+      await prefs.setString('access_token', token);
+      print('💾 LOGIN: Token saved to SharedPreferences');
+      
+      final role = _decodeRole(token);
+      print('👔 LOGIN: Decoded role: $role');
+      
+      await _savePrefs();
+      print('💾 LOGIN: User preferences saved');
+
+      if (!mounted) return;
+      
+      final menuArguments = {'role': role ?? 'unknown', 'token': token};
+      print('🏠 LOGIN: Navigating to menu with arguments: $menuArguments');
+      
+      Navigator.pushReplacementNamed(
+        context,
+        '/menu',
+        arguments: menuArguments,
+      );
+    } else {
+      print('❌ LOGIN: Login failed');
+      print('🔍 LOGIN: Error details - Code: $code, Data: ${data['data']}');
+      
+      final errorMessage = data['message'] ?? _getText('login_failed');
+      print('📢 LOGIN: Error message: $errorMessage');
+      
+      setState(() => msg = errorMessage);
+    }
+  } catch (e, stackTrace) {
+    print('💥 LOGIN: Exception caught: $e');
+    print('📚 LOGIN: Stack trace: $stackTrace');
+    
+    setState(() => msg = 'Network error: Please check your connection.');
   }
 
+  print('🏁 LOGIN: Login process completed');
   setState(() => loading = false);
 }
-
   void _showThemeSelector() {
     final availableThemes = ThemeConfig.getAvailableThemes();
 
