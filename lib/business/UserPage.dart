@@ -7,6 +7,7 @@ import 'package:inventory/config/theme.dart';
 import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:inventory/config/company_config.dart';
 
 class userpage extends StatefulWidget {
   const userpage({Key? key}) : super(key: key);
@@ -94,7 +95,7 @@ class _userpageState extends State<userpage> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${token}',
         },
-        body: jsonEncode({'role': role}),
+        body: jsonEncode({'role': role, 'company_id': CompanyConfig.getCompanyId()}),
       );
 
       if (!mounted) return;

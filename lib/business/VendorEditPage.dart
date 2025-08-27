@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
@@ -218,7 +219,7 @@ class _vendorEditPageState extends State<vendorEditPage> {
       print('🌐 DEBUG: Updating vendor at: $url');
 
       final vendorData = <String, dynamic>{
-        'company_id': widget.vendorData['company_id'], // Keep original company_id
+        'company_id': CompanyConfig.getCompanyId(), // update company = 1
       };
       
       // Only include fields that have values or have been changed
@@ -788,7 +789,7 @@ class _vendorEditPageState extends State<vendorEditPage> {
                             ),
                             SizedBox(width: 12),
                             Text(
-                              'Company ID: ${widget.vendorData['company_id']}',
+                              'Company ID: ${CompanyConfig.getCompanyId()}',
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.grey[700],

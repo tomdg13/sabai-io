@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
@@ -230,7 +231,7 @@ class _LocationAddPageState extends State<LocationAddPage> with TickerProviderSt
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
-      final companyId = prefs.getInt('company_id') ?? 1;
+      final companyId = CompanyConfig.getCompanyId();
 
       final url = AppConfig.api('/api/iolocation');
       print('🌐 DEBUG: Creating Location at: $url');

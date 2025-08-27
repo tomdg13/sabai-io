@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:inventory/config/company_config.dart';
 import 'ProductAddPage.dart';
 import 'ProductEditPage.dart';
 import 'package:inventory/config/config.dart';
@@ -119,7 +120,7 @@ class _ProductPageState extends State<ProductPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
-      final companyId = prefs.getInt('company_id') ?? 1;
+      final companyId = CompanyConfig.getCompanyId();
       
       print('🔑 DEBUG: Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
       print('🏢 DEBUG: Company ID: $companyId');
@@ -742,7 +743,7 @@ class Product {
 
       final product = Product(
         productId: json['product_id'] ?? 0,
-        companyId: json['company_id'] ?? 0,
+        companyId: CompanyConfig.getCompanyId(), // Use centralized config instead
         productName: json['product_name'] ?? '',
         productCode: json['product_code'],
         description: json['description'],

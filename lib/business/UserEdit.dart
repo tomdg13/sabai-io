@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
@@ -650,6 +651,7 @@ class _UserEditPageState extends State<UserEditPage> {
         'role': _selectedRole,
         'status': _selectedStatus,
         'branch_id': _selectedBranch?['id'],
+        'company_id': CompanyConfig.getCompanyId(), // Add this line
         'document_id': _documentIdController.text.trim().isEmpty ? null : _documentIdController.text.trim(),
         'account_no': _accountNoController.text.trim().isEmpty ? null : _accountNoController.text.trim(),
         'account_name': _accountNameController.text.trim().isEmpty ? null : _accountNameController.text.trim(),

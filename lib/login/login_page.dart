@@ -71,10 +71,7 @@ class _LoginPageState extends State<LoginPage> {
       passCtrl.text = '';
     }
 
-    // Set default company_id if not already set
-    if (!prefs.containsKey('company_id')) {
-      await prefs.setInt('company_id', 1);
-    }
+    
 
     setState(() {
       currecntl = savedLangCode;
@@ -91,8 +88,7 @@ class _LoginPageState extends State<LoginPage> {
     } else {
       await prefs.remove('pass');
 
-      // Save company_id preference
-      await prefs.setInt('company_id', 1);
+      
     }
   }
 
@@ -117,49 +113,108 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  // Future<void> login() async {
+  //   final prefs = await SharedPreferences.getInstance();
+  //   setState(() {
+  //     loading = true;
+  //     msg = '';
+  //   });
+
+  //   final url = AppConfig.api('/api/auth/loginIOuser');
+
+  //   final response = await http.post(
+  //     url,
+  //     headers: {'Content-Type': 'application/json'},
+  //     body: jsonEncode({
+  //       'userName': userCtrl.text.trim(),
+  //       'password': passCtrl.text.trim(),
+  //     }),
+  //   );
+
+  //   final data = jsonDecode(response.body);
+
+  //   //  print(data);
+
+  //   final code = data['responseCode'];
+  //   final token = data['data']?['access_token'];
+
+  //   if (code == '00' && token != null) {
+  //     await prefs.setString('access_token', token);
+  //     final role = _decodeRole(token);
+  //     await _savePrefs();
+
+  //     if (!mounted) return;
+  //     Navigator.pushReplacementNamed(
+  //       context,
+  //       '/menu',
+  //       arguments: {'role': role ?? 'unknown', 'token': token},
+  //     );
+  //   } else {
+  //     final errorMessage = data['message'] ?? _getText('login_failed');
+  //     setState(() => msg = errorMessage);
+  //   }
+
+  //   setState(() => loading = false);
+  // }
+
+
   Future<void> login() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      loading = true;
-      msg = '';
-    });
+  final prefs = await SharedPreferences.getInstance();
+  setState(() {
+    loading = true;
+    msg = '';
+  });
 
-    final url = AppConfig.api('/api/auth/loginIOuser');
+  final url = AppConfig.api('/api/auth/loginIOuser');
 
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'userName': userCtrl.text.trim(),
-        'password': passCtrl.text.trim(),
-      }),
-    );
+  final response = await http.post(
+    url,
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({
+      'userName': userCtrl.text.trim(),
+      'password': passCtrl.text.trim(),
+    }),
+  );
 
-    final data = jsonDecode(response.body);
+  final data = jsonDecode(response.body);
+  final code = data['responseCode'];
+  final token = data['data']?['access_token'];
+  final status = data['data']?['status']; // Add status check
 
-    //  print(data);
-
-    final code = data['responseCode'];
-    final token = data['data']?['access_token'];
-
-    if (code == '00' && token != null) {
-      await prefs.setString('access_token', token);
-      final role = _decodeRole(token);
-      await _savePrefs();
-
+  if (code == '00' && token != null) {
+    // Check if user needs to reset password
+    if (status == 'resetpassword') {
       if (!mounted) return;
       Navigator.pushReplacementNamed(
         context,
-        '/menu',
-        arguments: {'role': role ?? 'unknown', 'token': token},
+        '/forgot-password',
+        arguments: {
+          'userName': userCtrl.text.trim(),
+          'token': token,
+        },
       );
-    } else {
-      final errorMessage = data['message'] ?? _getText('login_failed');
-      setState(() => msg = errorMessage);
+      setState(() => loading = false);
+      return;
     }
 
-    setState(() => loading = false);
+    // Normal login flow
+    await prefs.setString('access_token', token);
+    final role = _decodeRole(token);
+    await _savePrefs();
+
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(
+      context,
+      '/menu',
+      arguments: {'role': role ?? 'unknown', 'token': token},
+    );
+  } else {
+    final errorMessage = data['message'] ?? _getText('login_failed');
+    setState(() => msg = errorMessage);
   }
+
+  setState(() => loading = false);
+}
 
   void _showThemeSelector() {
     final availableThemes = ThemeConfig.getAvailableThemes();

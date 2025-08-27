@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:inventory/config/company_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
@@ -73,11 +74,12 @@ class _UserAddPageState extends State<UserAddPage> {
   Future<void> _loadCompanyData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      // ignore: unused_local_variable
       final companyId = prefs.getInt('company_id');
       final companyName = prefs.getString('company_name') ?? 'Unknown Company';
 
       setState(() {
-        _companyId = companyId;
+        _companyId = CompanyConfig.getCompanyId();
         _companyName = companyName;
         _isLoadingCompany = false;
       });
@@ -248,12 +250,7 @@ class _UserAddPageState extends State<UserAddPage> {
       return;
     }
 
-    if (_companyId == null) {
-      _showErrorSnackBar(
-        SimpleTranslations.get(langCode, 'company_id_required_login_again'),
-      );
-      return;
-    }
+    final companyId = CompanyConfig.getCompanyId(); // Use config directly
 
     if (_selectedBranch == null) {
       _showErrorSnackBar(
@@ -277,10 +274,10 @@ class _UserAddPageState extends State<UserAddPage> {
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'role': _selectedRole,
-        'company_id': _companyId,
+        'company_id': companyId,
         'branch_id': _selectedBranch!['id'], // Add branch_id to the request
         'photo': _base64Image,
-        'status': 'active',
+        'status': 'resetpassword',
         'document_id': _documentIdController.text.trim().isEmpty ? null : _documentIdController.text.trim(),
         'username': _usernameController.text.trim().isEmpty ? null : _usernameController.text.trim(),
         'account_no': _accountNoController.text.trim().isEmpty ? null : _accountNoController.text.trim(),

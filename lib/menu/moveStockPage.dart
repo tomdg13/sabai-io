@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,7 +22,7 @@ class _AddStockPageState extends State<AddStockPage> {
   // Authentication
   String? _accessToken;
   String _langCode = 'en';
-  late final int _companyId;
+  int? _companyId;
   String? _userId;
 
 
@@ -83,7 +82,7 @@ class _AddStockPageState extends State<AddStockPage> {
       final prefs = await SharedPreferences.getInstance();
       _accessToken = prefs.getString('access_token');
       _langCode = prefs.getString('languageCode') ?? 'en';
-      _companyId = CompanyConfig.getCompanyId(); // Use config instead of SharedPreferences
+      _companyId = prefs.getInt('company_id') ?? 1;
       _userId = prefs.getString('user');
      
 
@@ -98,7 +97,6 @@ class _AddStockPageState extends State<AddStockPage> {
   }
 
   Future<void> _loadLocations() async {
-    // ignore: unnecessary_null_comparison
     if (_accessToken == null || _companyId == null) return;
 
     setState(() => _isLoadingLocations = true);
@@ -129,7 +127,6 @@ class _AddStockPageState extends State<AddStockPage> {
   }
 
   Future<void> _loadStores() async {
-    // ignore: unnecessary_null_comparison
     if (_accessToken == null || _companyId == null) return;
 
     setState(() => _isLoadingStores = true);
@@ -822,58 +819,9 @@ bool _validateNumericInputs() {
           label: SimpleTranslations.get(_langCode, 'batch_number_optional'),
           langCode: _langCode,
         ),
-         const SizedBox(height: 16),
-      _buildExpireDatePicker(), // Add this line
       ],
     );
   }
-
-  Widget _buildExpireDatePicker() {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        SimpleTranslations.get(_langCode, 'expire_date_optional'),
-        style: const TextStyle(fontSize: 12, color: Colors.grey),
-      ),
-      const SizedBox(height: 4),
-      InkWell(
-        onTap: () async {
-          final date = await showDatePicker(
-            context: context,
-            initialDate: _selectedExpireDate ?? DateTime.now().add(const Duration(days: 365)),
-            firstDate: DateTime.now(),
-            lastDate: DateTime.now().add(const Duration(days: 3650)),
-          );
-          if (date != null) {
-            setState(() => _selectedExpireDate = date);
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _selectedExpireDate != null
-                    ? '${_selectedExpireDate!.day}/${_selectedExpireDate!.month}/${_selectedExpireDate!.year}'
-                    : SimpleTranslations.get(_langCode, 'select_expire_date'),
-                style: TextStyle(
-                  color: _selectedExpireDate != null ? Colors.black : Colors.grey[600],
-                ),
-              ),
-              Icon(Icons.calendar_today, color: Colors.grey[600]),
-            ],
-          ),
-        ),
-      ),
-    ],
-  );
-}
 
   Widget _buildStatusSection() {
     return Row(

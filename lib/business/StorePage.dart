@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:inventory/business/StoreAddPage.dart';
 import 'package:inventory/business/StoreEditPage.dart';
+import 'package:inventory/config/company_config.dart';
 
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
@@ -101,7 +102,7 @@ class _storePageState extends State<storePage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
-      final companyId = prefs.getInt('company_id') ?? 1;
+      final companyId = CompanyConfig.getCompanyId();
       
       print('🔑 DEBUG: Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
       print('🏢 DEBUG: Company ID: $companyId');
@@ -581,7 +582,7 @@ class Iostore {
     try {
       final store = Iostore(
         storeId: json['store_id'] ?? 0,
-        companyId: json['company_id'] ?? 0,
+        companyId: CompanyConfig.getCompanyId(), // Use centralized config instead
         storeName: json['store_name'] ?? '',
         imageUrl: json['image_url'],
       );

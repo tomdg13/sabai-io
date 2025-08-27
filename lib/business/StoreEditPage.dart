@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
@@ -245,7 +246,9 @@ class _storeEditPageState extends State<storeEditPage> {
       final url = AppConfig.api('/api/iostore/$storeId');
       print('🌐 DEBUG: Updating store at: $url');
 
-      final storeData = <String, dynamic>{};
+      final storeData = <String, dynamic>{
+  'company_id': CompanyConfig.getCompanyId(), // Add this line
+};
       
       // Only include fields that have values
       if (_storeNameController.text.trim().isNotEmpty) {
@@ -365,7 +368,9 @@ class _storeEditPageState extends State<storeEditPage> {
       print('🗑️ DEBUG: Deleting store at: $url');
 
       // ✅ UPDATED: Include all fields in update request
-      final storeData = <String, dynamic>{};
+     final storeData = <String, dynamic>{
+  'company_id': CompanyConfig.getCompanyId(), // Add this line
+};
       
       // Only include fields that have values
       if (_storeNameController.text.trim().isNotEmpty) {
@@ -798,7 +803,7 @@ class _storeEditPageState extends State<storeEditPage> {
                             ),
                             SizedBox(width: 12),
                             Text(
-                              'Company ID: ${widget.storeData['company_id']}',
+                              'Company ID: ${CompanyConfig.getCompanyId()}',
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.grey[700],

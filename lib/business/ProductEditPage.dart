@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
@@ -158,7 +159,9 @@ class _ProductEditPageState extends State<ProductEditPage> {
       final url = AppConfig.api('/api/ioproduct/$productId');
       print('🌐 DEBUG: Updating product at: $url');
 
-      final productData = <String, dynamic>{};
+      final productData = <String, dynamic>{
+  'company_id': CompanyConfig.getCompanyId(), // Add this line
+};;
 
       // Only include fields that have values
       if (_productNameController.text.trim().isNotEmpty) {

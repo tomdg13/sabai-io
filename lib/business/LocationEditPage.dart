@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
@@ -198,7 +199,9 @@ class _LocationEditPageState extends State<LocationEditPage> {
       final url = AppConfig.api('/api/iolocation/$locationId');
       print('🌐 DEBUG: Updating Location at: $url');
 
-      final locationData = <String, dynamic>{};
+      final locationData = <String, dynamic>{
+  'company_id': CompanyConfig.getCompanyId(), // Add this line
+};;
       
       // Only include fields that have values
       if (_locationNameController.text.trim().isNotEmpty) {

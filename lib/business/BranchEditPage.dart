@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
@@ -60,7 +61,6 @@ class _branchEditPageState extends State<branchEditPage> {
     
     print('🔧 DEBUG: Initialized edit form with branch: ${widget.branchData['branch_name']}');
     print('🔧 DEBUG: Branch ID: ${widget.branchData['branch_id']}');
-    print('🔧 DEBUG: Company ID: ${widget.branchData['company_id']}');
     print('🔧 DEBUG: Branch Code: ${widget.branchData['branch_code']}');
   }
 
@@ -218,7 +218,7 @@ class _branchEditPageState extends State<branchEditPage> {
       print('🌐 DEBUG: Updating branch at: $url');
 
       final branchData = <String, dynamic>{
-        'company_id': widget.branchData['company_id'], // Keep original company_id
+        'company_id': CompanyConfig.getCompanyId(), // Keep original company_id
       };
       
       // Only include fields that have values or have been changed
@@ -788,7 +788,7 @@ class _branchEditPageState extends State<branchEditPage> {
                             ),
                             SizedBox(width: 12),
                             Text(
-                              'Company ID: ${widget.branchData['company_id']}',
+                              'Company ID: ${CompanyConfig.getCompanyId()}',
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.grey[700],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:inventory/config/company_config.dart';
 import 'LocationAddPage.dart';
 import 'LocationEditPage.dart';
 import 'package:inventory/config/config.dart';
@@ -100,7 +101,7 @@ class _LocationPageState extends State<LocationPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
-      final companyId = prefs.getInt('company_id') ?? 1;
+      final companyId = CompanyConfig.getCompanyId();
       
       print('🔑 DEBUG: Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
       print('🏢 DEBUG: Company ID: $companyId');
@@ -580,7 +581,7 @@ class IoLocation {
     try {
       final location = IoLocation(
         locationId: json['location_id'] ?? 0,
-        companyId: json['company_id'] ?? 0,
+        companyId: CompanyConfig.getCompanyId(), // Use centralized config instead
         locationName: json['location'] ?? '',
         imageUrl: json['image_url'],
       );

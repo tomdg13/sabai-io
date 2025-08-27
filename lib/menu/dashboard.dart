@@ -6,9 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
 
-// Import your config files
-// import 'config/app_config.dart';
-// import 'config/theme_config.dart';
 
 class InventoryDashboard extends StatefulWidget {
   final String? currentTheme;
@@ -23,7 +20,6 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     with TickerProviderStateMixin {
   String? accessToken;
   
-  // Dashboard data
   List<Map<String, dynamic>> inventoryItems = [];
   List<Map<String, dynamic>> lowStockItems = [];
   List<Map<String, dynamic>> expiringItems = [];
@@ -647,16 +643,16 @@ class _InventoryDashboardState extends State<InventoryDashboard>
           leading: CircleAvatar(
             backgroundColor: _getStatusColor(item['status']),
             child: Text(
-              item['product_id'].toString(),
+              item['inventory_id'].toString(),
               style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
           ),
           title: Text(
-            'Product ${item['product_id']}',
+            ' ${item['product_name']}',
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(
-            'Stock: ${item['stock_quantity']} | Location: ${item['location_id']}',
+            'Stock: ${item['stock_quantity']} | ${item['location']}',
             overflow: TextOverflow.ellipsis,
           ),
           trailing: SizedBox(
