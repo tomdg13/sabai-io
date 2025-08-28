@@ -193,7 +193,7 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
 
     // Use AppConfig for API endpoint
     final Uri url = AppConfig.api(
-      '/api/customer/update-dpassword/${widget.phone}',
+      '/api/customer/update-iopassword/${widget.phone}',
     );
     print('DEBUG: API URL: $url');
     print('DEBUG: Phone number: ${widget.phone}');

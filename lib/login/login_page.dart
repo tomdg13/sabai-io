@@ -6,6 +6,7 @@ import 'dart:convert';
 import '../config/config.dart';
 import '../config/theme.dart';
 import '../utils/simple_translations.dart';
+import 'ForgetPasswordPage.dart'; // Import your existing ForgetPasswordPage
 
 class LoginPage extends StatefulWidget {
   final Future<void> Function(Locale)? setLocale;
@@ -71,8 +72,6 @@ class _LoginPageState extends State<LoginPage> {
       passCtrl.text = '';
     }
 
-    
-
     setState(() {
       currecntl = savedLangCode;
       currentTheme = savedTheme;
@@ -87,8 +86,6 @@ class _LoginPageState extends State<LoginPage> {
       await prefs.setString('pass', passCtrl.text);
     } else {
       await prefs.remove('pass');
-
-      
     }
   }
 
@@ -113,176 +110,134 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Future<void> login() async {
-  //   final prefs = await SharedPreferences.getInstance();
-  //   setState(() {
-  //     loading = true;
-  //     msg = '';
-  //   });
-
-  //   final url = AppConfig.api('/api/auth/loginIOuser');
-
-  //   final response = await http.post(
-  //     url,
-  //     headers: {'Content-Type': 'application/json'},
-  //     body: jsonEncode({
-  //       'userName': userCtrl.text.trim(),
-  //       'password': passCtrl.text.trim(),
-  //     }),
-  //   );
-
-  //   final data = jsonDecode(response.body);
-
-  //   //  print(data);
-
-  //   final code = data['responseCode'];
-  //   final token = data['data']?['access_token'];
-
-  //   if (code == '00' && token != null) {
-  //     await prefs.setString('access_token', token);
-  //     final role = _decodeRole(token);
-  //     await _savePrefs();
-
-  //     if (!mounted) return;
-  //     Navigator.pushReplacementNamed(
-  //       context,
-  //       '/menu',
-  //       arguments: {'role': role ?? 'unknown', 'token': token},
-  //     );
-  //   } else {
-  //     final errorMessage = data['message'] ?? _getText('login_failed');
-  //     setState(() => msg = errorMessage);
-  //   }
-
-  //   setState(() => loading = false);
-  // }
-
-
   Future<void> login() async {
-  final prefs = await SharedPreferences.getInstance();
-  setState(() {
-    loading = true;
-    msg = '';
-  });
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      loading = true;
+      msg = '';
+    });
 
-  try {
-    final url = AppConfig.api('/api/auth/loginIOuser');
-    print('🚀 LOGIN: Starting login process');
-    print('📍 LOGIN: API URL: $url');
-    print('👤 LOGIN: Username: ${userCtrl.text.trim()}');
-    print('🔐 LOGIN: Password length: ${passCtrl.text.length}');
+    try {
+      final url = AppConfig.api('/api/auth/loginIOuser');
+      print('LOGIN: Starting login process');
+      print('LOGIN: API URL: $url');
+      print('LOGIN: Username: ${userCtrl.text.trim()}');
+      print('LOGIN: Password length: ${passCtrl.text.length}');
 
-    final requestBody = {
-      'userName': userCtrl.text.trim(),
-      'password': passCtrl.text.trim(),
-    };
-    print('📦 LOGIN: Request body: ${jsonEncode(requestBody)}');
-
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(requestBody),
-    );
-
-    print('📡 LOGIN: Response status code: ${response.statusCode}');
-    print('📝 LOGIN: Response headers: ${response.headers}');
-    print('📄 LOGIN: Raw response body: ${response.body}');
-
-    final data = jsonDecode(response.body);
-    print('🔍 LOGIN: Parsed response data: $data');
-    
-    // Check for password reset response (401 with resetpassword message)
-    if (response.statusCode == 401 && data['message'] == 'resetpassword') {
-      print('🔄 LOGIN: Password reset required - redirecting to ForgetPasswordPage');
-      if (!mounted) return;
-      
-      final arguments = {
+      final requestBody = {
         'userName': userCtrl.text.trim(),
-        'needsReset': true,
+        'password': passCtrl.text.trim(),
       };
-      print('📋 LOGIN: Navigation arguments: $arguments');
-      
-      Navigator.pushReplacementNamed(
-        context,
-        '/forgot-password',
-        arguments: arguments,
+      print('LOGIN: Request body: ${jsonEncode(requestBody)}');
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
       );
-      setState(() => loading = false);
-      return;
-    }
 
-    // Normal success response handling
-    final code = data['responseCode'];
-    final token = data['data']?['access_token'];
-    final status = data['data']?['status'];
-    
-    print('🔢 LOGIN: Response code: $code');
-    print('🎫 LOGIN: Token received: ${token != null ? "Yes (${token.length} chars)" : "No"}');
-    print('📊 LOGIN: User status: $status');
+      print('LOGIN: Response status code: ${response.statusCode}');
+      print('LOGIN: Response headers: ${response.headers}');
+      print('LOGIN: Raw response body: ${response.body}');
 
-    if (code == '00' && token != null) {
-      print('✅ LOGIN: Login successful');
+      final data = jsonDecode(response.body);
+      print('LOGIN: Parsed response data: $data');
       
-      // Check if user needs to reset password (from success response)
-      if (status == 'resetpassword') {
-        print('🔄 LOGIN: Password reset required from success response');
+      // Extract key fields
+      final code = data['responseCode'];
+      final message = data['message']?.toString().toLowerCase();
+      final token = data['data']?['access_token'];
+      final status = data['data']?['status']?.toString().toLowerCase();
+      
+      print('LOGIN: Response code: $code');
+      print('LOGIN: Message: $message');
+      print('LOGIN: Token received: ${token != null ? "Yes (${token.length} chars)" : "No"}');
+      print('LOGIN: User status: $status');
+
+      // Check for password reset requirement in multiple scenarios
+      bool needsPasswordReset = false;
+      String? resetToken;
+
+      // Scenario 1: 401 status with resetpassword message
+      if (response.statusCode == 401 && message == 'resetpassword') {
+        needsPasswordReset = true;
+        print('LOGIN: Password reset required (401 response)');
+      }
+      // Scenario 2: Message field contains resetpassword
+      else if (message == 'resetpassword') {
+        needsPasswordReset = true;
+        resetToken = token;
+        print('LOGIN: Password reset required (message field)');
+      }
+      // Scenario 3: Status field contains resetpassword (for successful logins)
+      else if (status == 'resetpassword') {
+        needsPasswordReset = true;
+        resetToken = token;
+        print('LOGIN: Password reset required (status field)');
+      }
+
+      // Handle password reset requirement
+      if (needsPasswordReset) {
+        print('LOGIN: Redirecting to ForgetPasswordPage');
         if (!mounted) return;
         
-        final arguments = {
-          'userName': userCtrl.text.trim(),
-          'token': token,
-        };
-        print('📋 LOGIN: Navigation arguments: $arguments');
+        print('LOGIN: Navigating to ForgetPasswordPage with phone: ${userCtrl.text.trim()}');
         
-        Navigator.pushReplacementNamed(
+        // Navigate to your existing ForgetPasswordPage
+        Navigator.pushReplacement(
           context,
-          '/forgot-password',
-          arguments: arguments,
+          MaterialPageRoute(
+            builder: (context) => ForgetPasswordPage(phone: userCtrl.text.trim()),
+          ),
         );
         setState(() => loading = false);
         return;
       }
 
-      // Normal login flow
-      print('🏠 LOGIN: Proceeding with normal login flow');
-      await prefs.setString('access_token', token);
-      print('💾 LOGIN: Token saved to SharedPreferences');
-      
-      final role = _decodeRole(token);
-      print('👔 LOGIN: Decoded role: $role');
-      
-      await _savePrefs();
-      print('💾 LOGIN: User preferences saved');
+      // Handle successful login (normal flow)
+      if (code == '00' && token != null) {
+        print('LOGIN: Login successful - proceeding with normal flow');
+        
+        await prefs.setString('access_token', token);
+        print('LOGIN: Token saved to SharedPreferences');
+        
+        final role = _decodeRole(token);
+        print('LOGIN: Decoded role: $role');
+        
+        await _savePrefs();
+        print('LOGIN: User preferences saved');
 
-      if (!mounted) return;
+        if (!mounted) return;
+        
+        final menuArguments = {'role': role ?? 'unknown', 'token': token};
+        print('LOGIN: Navigating to menu with arguments: $menuArguments');
+        
+        Navigator.pushReplacementNamed(
+          context,
+          '/menu',
+          arguments: menuArguments,
+        );
+      } else {
+        // Handle login failure
+        print('LOGIN: Login failed');
+        print('LOGIN: Error details - Code: $code, Data: ${data['data']}');
+        
+        final errorMessage = data['message'] ?? _getText('login_failed');
+        print('LOGIN: Error message: $errorMessage');
+        
+        setState(() => msg = errorMessage);
+      }
+    } catch (e, stackTrace) {
+      print('LOGIN: Exception caught: $e');
+      print('LOGIN: Stack trace: $stackTrace');
       
-      final menuArguments = {'role': role ?? 'unknown', 'token': token};
-      print('🏠 LOGIN: Navigating to menu with arguments: $menuArguments');
-      
-      Navigator.pushReplacementNamed(
-        context,
-        '/menu',
-        arguments: menuArguments,
-      );
-    } else {
-      print('❌ LOGIN: Login failed');
-      print('🔍 LOGIN: Error details - Code: $code, Data: ${data['data']}');
-      
-      final errorMessage = data['message'] ?? _getText('login_failed');
-      print('📢 LOGIN: Error message: $errorMessage');
-      
-      setState(() => msg = errorMessage);
+      setState(() => msg = 'Network error: Please check your connection.');
     }
-  } catch (e, stackTrace) {
-    print('💥 LOGIN: Exception caught: $e');
-    print('📚 LOGIN: Stack trace: $stackTrace');
-    
-    setState(() => msg = 'Network error: Please check your connection.');
+
+    print('LOGIN: Login process completed');
+    setState(() => loading = false);
   }
 
-  print('🏁 LOGIN: Login process completed');
-  setState(() => loading = false);
-}
   void _showThemeSelector() {
     final availableThemes = ThemeConfig.getAvailableThemes();
 
@@ -462,7 +417,7 @@ class _LoginPageState extends State<LoginPage> {
                     width: 1,
                   ),
                 ),
-                child: Icon(Icons.language, size: 64, color: primaryColor),
+                child: Icon(Icons.devices_other, size: 64, color: primaryColor),
               ),
 
               const SizedBox(height: 40),

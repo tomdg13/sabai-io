@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
@@ -7,7 +8,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ProductAddPage extends StatefulWidget {
@@ -128,7 +128,7 @@ class _ProductAddPageState extends State<ProductAddPage>
         );
       }
     } catch (e) {
-      print('❌ DEBUG: Error scanning barcode: $e');
+      print('DEBUG: Error scanning barcode: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -212,7 +212,7 @@ class _ProductAddPageState extends State<ProductAddPage>
           _base64Image = 'data:image/jpeg;base64,$base64String';
         });
 
-        print('📷 DEBUG: Image selected and converted to base64');
+        print('DEBUG: Image selected and converted to base64');
 
         // Show success feedback
         ScaffoldMessenger.of(context).showSnackBar(
@@ -230,7 +230,7 @@ class _ProductAddPageState extends State<ProductAddPage>
         );
       }
     } catch (e) {
-      print('❌ DEBUG: Error picking image: $e');
+      print('DEBUG: Error picking image: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -313,9 +313,7 @@ class _ProductAddPageState extends State<ProductAddPage>
       final companyId = CompanyConfig.getCompanyId();
 
       final url = AppConfig.api('/api/ioproduct');
-      print('🌐 DEBUG: Creating product at: $url');
-
-      // In your _createProduct() method, change this line:
+      print('DEBUG: Creating product at: $url');
 
       final productData = {
         'company_id': companyId,
@@ -345,9 +343,9 @@ class _ProductAddPageState extends State<ProductAddPage>
             ? int.tryParse(_unitController.text.trim())
             : null,
         'status': _selectedStatus,
-        'image': _base64Image, // ✅ Changed from 'image_url' to 'image'
+        'image': _base64Image,
       };
-      print('📝 DEBUG: Product data: ${productData.toString()}');
+      print('DEBUG: Product data: ${productData.toString()}');
 
       final response = await http.post(
         Uri.parse(url.toString()),
@@ -358,13 +356,12 @@ class _ProductAddPageState extends State<ProductAddPage>
         body: jsonEncode(productData),
       );
 
-      print('📡 DEBUG: Response Status: ${response.statusCode}');
-      print('📝 DEBUG: Response Body: ${response.body}');
+      print('DEBUG: Response Status: ${response.statusCode}');
+      print('DEBUG: Response Body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
         if (responseData['status'] == 'success') {
-          // Show success dialog instead of just snackbar
           _showSuccessDialog();
         } else {
           throw Exception(responseData['message'] ?? 'Unknown error');
@@ -376,7 +373,7 @@ class _ProductAddPageState extends State<ProductAddPage>
         );
       }
     } catch (e) {
-      print('❌ DEBUG: Error creating product: $e');
+      print('DEBUG: Error creating product: $e');
       _showErrorDialog(e.toString());
     } finally {
       setState(() {
@@ -635,9 +632,7 @@ class _ProductAddPageState extends State<ProductAddPage>
                                         padding: EdgeInsets.all(4),
                                         decoration: BoxDecoration(
                                           color: Colors.black.withOpacity(0.6),
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
+                                          borderRadius: BorderRadius.circular(20),
                                         ),
                                         child: Icon(
                                           Icons.edit,
@@ -655,9 +650,7 @@ class _ProductAddPageState extends State<ProductAddPage>
                                   Icon(
                                     Icons.add_a_photo,
                                     size: 48,
-                                    color: ThemeConfig.getPrimaryColor(
-                                      currentTheme,
-                                    ),
+                                    color: ThemeConfig.getPrimaryColor(currentTheme),
                                   ),
                                   SizedBox(height: 12),
                                   Text(
@@ -855,19 +848,13 @@ class _ProductAddPageState extends State<ProductAddPage>
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _createProduct,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: ThemeConfig.getPrimaryColor(
-                        currentTheme,
-                      ),
-                      foregroundColor: ThemeConfig.getButtonTextColor(
-                        currentTheme,
-                      ),
+                      backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                      foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                       elevation: 4,
-                      shadowColor: ThemeConfig.getPrimaryColor(
-                        currentTheme,
-                      ).withOpacity(0.3),
+                      shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
                     ),
                     child: _isLoading
                         ? Row(
@@ -879,9 +866,7 @@ class _ProductAddPageState extends State<ProductAddPage>
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    ThemeConfig.getButtonTextColor(
-                                      currentTheme,
-                                    ),
+                                    ThemeConfig.getButtonTextColor(currentTheme),
                                   ),
                                 ),
                               ),
@@ -939,24 +924,180 @@ class _ProductAddPageState extends State<ProductAddPage>
 class BarcodeScannerPage extends StatefulWidget {
   final String fieldType;
 
-  const BarcodeScannerPage({Key? key, required this.fieldType})
-    : super(key: key);
+  const BarcodeScannerPage({Key? key, required this.fieldType}) : super(key: key);
 
   @override
   State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
 }
 
-class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
-  MobileScannerController cameraController = MobileScannerController();
-  bool isScanned = false;
+class _BarcodeScannerPageState extends State<BarcodeScannerPage>
+    with WidgetsBindingObserver {
+  late MobileScannerController _cameraController;
+  bool _isScanned = false;
+  bool _isInitialized = false;
+  bool _isFlashOn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeCamera();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraController.dispose();
+    super.dispose();
+  }
+
+  void _initializeCamera() {
+    _cameraController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        setState(() => _isInitialized = true);
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_isInitialized) return;
+
+    switch (state) {
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        _cameraController.stop();
+        break;
+      case AppLifecycleState.resumed:
+        _cameraController.start();
+        break;
+      case AppLifecycleState.inactive:
+        break;
+    }
+  }
+
+  void _onBarcodeDetected(BarcodeCapture capture) async {
+    if (_isScanned || !mounted) return;
+
+    final barcodes = capture.barcodes;
+    if (barcodes.isEmpty || barcodes.first.rawValue == null) return;
+
+    final String code = barcodes.first.rawValue!;
+    
+    print('DEBUG: Barcode detected - Type: ${barcodes.first.type}, Value: $code');
+
+    setState(() => _isScanned = true);
+
+    // Add haptic feedback if available
+    try {
+      HapticFeedback.lightImpact();
+    } catch (e) {
+      print('Haptic feedback not available');
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Barcode scanned: $code'),
+        duration: Duration(milliseconds: 1500),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.pop(context, code);
+      }
+    });
+  }
+
+  void _toggleFlash() async {
+    try {
+      await _cameraController.toggleTorch();
+      setState(() {
+        _isFlashOn = !_isFlashOn;
+      });
+    } catch (e) {
+      print('DEBUG: Error toggling flash: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cannot toggle flash'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  void _switchCamera() async {
+    try {
+      await _cameraController.switchCamera();
+    } catch (e) {
+      print('DEBUG: Error switching camera: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
+      body: !_isInitialized ? _buildInitializingState() : _buildScannerContent(),
+    );
+  }
+
+  Widget _buildInitializingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: Colors.white),
+          const SizedBox(height: 16),
+          Text(
+            'Initializing camera...',
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScannerContent() {
+    return Stack(
+      children: [
+        MobileScanner(
+          controller: _cameraController,
+          onDetect: _onBarcodeDetected,
+          errorBuilder: _buildErrorState,
+        ),
+        CustomPaint(
+          painter: ScannerOverlay(
+            scanAreaSize: 250,
+            borderColor: _isScanned ? Colors.green : Colors.white,
+            borderWidth: 3,
+          ),
+          child: const SizedBox.expand(),
+        ),
+        if (_isScanned) _buildSuccessIndicator(),
+        _buildAppBar(),
+        _buildBottomInstructions(),
+      ],
+    );
+  }
+
+  Widget _buildAppBar() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: AppBar(
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
+        elevation: 0,
         title: Text(
           widget.fieldType == 'product_code'
               ? 'Scan Product Code'
@@ -964,117 +1105,203 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.flash_on),
-            onPressed: () => cameraController.toggleTorch(),
+            icon: Icon(_isFlashOn ? Icons.flash_off : Icons.flash_on),
+            onPressed: _toggleFlash,
+            tooltip: _isFlashOn ? 'Turn off flash' : 'Turn on flash',
           ),
           IconButton(
             icon: Icon(Icons.flip_camera_ios),
-            onPressed: () => cameraController.switchCamera(),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          // Scanner View
-          MobileScanner(
-            controller: cameraController,
-            onDetect: (capture) {
-              if (!isScanned) {
-                isScanned = true;
-                final List<Barcode> barcodes = capture.barcodes;
-
-                if (barcodes.isNotEmpty) {
-                  final String code = barcodes.first.displayValue ?? '';
-
-                  if (code.isNotEmpty) {
-                    // Vibrate on successful scan (if available)
-                    // HapticFeedback.mediumImpact();
-
-                    // Return the scanned code
-                    Navigator.of(context).pop(code);
-                  } else {
-                    setState(() {
-                      isScanned = false;
-                    });
-                  }
-                }
-              }
-            },
-          ),
-
-          // Scanner Overlay
-          Container(
-            decoration: ShapeDecoration(
-              shape: QrScannerOverlayShape(
-                borderColor: Colors.white,
-                borderRadius: 10,
-                borderLength: 30,
-                borderWidth: 5,
-                cutOutSize: 250,
-              ),
-            ),
-          ),
-
-          // Instructions
-          Positioned(
-            bottom: 100,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      widget.fieldType == 'product_code'
-                          ? 'Position the product code within the frame to scan'
-                          : 'Position the barcode within the frame to scan',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                    ),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            onPressed: _switchCamera,
+            tooltip: 'Switch camera',
           ),
         ],
       ),
     );
   }
 
-  @override
-  void dispose() {
-    cameraController.dispose();
-    super.dispose();
+  Widget _buildErrorState(BuildContext context, MobileScannerException error) {
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.camera_alt_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Camera Error',
+              style: TextStyle(color: Colors.grey[400], fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+              ),
+              child: Text('Go Back'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
+
+  Widget _buildSuccessIndicator() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              'Barcode detected!',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomInstructions() {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.qr_code_scanner, size: 48, color: Colors.white),
+            const SizedBox(height: 16),
+            Text(
+              widget.fieldType == 'product_code'
+                  ? 'Position the product code within the frame to scan'
+                  : 'Position the barcode within the frame to scan',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Supports QR codes, EAN, UPC, Code128, and more',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[800],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                ),
+                child: Text(
+                  'Cancel',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Custom Scanner Overlay Painter
+class ScannerOverlay extends CustomPainter {
+  final double scanAreaSize;
+  final Color borderColor;
+  final double borderWidth;
+
+  const ScannerOverlay({
+    required this.scanAreaSize,
+    required this.borderColor,
+    required this.borderWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final backgroundPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final scanAreaPath = Path()..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(size.width / 2, size.height / 2),
+            width: scanAreaSize,
+            height: scanAreaSize,
+          ),
+          const Radius.circular(12),
+        ),
+      );
+
+    final overlayPath = Path.combine(PathOperation.difference, backgroundPath, scanAreaPath);
+    canvas.drawPath(overlayPath, Paint()..color = Colors.black.withOpacity(0.5));
+
+    _drawCornerBrackets(canvas, size);
+  }
+
+  void _drawCornerBrackets(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = borderColor
+      ..strokeWidth = borderWidth
+      ..style = PaintingStyle.stroke;
+
+    final scanRect = Rect.fromCenter(
+      center: Offset(size.width / 2, size.height / 2),
+      width: scanAreaSize,
+      height: scanAreaSize,
+    );
+
+    const cornerLength = 20.0;
+    
+    _drawCorner(canvas, paint, scanRect.topLeft, cornerLength, true, true);
+    _drawCorner(canvas, paint, scanRect.topRight, cornerLength, false, true);
+    _drawCorner(canvas, paint, scanRect.bottomLeft, cornerLength, true, false);
+    _drawCorner(canvas, paint, scanRect.bottomRight, cornerLength, false, false);
+  }
+
+  void _drawCorner(Canvas canvas, Paint paint, Offset corner, double length, 
+                  bool isLeft, bool isTop) {
+    final horizontalStart = isLeft ? corner : Offset(corner.dx - length, corner.dy);
+    final horizontalEnd = isLeft ? Offset(corner.dx + length, corner.dy) : corner;
+    
+    final verticalStart = isTop ? corner : Offset(corner.dx, corner.dy - length);
+    final verticalEnd = isTop ? Offset(corner.dx, corner.dy + length) : corner;
+
+    canvas.drawLine(horizontalStart, horizontalEnd, paint);
+    canvas.drawLine(verticalStart, verticalEnd, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // QR Scanner Overlay Shape
@@ -1160,15 +1387,9 @@ class QrScannerOverlayShape extends ShapeBorder {
     }
 
     final width = rect.width;
-    // ignore: unused_local_variable
-    final borderWidthSize = width / 2;
     final height = rect.height;
-    // ignore: unused_local_variable
-    final borderHeightSize = height / 2;
     final cutOutWidth = cutOutSize < width ? cutOutSize : width - borderWidth;
-    final cutOutHeight = cutOutSize < height
-        ? cutOutSize
-        : height - borderWidth;
+    final cutOutHeight = cutOutSize < height ? cutOutSize : height - borderWidth;
 
     final cutOutRect = Rect.fromLTWH(
       rect.left + (width - cutOutWidth) / 2 + borderWidth,
@@ -1225,15 +1446,9 @@ class QrScannerOverlayShape extends ShapeBorder {
   @override
   void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
     final width = rect.width;
-    // ignore: unused_local_variable
-    final borderWidthSize = width / 2;
     final height = rect.height;
-    // ignore: unused_local_variable
-    final borderHeightSize = height / 2;
     final cutOutWidth = cutOutSize < width ? cutOutSize : width - borderWidth;
-    final cutOutHeight = cutOutSize < height
-        ? cutOutSize
-        : height - borderWidth;
+    final cutOutHeight = cutOutSize < height ? cutOutSize : height - borderWidth;
 
     final cutOutRect = Rect.fromLTWH(
       rect.left + (width - cutOutWidth) / 2 + borderWidth,

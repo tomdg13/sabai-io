@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:inventory/config/theme.dart';
 import 'package:inventory/menu/AddStockPage.dart';
+import 'package:inventory/menu/DeductStockPage.dart';
 
 import 'package:inventory/menu/MenuSettingsPage.dart';
 import 'package:inventory/menu/dashboard.dart';
@@ -94,6 +95,13 @@ class _MenuPageState extends State<MenuPage> {
       case 'driver':
       default:
         return [
+
+          _TabItem(
+            t('Deduct'),
+            Icons.loyalty,
+            const DeductStockPage(),
+          ), 
+
           _TabItem(
             t('Stock'),
             Icons.shelves,
