@@ -25,7 +25,7 @@ class _AddStockPageState extends State<AddStockPage> {
   String _langCode = 'en';
   late final int _companyId;
   String? _userId;
-
+  String? _branchId; // Added branch_id for tracking
 
   // Form controllers
   final _formKey = GlobalKey<FormState>();
@@ -85,7 +85,7 @@ class _AddStockPageState extends State<AddStockPage> {
       _langCode = prefs.getString('languageCode') ?? 'en';
       _companyId = CompanyConfig.getCompanyId(); // Use config instead of SharedPreferences
       _userId = prefs.getString('user');
-     
+      _branchId = prefs.getString('branch_id'); // Get branch_id from preferences
 
       if (_accessToken != null) {
         await Future.wait([_loadLocations(), _loadStores()]);
@@ -180,8 +180,9 @@ class _AddStockPageState extends State<AddStockPage> {
     setState(() => _isLoading = true);
 
     try {
+      // Updated API call to include company_id filter
       final response = await _makeApiRequest(
-        '/api/ioproduct/barcode/$barcode',
+        '/api/ioproduct/barcode/$barcode?company_id=$_companyId',
         method: 'GET',
       );
 
@@ -211,41 +212,40 @@ class _AddStockPageState extends State<AddStockPage> {
 
   // Form Operations
   Future<void> _createNewInventory() async {
-  if (!_validateForm()) return;
+    if (!_validateForm()) return;
 
-  setState(() => _isSubmitting = true);
+    setState(() => _isSubmitting = true);
 
-  try {
-    final requestBody = _buildRequestBody();
+    try {
+      final requestBody = _buildRequestBody();
 
-    // ✅ Log the request body for debugging
-    debugPrint('📦 DEBUG: Request Body: $requestBody');
+      // Log the request body for debugging
+      debugPrint('📦 DEBUG: Request Body: $requestBody');
 
-    final response = await _makeApiRequest(
-      '/api/inventory',
-      method: 'POST',
-      body: requestBody,
-    );
+      final response = await _makeApiRequest(
+        '/api/inventory',
+        method: 'POST',
+        body: requestBody,
+      );
 
-    print('📡 DEBUG: Response Status: ${response.statusCode}');
-    print('📝 DEBUG: Response Body: ${response.body}');
+      print('📡 DEBUG: Response Status: ${response.statusCode}');
+      print('📝 DEBUG: Response Body: ${response.body}');
 
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      _showSuccessSnackBar(SimpleTranslations.get(_langCode, 'inventory_created_success'));
-      _clearForm();
-      _navigateToInventoryDashboard();
-    } else {
-      _handleApiError(response, 'Failed to create inventory');
-    }
-  } catch (e) {
-    _handleCreateInventoryError(e);
-  } finally {
-    if (mounted) {
-      setState(() => _isSubmitting = false);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _showSuccessSnackBar(SimpleTranslations.get(_langCode, 'inventory_created_success'));
+        _clearForm();
+        _navigateToInventoryDashboard();
+      } else {
+        _handleApiError(response, 'Failed to create inventory');
+      }
+    } catch (e) {
+      _handleCreateInventoryError(e);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
-}
-
 
   bool _validateForm() {
     if (!_formKey.currentState!.validate()) {
@@ -258,10 +258,12 @@ class _AddStockPageState extends State<AddStockPage> {
       return false;
     }
 
-    // if (_userId == null || _branchId == null) {
-    //   _showErrorSnackBar('User ID or Branch ID not found');
-    //   return false;
-    // }
+    // Company validation
+    // ignore: unnecessary_null_comparison
+    if (_companyId == null) {
+      _showErrorSnackBar('Company ID not found');
+      return false;
+    }
 
     if (_selectedLocation == null) {
       _showErrorSnackBar(SimpleTranslations.get(_langCode, 'please_select_location'));
@@ -276,22 +278,21 @@ class _AddStockPageState extends State<AddStockPage> {
     return _validateNumericInputs();
   }
 
+  bool _validateNumericInputs() {
+    final validations = [
+      _validateField('productId', isInteger: true, required: true),
+      // Allow 0 for stockQuantity (for defunct items)
+      _validateField('stockQuantity', isInteger: true, required: true, nonNegative: true),
+      // Allow 0 for minimumStock (for defunct items)
+      _validateField('minimumStock', isInteger: true, required: true, nonNegative: true),
+      // Allow 0 for costPrice (for defunct items)
+      _validateField('costPrice', isDouble: true, required: true, nonNegative: true),
+      // Allow 0 for unitPrice (for defunct items)
+      _validateField('unitPrice', isDouble: true, required: true, nonNegative: true),
+    ];
 
-bool _validateNumericInputs() {
-  final validations = [
-    _validateField('productId', isInteger: true, required: true),
-    // Allow 0 for stockQuantity (for defunct items)
-    _validateField('stockQuantity', isInteger: true, required: true, nonNegative: true),
-    // Allow 0 for minimumStock (for defunct items)
-    _validateField('minimumStock', isInteger: true, required: true, nonNegative: true),
-    // Allow 0 for costPrice (for defunct items)
-    _validateField('costPrice', isDouble: true, required: true, nonNegative: true),
-    // Allow 0 for unitPrice (for defunct items)
-    _validateField('unitPrice', isDouble: true, required: true, nonNegative: true),
-  ];
-
-  return validations.every((isValid) => isValid);
-}
+    return validations.every((isValid) => isValid);
+  }
 
   bool _validateField(String fieldKey, {
     bool isInteger = false,
@@ -328,9 +329,10 @@ bool _validateNumericInputs() {
   }
 
   Map<String, dynamic> _buildRequestBody() {
-    return {
+    final body = {
+      'company_id': _companyId, // Added company_id
       'user_id': _userId,
-      
+      'branch_id': _branchId, // Added branch_id
       'barcode': _controllers['barcode']!.text.trim().isNotEmpty 
           ? _controllers['barcode']!.text.trim() : null,
       'product_id': int.parse(_controllers['productId']!.text),
@@ -350,9 +352,14 @@ bool _validateNumericInputs() {
       'expire_date': _selectedExpireDate?.toIso8601String().split('T')[0],
       'block_location': _controllers['blockLocation']!.text.trim().isNotEmpty 
           ? _controllers['blockLocation']!.text.trim() : null,
-          "txntype": "Stock",
+      "txntype": "Stock",
       'status': _selectedStatus,
     };
+
+    // Remove null values for cleaner API calls
+    body.removeWhere((key, value) => value == null);
+    
+    return body;
   }
 
   void _clearForm() {
@@ -822,58 +829,58 @@ bool _validateNumericInputs() {
           label: SimpleTranslations.get(_langCode, 'batch_number_optional'),
           langCode: _langCode,
         ),
-         const SizedBox(height: 16),
-      _buildExpireDatePicker(), // Add this line
+        const SizedBox(height: 16),
+        _buildExpireDatePicker(),
       ],
     );
   }
 
   Widget _buildExpireDatePicker() {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        SimpleTranslations.get(_langCode, 'expire_date_optional'),
-        style: const TextStyle(fontSize: 12, color: Colors.grey),
-      ),
-      const SizedBox(height: 4),
-      InkWell(
-        onTap: () async {
-          final date = await showDatePicker(
-            context: context,
-            initialDate: _selectedExpireDate ?? DateTime.now().add(const Duration(days: 365)),
-            firstDate: DateTime.now(),
-            lastDate: DateTime.now().add(const Duration(days: 3650)),
-          );
-          if (date != null) {
-            setState(() => _selectedExpireDate = date);
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _selectedExpireDate != null
-                    ? '${_selectedExpireDate!.day}/${_selectedExpireDate!.month}/${_selectedExpireDate!.year}'
-                    : SimpleTranslations.get(_langCode, 'select_expire_date'),
-                style: TextStyle(
-                  color: _selectedExpireDate != null ? Colors.black : Colors.grey[600],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          SimpleTranslations.get(_langCode, 'expire_date_optional'),
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        InkWell(
+          onTap: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: _selectedExpireDate ?? DateTime.now().add(const Duration(days: 365)),
+              firstDate: DateTime.now(),
+              lastDate: DateTime.now().add(const Duration(days: 3650)),
+            );
+            if (date != null) {
+              setState(() => _selectedExpireDate = date);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey[300]!),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _selectedExpireDate != null
+                      ? '${_selectedExpireDate!.day}/${_selectedExpireDate!.month}/${_selectedExpireDate!.year}'
+                      : SimpleTranslations.get(_langCode, 'select_expire_date'),
+                  style: TextStyle(
+                    color: _selectedExpireDate != null ? Colors.black : Colors.grey[600],
+                  ),
                 ),
-              ),
-              Icon(Icons.calendar_today, color: Colors.grey[600]),
-            ],
+                Icon(Icons.calendar_today, color: Colors.grey[600]),
+              ],
+            ),
           ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
   Widget _buildStatusSection() {
     return Row(

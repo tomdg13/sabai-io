@@ -6,11 +6,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
 
-
 class InventoryDashboard extends StatefulWidget {
   final String? currentTheme;
+  final int? companyId;
+  final int? userId;
+  final int? branchId;
   
-  const InventoryDashboard({Key? key, this.currentTheme}) : super(key: key);
+  const InventoryDashboard({
+    Key? key, 
+    this.currentTheme,
+    this.companyId,
+    this.userId,
+    this.branchId
+  }) : super(key: key);
 
   @override
   State<InventoryDashboard> createState() => _InventoryDashboardState();
@@ -19,6 +27,9 @@ class InventoryDashboard extends StatefulWidget {
 class _InventoryDashboardState extends State<InventoryDashboard>
     with TickerProviderStateMixin {
   String? accessToken;
+  int? companyId;
+  int? userId;
+  int? branchId;
   
   List<Map<String, dynamic>> inventoryItems = [];
   List<Map<String, dynamic>> lowStockItems = [];
@@ -56,10 +67,15 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     final prefs = await SharedPreferences.getInstance();
     accessToken = prefs.getString('access_token');
     
-    if (accessToken != null) {
+    // Get company_id from widget or SharedPreferences
+    companyId = widget.companyId ?? prefs.getInt('company_id');
+    userId = widget.userId ?? prefs.getInt('user_id');
+    branchId = widget.branchId ?? prefs.getInt('branch_id');
+    
+    if (accessToken != null && companyId != null) {
       _loadDashboardData();
     } else {
-      _showErrorSnackBar('Authentication token not found. Please login again.');
+      _showErrorSnackBar('Authentication token or company ID not found. Please login again.');
     }
   }
 
@@ -95,11 +111,28 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     }
   }
 
+  // Build query parameters including company_id
+  String _buildQueryParams(Map<String, dynamic> params) {
+    params['company_id'] = companyId.toString();
+    
+    final queryString = params.entries
+        .where((entry) => entry.value != null)
+        .map((entry) => '${entry.key}=${Uri.encodeComponent(entry.value.toString())}')
+        .join('&');
+    
+    return queryString.isNotEmpty ? '?$queryString' : '';
+  }
+
   Future<void> _fetchInventoryItems() async {
-    if (accessToken == null) return;
+    if (accessToken == null || companyId == null) return;
+    
+    final queryParams = _buildQueryParams({
+      'limit': 50,
+      'status': 'ACTIVE',
+    });
     
     final response = await http.get(
-      AppConfig.api('/api/inventory?limit=50'),
+      AppConfig.api('/api/inventory$queryParams'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
@@ -109,18 +142,22 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       setState(() {
-        inventoryItems = List<Map<String, dynamic>>.from(data['data'] ?? []);
+        inventoryItems = List<Map<String, dynamic>>.from(data['data'] ?? data['items'] ?? []);
       });
     } else if (response.statusCode == 401) {
       _handleAuthError();
+    } else {
+      _handleHttpError(response, 'fetch inventory items');
     }
   }
 
   Future<void> _fetchLowStockItems() async {
-    if (accessToken == null) return;
+    if (accessToken == null || companyId == null) return;
+    
+    final queryParams = _buildQueryParams({});
     
     final response = await http.get(
-      AppConfig.api('/api/inventory/reports/low-stock'),
+      AppConfig.api('/api/inventory/reports/low-stock$queryParams'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
@@ -130,18 +167,24 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       setState(() {
-        lowStockItems = List<Map<String, dynamic>>.from(data['data'] ?? []);
+        lowStockItems = List<Map<String, dynamic>>.from(data['data'] ?? data['items'] ?? []);
       });
     } else if (response.statusCode == 401) {
       _handleAuthError();
+    } else {
+      _handleHttpError(response, 'fetch low stock items');
     }
   }
 
   Future<void> _fetchExpiringItems() async {
-    if (accessToken == null) return;
+    if (accessToken == null || companyId == null) return;
+    
+    final queryParams = _buildQueryParams({
+      'days': 30,
+    });
     
     final response = await http.get(
-      AppConfig.api('/api/inventory/reports/expiring?days=30'),
+      AppConfig.api('/api/inventory/reports/expiring$queryParams'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
@@ -151,18 +194,22 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       setState(() {
-        expiringItems = List<Map<String, dynamic>>.from(data['data'] ?? []);
+        expiringItems = List<Map<String, dynamic>>.from(data['data'] ?? data['items'] ?? []);
       });
     } else if (response.statusCode == 401) {
       _handleAuthError();
+    } else {
+      _handleHttpError(response, 'fetch expiring items');
     }
   }
 
   Future<void> _fetchValueReport() async {
-    if (accessToken == null) return;
+    if (accessToken == null || companyId == null) return;
+    
+    final queryParams = _buildQueryParams({});
     
     final response = await http.get(
-      AppConfig.api('/api/inventory/reports/value'),
+      AppConfig.api('/api/inventory/reports/value$queryParams'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
@@ -172,10 +219,77 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       setState(() {
-        valueReport = data['data'] ?? {};
+        valueReport = data['data'] ?? data ?? {};
       });
     } else if (response.statusCode == 401) {
       _handleAuthError();
+    } else {
+      _handleHttpError(response, 'fetch value report');
+    }
+  }
+
+  // Fetch inventory by specific filters
+  Future<void> _fetchInventoryByFilters({
+    String? status,
+    String? txntype,
+    bool? lowStock,
+    int? limit,
+    int? offset,
+  }) async {
+    if (accessToken == null || companyId == null) return;
+    
+    final queryParams = _buildQueryParams({
+      if (status != null) 'status': status,
+      if (txntype != null) 'txntype': txntype,
+      if (lowStock != null) 'low_stock': lowStock.toString(),
+      if (limit != null) 'limit': limit,
+      if (offset != null) 'offset': offset,
+      if (userId != null) 'user_id': userId,
+      if (branchId != null) 'branch_id': branchId,
+    });
+    
+    final response = await http.get(
+      AppConfig.api('/api/inventory$queryParams'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      setState(() {
+        inventoryItems = List<Map<String, dynamic>>.from(data['data'] ?? data['items'] ?? []);
+      });
+    } else if (response.statusCode == 401) {
+      _handleAuthError();
+    } else {
+      _handleHttpError(response, 'fetch filtered inventory');
+    }
+  }
+
+  // Fetch inventory by company (explicit endpoint)
+  // ignore: unused_element
+  Future<void> _fetchInventoryByCompany() async {
+    if (accessToken == null || companyId == null) return;
+    
+    final response = await http.get(
+      AppConfig.api('/api/inventory/company/$companyId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      setState(() {
+        inventoryItems = List<Map<String, dynamic>>.from(data['data'] ?? data['items'] ?? []);
+      });
+    } else if (response.statusCode == 401) {
+      _handleAuthError();
+    } else {
+      _handleHttpError(response, 'fetch company inventory');
     }
   }
 
@@ -189,17 +303,28 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     });
   }
 
+  // ignore: unused_element
   Future<void> _updateStockQuantity(int inventoryId, int newQuantity) async {
-    if (accessToken == null) return;
+    if (accessToken == null || companyId == null) return;
     
     try {
+      final updateData = {
+        'stock_quantity': newQuantity,
+        'company_id': companyId,
+        'txntype': 'ADJUSTMENT',
+      };
+      
+      // Add user and branch context if available
+      if (userId != null) updateData['user_id'] = userId;
+      if (branchId != null) updateData['branch_id'] = branchId;
+      
       final response = await http.put(
         AppConfig.api('/api/inventory/$inventoryId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
         },
-        body: json.encode({'stock_quantity': newQuantity}),
+        body: json.encode(updateData),
       );
 
       if (response.statusCode == 200) {
@@ -208,17 +333,131 @@ class _InventoryDashboardState extends State<InventoryDashboard>
       } else if (response.statusCode == 401) {
         _handleAuthError();
       } else {
-        _showErrorSnackBar('Failed to update stock quantity');
+        _handleHttpError(response, 'update stock quantity');
       }
     } catch (e) {
       _showErrorSnackBar('Error updating stock: $e');
     }
   }
 
+  // New method: Stock movement (better than direct update)
+  Future<void> _adjustStock(int inventoryId, int quantity, bool isStockIn, String reason) async {
+    if (accessToken == null || companyId == null) return;
+    
+    try {
+      final movementData = {
+        if (isStockIn) 'stock_in_quantity': quantity else 'stock_out_quantity': quantity,
+        'reason': reason,
+        'company_id': companyId,
+        'txntype': isStockIn ? 'STOCK_IN' : 'STOCK_OUT',
+      };
+      
+      // Add user and branch context if available
+      if (userId != null) movementData['user_id'] = userId;
+      if (branchId != null) movementData['branch_id'] = branchId;
+      
+      final response = await http.put(
+        AppConfig.api('/api/inventory/$inventoryId/stock-movement'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: json.encode(movementData),
+      );
+
+      if (response.statusCode == 200) {
+        _showSuccessSnackBar('Stock ${isStockIn ? 'added' : 'removed'} successfully');
+        _refreshData();
+      } else if (response.statusCode == 401) {
+        _handleAuthError();
+      } else {
+        _handleHttpError(response, 'adjust stock');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error adjusting stock: $e');
+    }
+  }
+
+  // New method: Reserve stock
+  Future<void> _reserveStock(int inventoryId, int quantity, String reason) async {
+    if (accessToken == null || companyId == null) return;
+    
+    try {
+      final reservationData = {
+        'quantity': quantity,
+        'reason': reason,
+        'company_id': companyId,
+        'txntype': 'RESERVATION',
+      };
+      
+      if (userId != null) reservationData['reserved_by_user_id'] = userId;
+      if (branchId != null) reservationData['reserved_for_branch_id'] = branchId;
+      
+      final response = await http.put(
+        AppConfig.api('/api/inventory/$inventoryId/reserve'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: json.encode(reservationData),
+      );
+
+      if (response.statusCode == 200) {
+        _showSuccessSnackBar('Stock reserved successfully');
+        _refreshData();
+      } else if (response.statusCode == 401) {
+        _handleAuthError();
+      } else {
+        _handleHttpError(response, 'reserve stock');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error reserving stock: $e');
+    }
+  }
+
+  // New method: Search by barcode
+  Future<Map<String, dynamic>?> _searchByBarcode(String barcode) async {
+    if (accessToken == null || companyId == null) return null;
+    
+    try {
+      final response = await http.get(
+        AppConfig.api('/api/inventory/barcode/$barcode'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['data'] ?? data;
+      } else if (response.statusCode == 401) {
+        _handleAuthError();
+      } else if (response.statusCode == 404) {
+        _showErrorSnackBar('Item with barcode $barcode not found');
+      } else {
+        _handleHttpError(response, 'search by barcode');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error searching by barcode: $e');
+    }
+    return null;
+  }
+
   void _handleAuthError() {
     _showErrorSnackBar('Session expired. Please login again.');
     // Navigate to login page or handle authentication
     // Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  }
+
+  void _handleHttpError(http.Response response, String operation) {
+    try {
+      final errorData = json.decode(response.body);
+      final message = errorData['message'] ?? errorData['error'] ?? 'Unknown error';
+      _showErrorSnackBar('Failed to $operation: $message (${response.statusCode})');
+    } catch (e) {
+      _showErrorSnackBar('Failed to $operation: HTTP ${response.statusCode}');
+    }
   }
 
   double _calculateAverageValue() {
@@ -237,19 +476,94 @@ class _InventoryDashboardState extends State<InventoryDashboard>
   }
 
   void _showStockUpdateDialog(Map<String, dynamic> item) {
-    final TextEditingController controller = TextEditingController(
+    final TextEditingController quantityController = TextEditingController(
       text: item['stock_quantity'].toString(),
     );
+    final TextEditingController reasonController = TextEditingController();
+    bool isStockIn = true;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Update Stock - Product ${item['product_id']}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: quantityController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Quantity',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: reasonController,
+                decoration: const InputDecoration(
+                  labelText: 'Reason',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<bool>(
+                      title: const Text('Add Stock'),
+                      value: true,
+                      groupValue: isStockIn,
+                      onChanged: (value) => setState(() => isStockIn = value!),
+                    ),
+                  ),
+                  Expanded(
+                    child: RadioListTile<bool>(
+                      title: const Text('Remove Stock'),
+                      value: false,
+                      groupValue: isStockIn,
+                      onChanged: (value) => setState(() => isStockIn = value!),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final quantity = int.tryParse(quantityController.text);
+                final reason = reasonController.text.trim();
+                if (quantity != null && quantity > 0 && reason.isNotEmpty) {
+                  Navigator.pop(context);
+                  _adjustStock(item['inventory_id'], quantity, isStockIn, reason);
+                } else {
+                  _showErrorSnackBar('Please enter valid quantity and reason');
+                }
+              },
+              child: const Text('Update'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBarcodeSearchDialog() {
+    final TextEditingController barcodeController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Update Stock - ${item['product_name'] ?? 'Product ${item['product_id']}'}'),
+        title: const Text('Search by Barcode'),
         content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
+          controller: barcodeController,
           decoration: const InputDecoration(
-            labelText: 'Stock Quantity',
+            labelText: 'Barcode',
             border: OutlineInputBorder(),
           ),
         ),
@@ -259,14 +573,20 @@ class _InventoryDashboardState extends State<InventoryDashboard>
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              final newQuantity = int.tryParse(controller.text);
-              if (newQuantity != null) {
+            onPressed: () async {
+              final barcode = barcodeController.text.trim();
+              if (barcode.isNotEmpty) {
                 Navigator.pop(context);
-                _updateStockQuantity(item['inventory_id'], newQuantity);
+                final item = await _searchByBarcode(barcode);
+                if (item != null) {
+                  setState(() {
+                    inventoryItems = [item];
+                  });
+                  _tabController.animateTo(1); // Switch to inventory tab
+                }
               }
             },
-            child: const Text('Update'),
+            child: const Text('Search'),
           ),
         ],
       ),
@@ -318,26 +638,49 @@ class _InventoryDashboardState extends State<InventoryDashboard>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'IoInventory Dashboard',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'IoInventory Dashboard',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (companyId != null)
+                                Text(
+                                  'Company ID: $companyId',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
                           ),
-                          IconButton(
-                            icon: isRefreshing
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                    ),
-                                  )
-                                : const Icon(Icons.refresh, color: Colors.white),
-                            onPressed: isRefreshing ? null : _refreshData,
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+                                onPressed: _showBarcodeSearchDialog,
+                                tooltip: 'Search by Barcode',
+                              ),
+                              IconButton(
+                                icon: isRefreshing
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                      )
+                                    : const Icon(Icons.refresh, color: Colors.white),
+                                onPressed: isRefreshing ? null : _refreshData,
+                                tooltip: 'Refresh',
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -393,6 +736,32 @@ class _InventoryDashboardState extends State<InventoryDashboard>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Company Info Card
+              if (companyId != null)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.business, size: 32, color: Colors.blue),
+                        const SizedBox(width: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Company ID: $companyId',
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            if (userId != null) Text('User ID: $userId'),
+                            if (branchId != null) Text('Branch ID: $branchId'),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              
               // Summary Cards
               Row(
                 children: [
@@ -439,6 +808,50 @@ class _InventoryDashboardState extends State<InventoryDashboard>
               ),
               const SizedBox(height: 24),
               
+              // Quick Actions
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Quick Actions',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () => _fetchInventoryByFilters(status: 'ACTIVE'),
+                            icon: const Icon(Icons.filter_list),
+                            label: const Text('Active Items'),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () => _fetchInventoryByFilters(lowStock: true),
+                            icon: const Icon(Icons.warning),
+                            label: const Text('Low Stock'),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () => _fetchInventoryByFilters(status: 'RESERVED'),
+                            icon: const Icon(Icons.lock),
+                            label: const Text('Reserved'),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _showBarcodeSearchDialog,
+                            icon: const Icon(Icons.qr_code_scanner),
+                            label: const Text('Scan Barcode'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              
               // Recent Activity
               const Text(
                 'Recent Inventory Items',
@@ -462,7 +875,7 @@ class _InventoryDashboardState extends State<InventoryDashboard>
       child: inventoryItems.isEmpty
           ? const Center(
               child: Text(
-                'No inventory items found',
+                'No inventory items found for this company',
                 style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
             )
@@ -570,6 +983,31 @@ class _InventoryDashboardState extends State<InventoryDashboard>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Company-specific report header
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.analytics, size: 32, color: Colors.blue),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Company Inventory Report',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        if (companyId != null)
+                          Text('Company ID: $companyId', style: const TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
             const Text(
               'Inventory Value Report',
               style: TextStyle(
@@ -591,6 +1029,40 @@ class _InventoryDashboardState extends State<InventoryDashboard>
                   ],
                 ),
               ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Transaction Type Filters
+            const Text(
+              'Filter by Transaction Type',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ElevatedButton(
+                  onPressed: () => _fetchInventoryByFilters(txntype: 'PURCHASE'),
+                  child: const Text('Purchase'),
+                ),
+                ElevatedButton(
+                  onPressed: () => _fetchInventoryByFilters(txntype: 'SALE'),
+                  child: const Text('Sale'),
+                ),
+                ElevatedButton(
+                  onPressed: () => _fetchInventoryByFilters(txntype: 'ADJUSTMENT'),
+                  child: const Text('Adjustment'),
+                ),
+                ElevatedButton(
+                  onPressed: () => _fetchInventoryByFilters(txntype: 'STOCK_IN'),
+                  child: const Text('Stock In'),
+                ),
+                ElevatedButton(
+                  onPressed: () => _fetchInventoryByFilters(txntype: 'STOCK_OUT'),
+                  child: const Text('Stock Out'),
+                ),
+              ],
             ),
           ],
         ),
@@ -637,6 +1109,19 @@ class _InventoryDashboardState extends State<InventoryDashboard>
   Widget _buildRecentItemsList() {
     final recentItems = inventoryItems.take(5).toList();
     
+    if (recentItems.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            'No inventory items found for this company',
+            style: TextStyle(color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+    
     return Card(
       child: Column(
         children: recentItems.map((item) => ListTile(
@@ -648,11 +1133,11 @@ class _InventoryDashboardState extends State<InventoryDashboard>
             ),
           ),
           title: Text(
-            ' ${item['product_name']}',
+            'Product ${item['product_id']}',
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(
-            'Stock: ${item['stock_quantity']} | ${item['location']}',
+            'Stock: ${item['stock_quantity']} | Location: ${item['location_id']}',
             overflow: TextOverflow.ellipsis,
           ),
           trailing: SizedBox(
@@ -680,11 +1165,14 @@ class _InventoryDashboardState extends State<InventoryDashboard>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Product ${item['product_id']}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Product ${item['product_id']}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 Container(
@@ -705,6 +1193,15 @@ class _InventoryDashboardState extends State<InventoryDashboard>
               ],
             ),
             const SizedBox(height: 8),
+            
+            // Company and context info
+            if (item['company_id'] != null)
+              Text(
+                'Company: ${item['company_id']} | Barcode: ${item['barcode'] ?? 'N/A'}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            const SizedBox(height: 4),
+            
             Row(
               children: [
                 Expanded(
@@ -712,8 +1209,8 @@ class _InventoryDashboardState extends State<InventoryDashboard>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Stock: ${item['stock_quantity']}'),
-                      Text('Available: ${item['available_quantity']}'),
-                      Text('Min Stock: ${item['minimum_stock']}'),
+                      Text('Reserved: ${item['reserved_quantity'] ?? 0}'),
+                      Text('Min Stock: ${item['minimum_stock'] ?? 'N/A'}'),
                     ],
                   ),
                 ),
@@ -721,38 +1218,62 @@ class _InventoryDashboardState extends State<InventoryDashboard>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Location: ${item['location_id']}'),
+                      Text('Location: ${item['location_id'] ?? 'N/A'}'),
+                      Text('Store: ${item['store_id'] ?? 'N/A'}'),
                       Text('Batch: ${item['batch_number'] ?? 'N/A'}'),
-                      Text('Expires: ${item['expire_date'] ?? 'N/A'}'),
                     ],
                   ),
                 ),
               ],
             ),
+            if (item['expire_date'] != null) ...[
+              const SizedBox(height: 4),
+              Text('Expires: ${item['expire_date']}'),
+            ],
             const SizedBox(height: 8),
+            
+            // Price information (both currencies if available)
+            if (item['unit_price_lak'] != null || item['unit_price_thb'] != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (item['unit_price_lak'] != null)
+                    Text('Unit Price: ${_formatCurrency(item['unit_price_lak'])} LAK'),
+                  if (item['unit_price_thb'] != null)
+                    Text('Unit Price: ${_formatCurrency(item['unit_price_thb'])} THB'),
+                  if (item['cost_price_lak'] != null)
+                    Text('Cost Price: ${_formatCurrency(item['cost_price_lak'])} LAK'),
+                ],
+              ),
+            const SizedBox(height: 8),
+            
+            // Action buttons
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Unit Price: ${_formatCurrency(item['unit_price_lak'])} LAK',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
+                TextButton.icon(
+                  onPressed: () => _reserveStock(
+                    item['inventory_id'], 
+                    1, 
+                    'Manual reservation from dashboard'
+                  ),
+                  icon: const Icon(Icons.lock, size: 16),
+                  label: const Text('Reserve'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.orange,
+                    textStyle: const TextStyle(fontSize: 12),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Flexible(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showStockUpdateDialog(item),
-                    icon: const Icon(Icons.edit, size: 16),
-                    label: const Text('Update'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      textStyle: const TextStyle(fontSize: 12),
-                    ),
+                ElevatedButton.icon(
+                  onPressed: () => _showStockUpdateDialog(item),
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Update'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    textStyle: const TextStyle(fontSize: 12),
                   ),
                 ),
               ],
@@ -774,9 +1295,11 @@ class _InventoryDashboardState extends State<InventoryDashboard>
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('Current Stock: ${item['stock_quantity']}'),
-            if (alertType == 'Low Stock')
+            if (item['company_id'] != null)
+              Text('Company: ${item['company_id']}'),
+            if (alertType == 'Low Stock' && item['minimum_stock'] != null)
               Text('Minimum Required: ${item['minimum_stock']}'),
-            if (alertType == 'Expiring Soon')
+            if (alertType == 'Expiring Soon' && item['expire_date'] != null)
               Text('Expires: ${item['expire_date']}'),
           ],
         ),

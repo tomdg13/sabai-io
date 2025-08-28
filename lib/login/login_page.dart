@@ -156,6 +156,7 @@ class _LoginPageState extends State<LoginPage> {
 
       // Check for password reset requirement in multiple scenarios
       bool needsPasswordReset = false;
+      // ignore: unused_local_variable
       String? resetToken;
 
       // Scenario 1: 401 status with resetpassword message
