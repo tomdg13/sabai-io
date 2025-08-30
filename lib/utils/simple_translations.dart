@@ -662,6 +662,86 @@ class SimpleTranslations {
       // Confirmation Messages
       'creating_inventory_exit_warning':
           'Inventory creation is in progress. Are you sure you want to exit?',
+
+          // App Title
+      'deductStock': 'Deduct Stock',
+      'deductStockItem': 'Deduct Stock Item',
+      
+      // Authentication
+      'authTokenNotFound': 'Auth token not found',
+      'sessionExpired': 'Session expired',
+      'companyIdNotFound': 'Company ID not found',
+      
+      // Loading states
+      'loadingData': 'Loading data...',
+      'loadingLocations': 'Loading locations...',
+      'loadingStores': 'Loading stores...',
+      'initializingCamera': 'Initializing camera...',
+      'deductingStock': 'Deducting stock...',
+      
+      // Form fields
+      'productId': 'Product ID',
+      'productName': 'Product Name',
+      'deductAmount': 'Deduct Amount',
+
+      'batchNumber': 'Batch Number (Optional)',
+      'supplierId': 'Supplier ID (Optional)',
+      'expireDate': 'Expire Date (Optional)',
+      'selectExpireDate': 'Select expire date',
+      'transactionType': 'Transaction Type',
+      
+      // Dropdowns and selections
+      'selectLocation': 'Select location',
+      'selectStore': 'Select store',
+      'locationRequired': 'Location is required',
+      'storeRequired': 'Store is required',
+      
+      // Buttons
+      'scanBarcode': 'Scan Barcode',
+
+      // Messages
+      'productFound': 'Product found successfully',
+      'productNotFound': 'Product not found',
+      'stockDeductedSuccessfully': 'Stock deducted successfully',
+      'failedToDeductStock': 'Failed to deduct stock',
+      'failedToLoadLocations': 'Failed to load locations',
+      'failedToLoadStores': 'Failed to load stores',
+      'failedToLookupProduct': 'Failed to lookup product',
+      'failedToInitialize': 'Failed to initialize',
+      'errorLoadingLocations': 'Error loading locations',
+      'errorLoadingStores': 'Error loading stores',
+      'errorLookingUpProduct': 'Error looking up product',
+      'errorDeductingStock': 'Error deducting stock',
+      'networkError': 'Network error - check connection',
+      'invalidDataFormat': 'Invalid data format',
+      'cameraErrorOccurred': 'Camera error occurred',
+      
+      // Validation messages
+      'pleaseSelectLocation': 'Please select location',
+      'pleaseSelectStore': 'Please select store',
+      'pleaseFillRequiredFields': 'Please fill required fields',
+      'pleaseEnterValidProductId': 'Please enter a valid product id',
+      'pleaseEnterValidAmount': 'Please enter a valid amount',
+      'pleaseEnterValidPrice': 'Please enter a valid price',
+      'pleaseEnterValidBatchNumber': 'Please enter a valid batch number',
+      'pleaseEnterValidSupplierId': 'Please enter a valid supplier id',
+      'fieldIsRequired': 'Field is required',
+      'enterValidNumber': 'Enter a valid number',
+      'enterValidPrice': 'Enter a valid price',
+      
+      // Scanner
+      'scannedProduct': 'Scanned Product',
+      'barcodeDetected': 'Barcode detected',
+      'positionBarcodeWithinFrame': 'Position barcode within the frame to scan',
+      
+      // Confirmation dialogs
+      'confirmExit': 'Confirm Exit',
+      'confirmExitMessage': 'Are you sure you want to exit while deducting stock?',
+      
+      // Misc
+      'na': 'N/A',
+      'unknownStore': 'Unknown Store',
+    
     },
     'la': {
       'searching_nearby_customers': 'ກໍາລັງຊອກຫາລູກຄ້າໃກ້ຄຽງ...',
@@ -1318,6 +1398,84 @@ class SimpleTranslations {
       // Confirmation Messages
       'creating_inventory_exit_warning':
           'ກຳລັງສ້າງສິນຄ້າໃນສາງຄັງ. ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການອອກ?',
+
+          // App Title
+      'deductStock': 'ຫັກສິນຄ້າ',
+      'deductStockItem': 'ຫັກລາຍການສິນຄ້າ',
+      
+      // Authentication
+      'authTokenNotFound': 'ບໍ່ພົບ token ການຢັ້ງຢືນ',
+      'sessionExpired': 'ໝົດກຳນົດເວລາ',
+      'companyIdNotFound': 'ບໍ່ພົບ ID ບໍລິສັດ',
+      
+      // Loading states
+      'loadingData': 'ກຳລັງໂຫລດຂໍ້ມູນ...',
+      'loadingLocations': 'ກຳລັງໂຫລດສະຖານທີ່...',
+      'loadingStores': 'ກຳລັງໂຫລດຮ້ານ...',
+      'initializingCamera': 'ກຳລັງເລີ່ມຕົ້ນກ້ອງ...',
+      'deductingStock': 'ກຳລັງຫັກສິນຄ້າ...',
+      
+      // Form fields
+      'productId': 'ID ສິນຄ້າ',
+      'productName': 'ຊື່ສິນຄ້າ',
+      'deductAmount': 'ຈຳນວນຫັກ',
+      'batchNumber': 'ເລກ Batch (ທາງເລືອກ)',
+      'supplierId': 'ID ຜູ້ສະໜອງ (ທາງເລືອກ)',
+      'expireDate': 'ວັນໝົດອາຍຸ (ທາງເລືອກ)',
+      'selectExpireDate': 'ເລືອກວັນໝົດອາຍຸ',
+      'transactionType': 'ປະເພດທຸລະກຳ',
+      
+      // Dropdowns and selections
+      'selectLocation': 'ເລືອກສະຖານທີ່',
+      'selectStore': 'ເລືອກຮ້ານ',
+      'locationRequired': 'ຈຳເປັນຕ້ອງເລືອກສະຖານທີ່',
+      'storeRequired': 'ຈຳເປັນຕ້ອງເລືອກຮ້ານ',
+      
+      // Buttons
+      'scanBarcode': 'ສະແກນບາໂຄດ',
+      
+      // Messages
+      'productFound': 'ພົບສິນຄ້າສຳເລັດແລ້ວ',
+      'productNotFound': 'ບໍ່ພົບສິນຄ້າ',
+      'stockDeductedSuccessfully': 'ຫັກສິນຄ້າສຳເລັດແລ້ວ',
+      'failedToDeductStock': 'ຫັກສິນຄ້າບໍ່ສຳເລັດ',
+      'failedToLoadLocations': 'ໂຫລດສະຖານທີ່ບໍ່ສຳເລັດ',
+      'failedToLoadStores': 'ໂຫລດຮ້ານບໍ່ສຳເລັດ',
+      'failedToLookupProduct': 'ຄົ້ນຫາສິນຄ້າບໍ່ສຳເລັດ',
+      'failedToInitialize': 'ເລີ່ມຕົ້ນບໍ່ສຳເລັດ',
+      'errorLoadingLocations': 'ຜິດພາດໃນການໂຫລດສະຖານທີ່',
+      'errorLoadingStores': 'ຜິດພາດໃນການໂຫລດຮ້ານ',
+      'errorLookingUpProduct': 'ຜິດພາດໃນການຄົ້ນຫາສິນຄ້າ',
+      'errorDeductingStock': 'ຜິດພາດໃນການຫັກສິນຄ້າ',
+      'networkError': 'ຜິດພາດເຄືອຂ່າຍ - ກະລຸນາກວດສອບການເຊື່ອມຕໍ່',
+      'invalidDataFormat': 'ຮູບແບບຂໍ້ມູນບໍ່ຖືກຕ້ອງ',
+      'cameraErrorOccurred': 'ເກີດຜິດພາດກ້ອງຖ່າຍຮູບ',
+      
+      // Validation messages
+      'pleaseSelectLocation': 'ກະລຸນາເລືອກສະຖານທີ່',
+      'pleaseSelectStore': 'ກະລຸນາເລືອກຮ້ານ',
+      'pleaseFillRequiredFields': 'ກະລຸນາຕື່ມຂໍ້ມູນທີ່ຈຳເປັນ',
+      'pleaseEnterValidProductId': 'ກະລຸນາໃສ່ ID ສິນຄ້າທີ່ຖືກຕ້ອງ',
+      'pleaseEnterValidAmount': 'ກະລຸນາໃສ່ຈຳນວນທີ່ຖືກຕ້ອງ',
+      'pleaseEnterValidPrice': 'ກະລຸນາໃສ່ລາຄາທີ່ຖືກຕ້ອງ',
+      'pleaseEnterValidBatchNumber': 'ກະລຸນາໃສ່ເລກ batch ທີ່ຖືກຕ້ອງ',
+      'pleaseEnterValidSupplierId': 'ກະລຸນາໃສ່ ID ຜູ້ສະໜອງທີ່ຖືກຕ້ອງ',
+      'fieldIsRequired': 'ຊ່ອງນີ້ຈຳເປັນຕ້ອງໃສ່',
+      'enterValidNumber': 'ໃສ່ຕົວເລກທີ່ຖືກຕ້ອງ',
+      'enterValidPrice': 'ໃສ່ລາຄາທີ່ຖືກຕ້ອງ',
+      
+      // Scanner
+      'scannedProduct': 'ສິນຄ້າທີ່ສະແກນ',
+      'barcodeDetected': 'ພົບບາໂຄດ',
+      'positionBarcodeWithinFrame': 'ວາງບາໂຄດໃນກອບເພື່ອສະແກນ',
+      
+      // Confirmation dialogs
+      'confirmExit': 'ຢັ້ງຢືນການອອກ',
+      'confirmExitMessage': 'ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການອອກໃນຂະນະທີ່ກຳລັງຫັກສິນຄ້າ?',
+      
+      // Misc
+      'na': 'ບໍ່ມີ',
+      'unknownStore': 'ຮ້ານບໍ່ຮູ້ຈັກ',
     },
   };
 

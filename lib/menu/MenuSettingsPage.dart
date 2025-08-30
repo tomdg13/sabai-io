@@ -28,10 +28,8 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
 
   final List<String> languages = [
     'English',
-    'Spanish',
-    'French',
-    'German',
-    'Chinese',
+    'Lao',
+
   ];
 
   // Get available themes from ThemeConfig
@@ -145,6 +143,77 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     }
   }
 
+  /// Handle logout functionality
+  Future<void> _handleLogout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Clear user session data (customize based on your app's structure)
+      await prefs.remove('user_token');
+      await prefs.remove('user_id');
+      await prefs.remove('user_email');
+      await prefs.remove('is_logged_in');
+      // Add any other user-related keys you want to clear
+      
+      // You can keep theme and language settings if desired
+      // await prefs.remove('selectedTheme');
+      // await prefs.remove('selectedLanguage');
+      
+      if (mounted) {
+        // Navigate to login page and clear navigation stack
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/login', // Replace with your login route
+          (Route<dynamic> route) => false,
+        );
+        
+        // Alternative if you don't use named routes:
+        // Navigator.of(context).pushAndRemoveUntil(
+        //   MaterialPageRoute(builder: (context) => const LoginPage()),
+        //   (Route<dynamic> route) => false,
+        // );
+      }
+    } catch (e) {
+      debugPrint('Error during logout: $e');
+      _showErrorSnackBar('Failed to logout. Please try again.');
+    }
+  }
+
+  /// Show logout confirmation dialog
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.logout, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Logout'),
+            ],
+          ),
+          content: const Text('Are you sure you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _handleLogout();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -201,9 +270,52 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
             ),
             _buildLanguageGridItem(),
             _buildThemeGridItem(),
-            _buildPlaceholderGridItem('Reports', Icons.analytics),
+            _buildLogoutGridItem(), // Added logout grid item
             _buildPlaceholderGridItem('Help', Icons.help_outline),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Build the logout grid item
+  Widget _buildLogoutGridItem() {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: _showLogoutDialog,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.logout, color: Colors.red, size: 28),
+              ),
+              const SizedBox(height: 6),
+              const Flexible(
+                child: Text(
+                  'Logout',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                    color: Colors.red,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -622,7 +734,8 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
                   '• Location: Manage storage locations\n'
                   '• User: User account management\n'
                   '• Language: Change app language\n'
-                  '• Theme: Customize app appearance',
+                  '• Theme: Customize app appearance\n'
+                  '• Logout: Sign out of the application',
                 ),
                 actions: [
                   TextButton(

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
+import 'package:inventory/menu/menu_page.dart' show MenuPage;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:io';
@@ -54,7 +55,7 @@ class _AddStockPageState extends State<AddStockPage> {
   // Dropdown values
   String _selectedCurrency = 'LAK';
   String _selectedStatus = 'active'; // Changed to lowercase
-  String _selectedTxnType = 'STOCK_IN'; // Added transaction type
+// Added transaction type
   DateTime? _selectedExpireDate;
 
   // Cache primary color for performance
@@ -233,7 +234,15 @@ class _AddStockPageState extends State<AddStockPage> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         _showSuccessSnackBar('Inventory created successfully');
         _clearForm();
-        _navigateToInventoryDashboard();
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const MenuPage(
+              role: 'user', // or whatever role is appropriate
+              tabIndex:
+                  1, // Index 1 is StockPage (Dashboard=0, Stock=1, Deduct=2, Increase=3, Settings=4)
+            ),
+          ),
+        );
       } else {
         _handleApiError(response, 'Failed to create inventory');
       }
@@ -341,7 +350,7 @@ class _AddStockPageState extends State<AddStockPage> {
       'store_name': _selectedStore!['store_name'] ?? _selectedStore!['name'],
       'user_id': _userId,
       'branch_id': _branchId != null ? int.tryParse(_branchId!) : null,
-      'txntype': _selectedTxnType,
+      'txntype': 'STOCK_IN',
       'company_id': _companyId,
       'price': double.parse(_controllers['price']!.text), // Changed from cost_price_lak/unit_price_lak
     };
@@ -362,7 +371,6 @@ class _AddStockPageState extends State<AddStockPage> {
       _selectedStore = null;
       _selectedCurrency = 'LAK';
       _selectedStatus = 'active';
-      _selectedTxnType = 'STOCK_IN';
       _scannedProduct = null;
     });
   }
@@ -427,24 +435,7 @@ class _AddStockPageState extends State<AddStockPage> {
     });
   }
 
-  void _navigateToInventoryDashboard() {
-    if (!mounted) return;
-    
-    try {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/inventory-dashboard',
-        (route) => false,
-      );
-    } catch (e) {
-      try {
-        Navigator.of(context).pushReplacementNamed('/inventory-dashboard');
-      } catch (e2) {
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop(true);
-        }
-      }
-    }
-  }
+  
 
   // UI Helper Methods
   void _showErrorSnackBar(String message) {
@@ -828,8 +819,8 @@ class _AddStockPageState extends State<AddStockPage> {
         ),
         const SizedBox(height: 16),
         _buildExpireDatePicker(),
-        const SizedBox(height: 16),
-        _buildTransactionTypeSection(),
+        // const SizedBox(height: 16),
+        // _buildTransactionTypeSection(),
       ],
     );
   }
@@ -896,14 +887,14 @@ class _AddStockPageState extends State<AddStockPage> {
     );
   }
 
-  Widget _buildTransactionTypeSection() {
-    return _FastDropdown(
-      value: _selectedTxnType,
-      label: 'Transaction Type',
-      items: const ['STOCK_IN', 'STOCK_OUT', 'TRANSFER', 'ADJUSTMENT'],
-      onChanged: (value) => setState(() => _selectedTxnType = value!),
-    );
-  }
+  // Widget _buildTransactionTypeSection() {
+  //   return _FastDropdown(
+  //     value: _selectedTxnType,
+  //     label: 'Transaction Type',
+  //     // items: const ['STOCK_IN', 'STOCK_OUT', 'TRANSFER', 'ADJUSTMENT'],
+  //     onChanged: (value) => setState(() => _selectedTxnType = value!),
+  //   );
+  // }
 
   Widget _buildSubmitButton() {
     return SizedBox(
