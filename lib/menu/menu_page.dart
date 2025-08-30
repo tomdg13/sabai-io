@@ -5,6 +5,7 @@ import 'package:inventory/menu/DeductStockPage.dart';
 
 
 import 'package:inventory/menu/MenuSettingsPage.dart';
+import 'package:inventory/menu/StockPage.dart';
 import 'package:inventory/menu/dashboard.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -85,7 +86,7 @@ class _MenuPageState extends State<MenuPage> {
     return _TabItem(
       SimpleTranslations.get(langCode, 'Dashboard'),
       Icons.history,
-      const InventoryDashboard(), // Fixed: added const
+      const ExpirePage(), // Fixed: added const
     );
   }
 
@@ -96,16 +97,21 @@ class _MenuPageState extends State<MenuPage> {
       case 'driver':
       default:
         return [
+          _TabItem(
+            t('Stock'),
+            Icons.task_alt,
+            const StockPage(),
+          ), // Fixed: added const
 
           _TabItem(
             t('Deduct'),
-            Icons.loyalty,
+            Icons.cached,
             const DeductStockPage(),
           ), 
 
           _TabItem(
-            t('Stock'),
-            Icons.shelves,
+            t('Increase'),
+            Icons.loyalty,
             const AddStockPage(),
           ), // Fixed: added const
 
@@ -131,6 +137,7 @@ class _MenuPageState extends State<MenuPage> {
     });
   }
 
+  // ignore: unused_element
   Future<void> _showLogoutDialog() async {
     return showDialog<void>(
       context: context,
@@ -195,6 +202,7 @@ class _MenuPageState extends State<MenuPage> {
     );
   }
 
+  // ignore: unused_element
   Future<void> _showThemeSelector() async {
     showModalBottomSheet(
       context: context,
@@ -318,20 +326,12 @@ class _MenuPageState extends State<MenuPage> {
     final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
     final backgroundColor = ThemeConfig.getBackgroundColor(currentTheme);
     final textColor = ThemeConfig.getTextColor(currentTheme);
+    // ignore: unused_local_variable
     final buttonTextColor = ThemeConfig.getButtonTextColor(currentTheme);
 
     if (isLoading || tabs.isEmpty) {
       return Scaffold(
         backgroundColor: backgroundColor,
-        // appBar: AppBar(
-        //   title: Text(
-        //     'Loading...',
-        //     style: TextStyle(color: buttonTextColor),
-        //   ),
-        //   backgroundColor: primaryColor,
-        //   foregroundColor: buttonTextColor,
-        //   elevation: 0,
-        // ),
         body: Center(
           child: CircularProgressIndicator(
             valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
@@ -342,50 +342,7 @@ class _MenuPageState extends State<MenuPage> {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: Text(
-          tabs[_idx].label,
-          style: TextStyle(color: buttonTextColor, fontWeight: FontWeight.w600),
-        ),
-        backgroundColor: primaryColor,
-        foregroundColor: buttonTextColor,
-        elevation: 0,
-        actions: [
-          // Theme selector button
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: buttonTextColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.palette, color: buttonTextColor, size: 20),
-              ),
-              tooltip: SimpleTranslations.get(langCode, 'change_theme'),
-              onPressed: _showThemeSelector,
-            ),
-          ),
 
-          // Logout button
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: buttonTextColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.logout, color: buttonTextColor, size: 20),
-              ),
-              tooltip: SimpleTranslations.get(langCode, 'logout'),
-              onPressed: _showLogoutDialog,
-            ),
-          ),
-        ],
-      ),
       body: Container(
         color: backgroundColor,
         child: tabs[_idx].widget ?? const SizedBox.shrink(),

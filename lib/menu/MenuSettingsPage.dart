@@ -20,6 +20,11 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   String selectedTheme = ThemeConfig.defaultTheme;
   String currentTheme = ThemeConfig.defaultTheme;
   bool isLoading = true;
+  
+  // Add these properties for the AppBar pattern
+  // ignore: unused_field
+  String _langCode = 'en'; // Default language code
+  Color get _primaryColor => Theme.of(context).primaryColor;
 
   final List<String> languages = [
     'English',
@@ -143,10 +148,13 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
+      appBar: _buildAppBar(),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: GridView.count(
@@ -177,15 +185,14 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
               icon: Icons.computer,
               title: 'Product',
               color: Colors.purple,
-              onTap: _navigateToProductPage,  // ✅ Fixed: Use new ProductPage
+              onTap: _navigateToProductPage,
             ),
             _buildGridItem(
               icon: Icons.view_in_ar,
               title: 'Location',
               color: const Color.fromARGB(255, 1, 136, 35),
-              onTap: _navigateToLocationPage,  
+              onTap: _navigateToLocationPage,
             ),
-            // NEW: User menu item
             _buildGridItem(
               icon: Icons.person,
               title: 'User',
@@ -194,7 +201,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
             ),
             _buildLanguageGridItem(),
             _buildThemeGridItem(),
-            // Future settings placeholders
             _buildPlaceholderGridItem('Reports', Icons.analytics),
             _buildPlaceholderGridItem('Help', Icons.help_outline),
           ],
@@ -374,7 +380,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  // ✅ NAVIGATION METHODS - Each with specific purpose
+  // NAVIGATION METHODS - Each with specific purpose
 
   /// Navigate to Branch page
   void _navigateToBranchPage() {
@@ -392,19 +398,19 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// ✅ FIXED: Navigate to Product page using new ProductPage class
+  /// Navigate to Product page using new ProductPage class
   void _navigateToProductPage() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const ProductPage()),  // Changed from productpage() to ProductPage()
+      MaterialPageRoute(builder: (context) => const ProductPage()),
     );
   }
 
-    /// Navigate to Location page using new Location class
+  /// Navigate to Location page using new Location class
   void _navigateToLocationPage() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const LocationPage()),  // Changed from productpage() to ProductPage()
+      MaterialPageRoute(builder: (context) => const LocationPage()),
     );
   }
 
@@ -412,16 +418,15 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   void _navigateToVenderPage() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => vendorPage() ),  // TODO: Replace with actual VenderPage when implemented
+      MaterialPageRoute(builder: (context) => vendorPage()),
     );
   }
 
   /// Navigate to Store page (placeholder)
   void _navigateToStorePage() {
-    
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const storePage()),  // TODO: Replace with actual StorePage when implemented
+      MaterialPageRoute(builder: (context) => const storePage()),
     );
   }
 
@@ -570,6 +575,73 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         backgroundColor: Colors.red.shade600,
       ),
     );
+  }
+
+  /// Build AppBar following the exact pattern provided
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: const Text(
+        'Settings & Management', // You can replace with SimpleTranslations.get(_langCode, 'settings_management') when you have translations
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      backgroundColor: _primaryColor,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: _handleBackPress,
+      ),
+      actions: [
+        // Refresh/Reload button
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Refresh Settings',
+          onPressed: () {
+            setState(() {
+              isLoading = true;
+            });
+            _loadSavedSettings();
+            _showSnackBar('Settings refreshed');
+          },
+        ),
+        // Info/Help button
+        IconButton(
+          icon: const Icon(Icons.info_outline),
+          tooltip: 'Help',
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Settings Help'),
+                content: const Text(
+                  'Manage your inventory system settings:\n\n'
+                  '• Branch: Configure business branches\n'
+                  '• Vendor: Manage suppliers\n'
+                  '• Store: Setup store locations\n'
+                  '• Product: Add and edit products\n'
+                  '• Location: Manage storage locations\n'
+                  '• User: User account management\n'
+                  '• Language: Change app language\n'
+                  '• Theme: Customize app appearance',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Got it'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  /// Handle back button press
+  void _handleBackPress() {
+    Navigator.of(context).pop();
   }
 }
 

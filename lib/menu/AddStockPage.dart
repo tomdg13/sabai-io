@@ -31,15 +31,12 @@ class _AddStockPageState extends State<AddStockPage> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {
     'productId': TextEditingController(),
+    'productName': TextEditingController(),
     'barcode': TextEditingController(),
-    'reservedQuantity': TextEditingController(),
-    'stockQuantity': TextEditingController(text: '0'),
-    'minimumStock': TextEditingController(text: '0'),
-    'costPrice': TextEditingController(text: '0'),
-    'unitPrice': TextEditingController(text: '0'),
+    'amount': TextEditingController(text: '0'),
+    'price': TextEditingController(text: '0'),
     'batchNumber': TextEditingController(),
     'supplierId': TextEditingController(),
-    'blockLocation': TextEditingController(),
   };
 
   // State management
@@ -56,7 +53,8 @@ class _AddStockPageState extends State<AddStockPage> {
 
   // Dropdown values
   String _selectedCurrency = 'LAK';
-  String _selectedStatus = 'ACTIVE';
+  String _selectedStatus = 'active'; // Changed to lowercase
+  String _selectedTxnType = 'STOCK_IN'; // Added transaction type
   DateTime? _selectedExpireDate;
 
   // Cache primary color for performance
@@ -193,13 +191,14 @@ class _AddStockPageState extends State<AddStockPage> {
             _scannedProduct = data['data'];
             _controllers['barcode']!.text = _scannedProduct!['barcode'] ?? '';
             _controllers['productId']!.text = _scannedProduct!['product_id'].toString();
+            _controllers['productName']!.text = _scannedProduct!['product_name'] ?? '';
           });
-          _showSuccessSnackBar(SimpleTranslations.get(_langCode, 'product_found_success'));
+          _showSuccessSnackBar('Product found successfully');
         } else {
           _showErrorSnackBar('Product not found: ${data['message']}');
         }
       } else if (response.statusCode == 404) {
-        _showErrorSnackBar(SimpleTranslations.get(_langCode, 'product_not_found'));
+        _showErrorSnackBar('Product not found');
       } else {
         _handleApiError(response, 'Failed to lookup product');
       }
@@ -232,7 +231,7 @@ class _AddStockPageState extends State<AddStockPage> {
       print('📝 DEBUG: Response Body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _showSuccessSnackBar(SimpleTranslations.get(_langCode, 'inventory_created_success'));
+        _showSuccessSnackBar('Inventory created successfully');
         _clearForm();
         _navigateToInventoryDashboard();
       } else {
@@ -249,12 +248,12 @@ class _AddStockPageState extends State<AddStockPage> {
 
   bool _validateForm() {
     if (!_formKey.currentState!.validate()) {
-      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'please_fill_required_fields'));
+      _showErrorSnackBar('Please fill required fields');
       return false;
     }
 
     if (_accessToken == null) {
-      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'auth_token_not_found'));
+      _showErrorSnackBar('Auth token not found');
       return false;
     }
 
@@ -266,12 +265,12 @@ class _AddStockPageState extends State<AddStockPage> {
     }
 
     if (_selectedLocation == null) {
-      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'please_select_location'));
+      _showErrorSnackBar('Please select location');
       return false;
     }
 
     if (_selectedStore == null) {
-      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'please_select_store'));
+      _showErrorSnackBar('Please select store');
       return false;
     }
 
@@ -281,14 +280,8 @@ class _AddStockPageState extends State<AddStockPage> {
   bool _validateNumericInputs() {
     final validations = [
       _validateField('productId', isInteger: true, required: true),
-      // Allow 0 for stockQuantity (for defunct items)
-      _validateField('stockQuantity', isInteger: true, required: true, nonNegative: true),
-      // Allow 0 for minimumStock (for defunct items)
-      _validateField('minimumStock', isInteger: true, required: true, nonNegative: true),
-      // Allow 0 for costPrice (for defunct items)
-      _validateField('costPrice', isDouble: true, required: true, nonNegative: true),
-      // Allow 0 for unitPrice (for defunct items)
-      _validateField('unitPrice', isDouble: true, required: true, nonNegative: true),
+      _validateField('amount', isInteger: true, required: true, nonNegative: true),
+      _validateField('price', isDouble: true, required: true, nonNegative: true),
     ];
 
     return validations.every((isValid) => isValid);
@@ -330,30 +323,27 @@ class _AddStockPageState extends State<AddStockPage> {
 
   Map<String, dynamic> _buildRequestBody() {
     final body = {
-      'company_id': _companyId, // Added company_id
-      'user_id': _userId,
-      'branch_id': _branchId, // Added branch_id
-      'barcode': _controllers['barcode']!.text.trim().isNotEmpty 
-          ? _controllers['barcode']!.text.trim() : null,
       'product_id': int.parse(_controllers['productId']!.text),
+      'product_name': _controllers['productName']!.text.trim(),
       'location_id': _selectedLocation!['location_id'],
-      'store_id': _selectedStore!['store_id'],
-      'stock_quantity': int.parse(_controllers['stockQuantity']!.text),
-      'minimum_stock': int.parse(_controllers['minimumStock']!.text),
-      'reserved_quantity': _controllers['reservedQuantity']!.text.isEmpty 
-          ? 0 : int.parse(_controllers['reservedQuantity']!.text),
-      'cost_price_lak': double.parse(_controllers['costPrice']!.text),
-      'unit_price_lak': double.parse(_controllers['unitPrice']!.text),
+      'location': _selectedLocation!['location'] ?? _selectedLocation!['location_name'], // Handle different field names
       'currency_primary': _selectedCurrency,
+      'amount': int.parse(_controllers['amount']!.text), // Changed from stock_quantity
+      'expire_date': _selectedExpireDate?.toIso8601String().split('T')[0],
       'batch_number': _controllers['batchNumber']!.text.trim().isNotEmpty 
           ? _controllers['batchNumber']!.text.trim() : null,
       'supplier_id': _controllers['supplierId']!.text.trim().isNotEmpty 
           ? int.tryParse(_controllers['supplierId']!.text) : null,
-      'expire_date': _selectedExpireDate?.toIso8601String().split('T')[0],
-      'block_location': _controllers['blockLocation']!.text.trim().isNotEmpty 
-          ? _controllers['blockLocation']!.text.trim() : null,
-      "txntype": "Stock",
       'status': _selectedStatus,
+      'barcode': _controllers['barcode']!.text.trim().isNotEmpty 
+          ? _controllers['barcode']!.text.trim() : null,
+      'store_id': _selectedStore!['store_id'],
+      'store_name': _selectedStore!['store_name'] ?? _selectedStore!['name'],
+      'user_id': _userId,
+      'branch_id': _branchId != null ? int.tryParse(_branchId!) : null,
+      'txntype': _selectedTxnType,
+      'company_id': _companyId,
+      'price': double.parse(_controllers['price']!.text), // Changed from cost_price_lak/unit_price_lak
     };
 
     // Remove null values for cleaner API calls
@@ -371,7 +361,8 @@ class _AddStockPageState extends State<AddStockPage> {
       _selectedLocation = null;
       _selectedStore = null;
       _selectedCurrency = 'LAK';
-      _selectedStatus = 'ACTIVE';
+      _selectedStatus = 'active';
+      _selectedTxnType = 'STOCK_IN';
       _scannedProduct = null;
     });
   }
@@ -418,17 +409,17 @@ class _AddStockPageState extends State<AddStockPage> {
     String message;
     if (error.toString().contains('SocketException') || 
         error.toString().contains('TimeoutException')) {
-      message = SimpleTranslations.get(_langCode, 'network_error_check_connection');
+      message = 'Network error - check connection';
     } else if (error.toString().contains('FormatException')) {
-      message = SimpleTranslations.get(_langCode, 'invalid_data_format');
+      message = 'Invalid data format';
     } else {
-      message = '${SimpleTranslations.get(_langCode, 'error_creating_inventory')}: $error';
+      message = 'Error creating inventory: $error';
     }
     _showErrorSnackBar(message);
   }
 
   void _handleAuthError() {
-    _showErrorSnackBar(SimpleTranslations.get(_langCode, 'session_expired'));
+    _showErrorSnackBar('Session expired');
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) {
         Navigator.of(context).pop();
@@ -472,7 +463,7 @@ class _AddStockPageState extends State<AddStockPage> {
         duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
-          label: SimpleTranslations.get(_langCode, 'dismiss'),
+          label: 'Dismiss',
           textColor: Colors.white,
           onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
         ),
@@ -510,7 +501,7 @@ class _AddStockPageState extends State<AddStockPage> {
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       title: Text(
-        SimpleTranslations.get(_langCode, 'add_new_inventory'),
+        'Add New Inventory',
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       backgroundColor: _primaryColor,
@@ -529,12 +520,12 @@ class _AddStockPageState extends State<AddStockPage> {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          title: Text(SimpleTranslations.get(_langCode, 'confirm_exit')),
-          content: Text(SimpleTranslations.get(_langCode, 'creating_inventory_exit_warning')),
+          title: Text('Confirm Exit'),
+          content: Text('Are you sure you want to exit while creating inventory?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(SimpleTranslations.get(_langCode, 'stay')),
+              child: Text('Stay'),
             ),
             TextButton(
               onPressed: () {
@@ -543,7 +534,7 @@ class _AddStockPageState extends State<AddStockPage> {
                   Navigator.of(context).pop();
                 }
               },
-              child: Text(SimpleTranslations.get(_langCode, 'exit')),
+              child: Text('Exit'),
             ),
           ],
         ),
@@ -561,7 +552,7 @@ class _AddStockPageState extends State<AddStockPage> {
           CircularProgressIndicator(color: _primaryColor),
           const SizedBox(height: 16),
           Text(
-            SimpleTranslations.get(_langCode, 'loading_data'),
+            'Loading data...',
             style: TextStyle(fontSize: 16, color: Colors.grey[600]),
           ),
         ],
@@ -598,6 +589,7 @@ class _AddStockPageState extends State<AddStockPage> {
               setState(() {
                 _scannedProduct = null;
                 _controllers['productId']!.clear();
+                _controllers['productName']!.clear();
               });
             },
           ),
@@ -675,11 +667,11 @@ class _AddStockPageState extends State<AddStockPage> {
         ),
         const SizedBox(height: 4),
         Text(
-          '${SimpleTranslations.get(_langCode, 'product_name')}: ${_scannedProduct!['product_name'] ?? 'N/A'}',
+          'Product Name: ${_scannedProduct!['product_name'] ?? 'N/A'}',
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
         ),
         Text(
-          '${SimpleTranslations.get(_langCode, 'product_id')}: ${_scannedProduct!['product_id']}',
+          'Product ID: ${_scannedProduct!['product_id']}',
           style: TextStyle(color: Colors.grey[600], fontSize: 13),
         ),
         if (_scannedProduct!['barcode'] != null)
@@ -700,7 +692,7 @@ class _AddStockPageState extends State<AddStockPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              SimpleTranslations.get(_langCode, 'create_new_inventory_item'),
+              'Create New Inventory Item',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
@@ -708,8 +700,15 @@ class _AddStockPageState extends State<AddStockPage> {
             const SizedBox(height: 16),
             _FastTextField(
               controller: _controllers['productId']!,
-              label: SimpleTranslations.get(_langCode, 'product_id'),
+              label: 'Product ID',
               keyboardType: TextInputType.number,
+              required: true,
+              langCode: _langCode,
+            ),
+            const SizedBox(height: 16),
+            _FastTextField(
+              controller: _controllers['productName']!,
+              label: 'Product Name',
               required: true,
               langCode: _langCode,
             ),
@@ -718,9 +717,21 @@ class _AddStockPageState extends State<AddStockPage> {
             const SizedBox(height: 16),
             _buildStoreDropdown(),
             const SizedBox(height: 16),
-            _buildQuantitySection(),
+            _FastTextField(
+              controller: _controllers['amount']!,
+              label: 'Amount',
+              keyboardType: TextInputType.number,
+              required: true,
+              langCode: _langCode,
+            ),
             const SizedBox(height: 16),
-            _buildPriceSection(),
+            _FastTextField(
+              controller: _controllers['price']!,
+              label: 'Price',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              required: true,
+              langCode: _langCode,
+            ),
             const SizedBox(height: 16),
             _buildOptionalFields(),
             const SizedBox(height: 16),
@@ -755,20 +766,21 @@ class _AddStockPageState extends State<AddStockPage> {
           child: IconButton(
             icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
             onPressed: _scanBarcode,
-            tooltip: SimpleTranslations.get(_langCode, 'scan_barcode'),
+            tooltip: 'Scan Barcode',
           ),
         ),
       ],
     );
   }
 
+  // ignore: unused_element
   Widget _buildQuantitySection() {
     return Row(
       children: [
         Expanded(
           child: _FastTextField(
-            controller: _controllers['stockQuantity']!,
-            label: SimpleTranslations.get(_langCode, 'stock_quantity'),
+            controller: _controllers['amount']!,
+            label: 'Amount', // Changed from stock_quantity
             keyboardType: TextInputType.number,
             required: true,
             langCode: _langCode,
@@ -788,29 +800,14 @@ class _AddStockPageState extends State<AddStockPage> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildPriceSection() {
-    return Row(
-      children: [
-        Expanded(
-          child: _FastTextField(
-            controller: _controllers['costPrice']!,
-            label: SimpleTranslations.get(_langCode, 'cost_price_lak'),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            required: true,
-            langCode: _langCode,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _FastTextField(
-            controller: _controllers['unitPrice']!,
-            label: SimpleTranslations.get(_langCode, 'unit_price_lak'),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            required: true,
-            langCode: _langCode,
-          ),
-        ),
-      ],
+    return _FastTextField(
+      controller: _controllers['price']!,
+      label: 'Price', // Changed from separate cost_price and unit_price
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      required: true,
+      langCode: _langCode,
     );
   }
 
@@ -818,19 +815,21 @@ class _AddStockPageState extends State<AddStockPage> {
     return Column(
       children: [
         _FastTextField(
-          controller: _controllers['reservedQuantity']!,
-          label: SimpleTranslations.get(_langCode, 'reserved_quantity_optional'),
-          keyboardType: TextInputType.number,
-          langCode: _langCode,
-        ),
-        const SizedBox(height: 16),
-        _FastTextField(
           controller: _controllers['batchNumber']!,
           label: SimpleTranslations.get(_langCode, 'batch_number_optional'),
           langCode: _langCode,
         ),
         const SizedBox(height: 16),
+        _FastTextField(
+          controller: _controllers['supplierId']!,
+          label: 'Supplier ID (Optional)',
+          keyboardType: TextInputType.number,
+          langCode: _langCode,
+        ),
+        const SizedBox(height: 16),
         _buildExpireDatePicker(),
+        const SizedBox(height: 16),
+        _buildTransactionTypeSection(),
       ],
     );
   }
@@ -840,7 +839,7 @@ class _AddStockPageState extends State<AddStockPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          SimpleTranslations.get(_langCode, 'expire_date_optional'),
+          'Expire Date (Optional)',
           style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 4),
@@ -868,7 +867,7 @@ class _AddStockPageState extends State<AddStockPage> {
                 Text(
                   _selectedExpireDate != null
                       ? '${_selectedExpireDate!.day}/${_selectedExpireDate!.month}/${_selectedExpireDate!.year}'
-                      : SimpleTranslations.get(_langCode, 'select_expire_date'),
+                      : 'Select expire date',
                   style: TextStyle(
                     color: _selectedExpireDate != null ? Colors.black : Colors.grey[600],
                   ),
@@ -887,22 +886,22 @@ class _AddStockPageState extends State<AddStockPage> {
       children: [
         Expanded(
           child: _FastDropdown(
-            value: _selectedCurrency,
-            label: SimpleTranslations.get(_langCode, 'currency'),
-            items: const ['LAK', 'THB'],
-            onChanged: (value) => setState(() => _selectedCurrency = value!),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _FastDropdown(
             value: _selectedStatus,
             label: SimpleTranslations.get(_langCode, 'status'),
-            items: const ['ACTIVE', 'INACTIVE', 'RESERVED'],
+            items: const ['active', 'inactive', 'reserved'], // Changed to lowercase
             onChanged: (value) => setState(() => _selectedStatus = value!),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTransactionTypeSection() {
+    return _FastDropdown(
+      value: _selectedTxnType,
+      label: 'Transaction Type',
+      items: const ['STOCK_IN', 'STOCK_OUT', 'TRANSFER', 'ADJUSTMENT'],
+      onChanged: (value) => setState(() => _selectedTxnType = value!),
     );
   }
 
@@ -936,7 +935,7 @@ class _AddStockPageState extends State<AddStockPage> {
         ),
         const SizedBox(width: 12),
         Text(
-          SimpleTranslations.get(_langCode, 'creating_inventory'),
+          'Creating inventory...',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ],
@@ -950,7 +949,7 @@ class _AddStockPageState extends State<AddStockPage> {
         const Icon(Icons.add_box, size: 24),
         const SizedBox(width: 8),
         Text(
-          SimpleTranslations.get(_langCode, 'create_inventory_item'),
+          'Create Inventory Item',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ],
@@ -993,7 +992,7 @@ class _AddStockPageState extends State<AddStockPage> {
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            location['location'] ?? 'Unknown',
+            location['location'] ?? location['location_name'] ?? 'Unknown',
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
         ),
@@ -1156,7 +1155,7 @@ class _DropdownField<T> extends StatelessWidget {
   }
 }
 
-// Barcode Scanner Page
+// Barcode Scanner Page (unchanged)
 class BarcodeScannerPage extends StatefulWidget {
   final String langCode;
   final Color primaryColor;
@@ -1288,7 +1287,6 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage>
     );
   }
 
-  // FIXED: Updated errorBuilder signature for mobile_scanner 7.0.1
   Widget _buildErrorState(BuildContext context, MobileScannerException error) {
     return Container(
       color: Colors.black,
@@ -1438,7 +1436,6 @@ class ScannerOverlay extends CustomPainter {
 
     const cornerLength = 20.0;
     
-    // Draw all four corners
     _drawCorner(canvas, paint, scanRect.topLeft, cornerLength, true, true);
     _drawCorner(canvas, paint, scanRect.topRight, cornerLength, false, true);
     _drawCorner(canvas, paint, scanRect.bottomLeft, cornerLength, true, false);

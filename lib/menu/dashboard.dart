@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:inventory/config/config.dart';
-import 'package:inventory/config/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:async';
+import 'package:inventory/config/config.dart';
+import 'package:inventory/config/company_config.dart';
 
-class InventoryDashboard extends StatefulWidget {
+class ExpirePage extends StatefulWidget {
   final String? currentTheme;
   final int? companyId;
   final int? userId;
   final int? branchId;
   
-  const InventoryDashboard({
+  const ExpirePage({
     Key? key, 
     this.currentTheme,
     this.companyId,
@@ -21,10 +20,10 @@ class InventoryDashboard extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<InventoryDashboard> createState() => _InventoryDashboardState();
+  State<ExpirePage> createState() => _ExpirePageState();
 }
 
-class _InventoryDashboardState extends State<InventoryDashboard>
+class _ExpirePageState extends State<ExpirePage>
     with TickerProviderStateMixin {
   String? accessToken;
   int? companyId;
@@ -32,8 +31,8 @@ class _InventoryDashboardState extends State<InventoryDashboard>
   int? branchId;
   
   List<Map<String, dynamic>> inventoryItems = [];
-  List<Map<String, dynamic>> lowStockItems = [];
   List<Map<String, dynamic>> expiringItems = [];
+  List<Map<String, dynamic>> expiredItems = [];
   Map<String, dynamic> valueReport = {};
   
   // Loading states
@@ -63,19 +62,68 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     _initializeAuth();
   }
 
+  // Helper method to safely parse string to int
+  int? _parseStringToInt(String? value) {
+    if (value == null) return null;
+    return int.tryParse(value);
+  }
+
   Future<void> _initializeAuth() async {
+    print('🔐 [ExpirePage] Initializing authentication...');
+    
     final prefs = await SharedPreferences.getInstance();
     accessToken = prefs.getString('access_token');
     
-    // Get company_id from widget or SharedPreferences
-    companyId = widget.companyId ?? prefs.getInt('company_id');
-    userId = widget.userId ?? prefs.getInt('user_id');
-    branchId = widget.branchId ?? prefs.getInt('branch_id');
+    // Debug: Print all stored keys in SharedPreferences
+    print('🔍 [DEBUG] All SharedPreferences keys: ${prefs.getKeys()}');
+    
+    // Try different possible key variations - handle all as strings first, then parse to int
+    companyId = widget.companyId ?? 
+        CompanyConfig.getCompanyId();
+    
+    userId = widget.userId ?? 
+        _parseStringToInt(prefs.getString('user_id')) ??
+        _parseStringToInt(prefs.getString('userId')) ??
+        _parseStringToInt(prefs.getString('user'));
+        
+    branchId = widget.branchId ?? 
+        _parseStringToInt(prefs.getString('branch_id')) ??
+        _parseStringToInt(prefs.getString('branchId')) ??
+        _parseStringToInt(prefs.getString('branch'));
+    
+    // Debug: Print what we found for each key variation (only string versions to avoid type errors)
+    print('🔍 [DEBUG] SharedPreferences values:');
+    print('   - companyId (string): ${prefs.getString('companyId')}');
+    print('   - company (string): ${prefs.getString('company')}');
+    print('   - user_id (string): ${prefs.getString('user_id')}');
+    print('   - userId (string): ${prefs.getString('userId')}');
+    print('   - user (string): ${prefs.getString('user')}');
+    print('   - branch_id (string): ${prefs.getString('branch_id')}');
+    print('   - branchId (string): ${prefs.getString('branchId')}');
+    print('   - branch (string): ${prefs.getString('branch')}');
+    print('🏢 [CompanyConfig] Default Company ID: ${CompanyConfig.getCompanyId()}');
+    
+    print('🔐 [ExpirePage] Auth Details:');
+    print('   - Access Token: ${accessToken != null ? "✅ Present" : "❌ Missing"}');
+    print('   - Company ID: $companyId');
+    print('   - User ID: $userId');
+    print('   - Branch ID: $branchId');
     
     if (accessToken != null && companyId != null) {
+      print('✅ [ExpirePage] Auth successful, loading dashboard data...');
       _loadDashboardData();
     } else {
-      _showErrorSnackBar('Authentication token or company ID not found. Please login again.');
+      print('❌ [ExpirePage] Auth failed - missing token or company ID');
+      
+      // If we have an access token but no company_id, let's try to proceed anyway
+      // Some APIs might not require company_id in the URL
+      if (accessToken != null && companyId == null) {
+        print('⚠️ [ExpirePage] Attempting to continue without company_id...');
+        // You might want to try a different API endpoint or ask user for company_id
+        _showErrorSnackBar('Company ID not found. Please check your login data.');
+      } else {
+        _showErrorSnackBar('Authentication token or company ID not found. Please login again.');
+      }
     }
   }
 
@@ -88,30 +136,34 @@ class _InventoryDashboardState extends State<InventoryDashboard>
   }
 
   Future<void> _loadDashboardData() async {
+    print('📊 [ExpirePage] Starting dashboard data load...');
+    
     setState(() {
       isLoading = true;
     });
 
     try {
-      await Future.wait([
-        _fetchInventoryItems(),
-        _fetchLowStockItems(),
-        _fetchExpiringItems(),
-        _fetchValueReport(),
-      ]);
+      print('📊 [ExpirePage] Fetching expiring items...');
+      await _fetchExpiringItems();
+      
+      print('✅ [ExpirePage] Dashboard data loaded successfully');
+      print('📊 [ExpirePage] Total expiring items: ${expiringItems.length}');
       
       _fadeController.forward();
       _slideController.forward();
     } catch (e) {
+      print('❌ [ExpirePage] Failed to load dashboard data: $e');
       _showErrorSnackBar('Failed to load dashboard data: $e');
     } finally {
       setState(() {
         isLoading = false;
       });
+      print('📊 [ExpirePage] Dashboard loading completed (isLoading = false)');
     }
   }
 
   // Build query parameters including company_id
+  // ignore: unused_element
   String _buildQueryParams(Map<String, dynamic> params) {
     params['company_id'] = companyId.toString();
     
@@ -123,429 +175,518 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     return queryString.isNotEmpty ? '?$queryString' : '';
   }
 
-  Future<void> _fetchInventoryItems() async {
-    if (accessToken == null || companyId == null) return;
-    
-    final queryParams = _buildQueryParams({
-      'limit': 50,
-      'status': 'ACTIVE',
-    });
-    
-    final response = await http.get(
-      AppConfig.api('/api/inventory$queryParams'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      setState(() {
-        inventoryItems = List<Map<String, dynamic>>.from(data['data'] ?? data['items'] ?? []);
-      });
-    } else if (response.statusCode == 401) {
-      _handleAuthError();
-    } else {
-      _handleHttpError(response, 'fetch inventory items');
-    }
-  }
-
-  Future<void> _fetchLowStockItems() async {
-    if (accessToken == null || companyId == null) return;
-    
-    final queryParams = _buildQueryParams({});
-    
-    final response = await http.get(
-      AppConfig.api('/api/inventory/reports/low-stock$queryParams'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      setState(() {
-        lowStockItems = List<Map<String, dynamic>>.from(data['data'] ?? data['items'] ?? []);
-      });
-    } else if (response.statusCode == 401) {
-      _handleAuthError();
-    } else {
-      _handleHttpError(response, 'fetch low stock items');
-    }
-  }
-
+  // Fetch expiring items from your API
   Future<void> _fetchExpiringItems() async {
-    if (accessToken == null || companyId == null) return;
-    
-    final queryParams = _buildQueryParams({
-      'days': 30,
-    });
-    
-    final response = await http.get(
-      AppConfig.api('/api/inventory/reports/expiring$queryParams'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      setState(() {
-        expiringItems = List<Map<String, dynamic>>.from(data['data'] ?? data['items'] ?? []);
-      });
-    } else if (response.statusCode == 401) {
-      _handleAuthError();
-    } else {
-      _handleHttpError(response, 'fetch expiring items');
+    if (accessToken == null || companyId == null) {
+      print('❌ [API] Cannot fetch expiring items - missing auth or company ID');
+      return;
     }
-  }
-
-  Future<void> _fetchValueReport() async {
-    if (accessToken == null || companyId == null) return;
     
-    final queryParams = _buildQueryParams({});
-    
-    final response = await http.get(
-      AppConfig.api('/api/inventory/reports/value$queryParams'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      setState(() {
-        valueReport = data['data'] ?? data ?? {};
-      });
-    } else if (response.statusCode == 401) {
-      _handleAuthError();
-    } else {
-      _handleHttpError(response, 'fetch value report');
-    }
-  }
-
-  // Fetch inventory by specific filters
-  Future<void> _fetchInventoryByFilters({
-    String? status,
-    String? txntype,
-    bool? lowStock,
-    int? limit,
-    int? offset,
-  }) async {
-    if (accessToken == null || companyId == null) return;
-    
-    final queryParams = _buildQueryParams({
-      if (status != null) 'status': status,
-      if (txntype != null) 'txntype': txntype,
-      if (lowStock != null) 'low_stock': lowStock.toString(),
-      if (limit != null) 'limit': limit,
-      if (offset != null) 'offset': offset,
-      if (userId != null) 'user_id': userId,
-      if (branchId != null) 'branch_id': branchId,
-    });
-    
-    final response = await http.get(
-      AppConfig.api('/api/inventory$queryParams'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      setState(() {
-        inventoryItems = List<Map<String, dynamic>>.from(data['data'] ?? data['items'] ?? []);
-      });
-    } else if (response.statusCode == 401) {
-      _handleAuthError();
-    } else {
-      _handleHttpError(response, 'fetch filtered inventory');
-    }
-  }
-
-  // Fetch inventory by company (explicit endpoint)
-  // ignore: unused_element
-  Future<void> _fetchInventoryByCompany() async {
-    if (accessToken == null || companyId == null) return;
-    
-    final response = await http.get(
-      AppConfig.api('/api/inventory/company/$companyId'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      setState(() {
-        inventoryItems = List<Map<String, dynamic>>.from(data['data'] ?? data['items'] ?? []);
-      });
-    } else if (response.statusCode == 401) {
-      _handleAuthError();
-    } else {
-      _handleHttpError(response, 'fetch company inventory');
-    }
-  }
-
-  Future<void> _refreshData() async {
-    setState(() {
-      isRefreshing = true;
-    });
-    await _loadDashboardData();
-    setState(() {
-      isRefreshing = false;
-    });
-  }
-
-  // ignore: unused_element
-  Future<void> _updateStockQuantity(int inventoryId, int newQuantity) async {
-    if (accessToken == null || companyId == null) return;
-    
-    try {
-      final updateData = {
-        'stock_quantity': newQuantity,
-        'company_id': companyId,
-        'txntype': 'ADJUSTMENT',
-      };
-      
-      // Add user and branch context if available
-      if (userId != null) updateData['user_id'] = userId;
-      if (branchId != null) updateData['branch_id'] = branchId;
-      
-      final response = await http.put(
-        AppConfig.api('/api/inventory/$inventoryId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: json.encode(updateData),
-      );
-
-      if (response.statusCode == 200) {
-        _showSuccessSnackBar('Stock quantity updated successfully');
-        _refreshData();
-      } else if (response.statusCode == 401) {
-        _handleAuthError();
-      } else {
-        _handleHttpError(response, 'update stock quantity');
-      }
-    } catch (e) {
-      _showErrorSnackBar('Error updating stock: $e');
-    }
-  }
-
-  // New method: Stock movement (better than direct update)
-  Future<void> _adjustStock(int inventoryId, int quantity, bool isStockIn, String reason) async {
-    if (accessToken == null || companyId == null) return;
-    
-    try {
-      final movementData = {
-        if (isStockIn) 'stock_in_quantity': quantity else 'stock_out_quantity': quantity,
-        'reason': reason,
-        'company_id': companyId,
-        'txntype': isStockIn ? 'STOCK_IN' : 'STOCK_OUT',
-      };
-      
-      // Add user and branch context if available
-      if (userId != null) movementData['user_id'] = userId;
-      if (branchId != null) movementData['branch_id'] = branchId;
-      
-      final response = await http.put(
-        AppConfig.api('/api/inventory/$inventoryId/stock-movement'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: json.encode(movementData),
-      );
-
-      if (response.statusCode == 200) {
-        _showSuccessSnackBar('Stock ${isStockIn ? 'added' : 'removed'} successfully');
-        _refreshData();
-      } else if (response.statusCode == 401) {
-        _handleAuthError();
-      } else {
-        _handleHttpError(response, 'adjust stock');
-      }
-    } catch (e) {
-      _showErrorSnackBar('Error adjusting stock: $e');
-    }
-  }
-
-  // New method: Reserve stock
-  Future<void> _reserveStock(int inventoryId, int quantity, String reason) async {
-    if (accessToken == null || companyId == null) return;
-    
-    try {
-      final reservationData = {
-        'quantity': quantity,
-        'reason': reason,
-        'company_id': companyId,
-        'txntype': 'RESERVATION',
-      };
-      
-      if (userId != null) reservationData['reserved_by_user_id'] = userId;
-      if (branchId != null) reservationData['reserved_for_branch_id'] = branchId;
-      
-      final response = await http.put(
-        AppConfig.api('/api/inventory/$inventoryId/reserve'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: json.encode(reservationData),
-      );
-
-      if (response.statusCode == 200) {
-        _showSuccessSnackBar('Stock reserved successfully');
-        _refreshData();
-      } else if (response.statusCode == 401) {
-        _handleAuthError();
-      } else {
-        _handleHttpError(response, 'reserve stock');
-      }
-    } catch (e) {
-      _showErrorSnackBar('Error reserving stock: $e');
-    }
-  }
-
-  // New method: Search by barcode
-  Future<Map<String, dynamic>?> _searchByBarcode(String barcode) async {
-    if (accessToken == null || companyId == null) return null;
+    final apiUrl = '/api/inventory/company/$companyId/expire';
+    print('🌐 [API] Making request to: $apiUrl');
+    print('🌐 [API] Company ID: $companyId');
+    print('🌐 [API] Using Bearer token: ${accessToken?.substring(0, 20)}...');
     
     try {
       final response = await http.get(
-        AppConfig.api('/api/inventory/barcode/$barcode'),
+        AppConfig.api(apiUrl),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
         },
       );
 
+      print('🌐 [API] Response Status Code: ${response.statusCode}');
+      print('🌐 [API] Response Headers: ${response.headers}');
+      print('🌐 [API] Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['data'] ?? data;
+        print('📦 [API] Parsed response data: $data');
+        
+        if (data['status'] == 'success') {
+          final items = List<Map<String, dynamic>>.from(data['data'] ?? []);
+          setState(() {
+            expiringItems = items;
+          });
+          
+          print('✅ [API] Successfully loaded ${items.length} expiring items');
+          print('📦 [API] Items data:');
+          for (int i = 0; i < items.length; i++) {
+            final item = items[i];
+            print('   ${i + 1}. ${item['product_name']} - ${item['location']} - Qty: ${item['amount']} - Expire: ${item['expire_date']}');
+          }
+        } else {
+          print('❌ [API] API returned non-success status: ${data['status']}');
+          _showErrorSnackBar('Failed to fetch expiring items: ${data['message'] ?? 'Unknown error'}');
+        }
       } else if (response.statusCode == 401) {
+        print('🔐 [API] Authentication error (401) - token may be expired');
         _handleAuthError();
-      } else if (response.statusCode == 404) {
-        _showErrorSnackBar('Item with barcode $barcode not found');
       } else {
-        _handleHttpError(response, 'search by barcode');
+        print('❌ [API] HTTP error: ${response.statusCode} - ${response.reasonPhrase}');
+        _handleHttpError(response, 'fetch expiring items');
       }
     } catch (e) {
-      _showErrorSnackBar('Error searching by barcode: $e');
+      print('💥 [API] Exception occurred during API call: $e');
+      rethrow;
     }
-    return null;
   }
 
   void _handleAuthError() {
+    print('🔐 [Auth] Authentication error detected - session may be expired');
     _showErrorSnackBar('Session expired. Please login again.');
-    // Navigate to login page or handle authentication
-    // Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    // Navigate to login page if needed
+    // Navigator.pushReplacementNamed(context, '/login');
   }
 
   void _handleHttpError(http.Response response, String operation) {
+    final errorMessage = 'Failed to $operation: ${response.statusCode} - ${response.reasonPhrase}';
+    print('❌ [HTTP] Error during $operation: ${response.statusCode} - ${response.reasonPhrase}');
+    print('❌ [HTTP] Response body: ${response.body}');
+    _showErrorSnackBar(errorMessage);
+  }
+
+  void _showErrorSnackBar(String message) {
+    print('⚠️ [UI] Showing error message: $message');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  Future<void> _refresh() async {
+    print('🔄 [UI] User initiated refresh');
+    setState(() {
+      isRefreshing = true;
+    });
+    
+    await _loadDashboardData();
+    
+    setState(() {
+      isRefreshing = false;
+    });
+    print('🔄 [UI] Refresh completed');
+  }
+
+  String _getExpirationStatus(String? expireDate) {
+    if (expireDate == null || expireDate.isEmpty) {
+      return 'No Expiry';
+    }
+    
     try {
-      final errorData = json.decode(response.body);
-      final message = errorData['message'] ?? errorData['error'] ?? 'Unknown error';
-      _showErrorSnackBar('Failed to $operation: $message (${response.statusCode})');
-    } catch (e) {
-      _showErrorSnackBar('Failed to $operation: HTTP ${response.statusCode}');
-    }
-  }
-
-  double _calculateAverageValue() {
-    if (inventoryItems.isEmpty) return 0.0;
-    
-    double totalValue = 0.0;
-    if (valueReport['total_value'] != null) {
-      if (valueReport['total_value'] is String) {
-        totalValue = double.tryParse(valueReport['total_value']) ?? 0.0;
-      } else if (valueReport['total_value'] is num) {
-        totalValue = valueReport['total_value'].toDouble();
+      final parts = expireDate.split('-');
+      if (parts.length != 2) return 'Invalid Date';
+      
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      
+      final expiry = DateTime(year, month);
+      final now = DateTime.now();
+      final currentMonth = DateTime(now.year, now.month);
+      
+      final difference = expiry.difference(currentMonth).inDays;
+      
+      if (difference < 0) {
+        return 'Expired';
+      } else if (difference < 90) { // Less than 3 months
+        return 'Expiring Soon';
+      } else {
+        return 'Good';
       }
+    } catch (e) {
+      return 'Invalid Date';
     }
-    
-    return totalValue / inventoryItems.length;
   }
 
-  void _showStockUpdateDialog(Map<String, dynamic> item) {
-    final TextEditingController quantityController = TextEditingController(
-      text: item['stock_quantity'].toString(),
-    );
-    final TextEditingController reasonController = TextEditingController();
-    bool isStockIn = true;
+  Color _getExpirationColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'good':
+        return Colors.green;
+      case 'expiring soon':
+        return Colors.orange;
+      case 'expired':
+        return Colors.red;
+      case 'no expiry':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
 
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text('Update Stock - Product ${item['product_id']}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+  IconData _getExpirationIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'good':
+        return Icons.check_circle;
+      case 'expiring soon':
+        return Icons.warning;
+      case 'expired':
+        return Icons.error;
+      case 'no expiry':
+        return Icons.all_inclusive;
+      default:
+        return Icons.inventory;
+    }
+  }
+
+  Widget _buildExpirySummaryCards() {
+    final totalItems = expiringItems.length;
+    final goodCount = expiringItems.where((item) => 
+        _getExpirationStatus(item['expire_date']?.toString()) == 'Good').length;
+    final expiringSoonCount = expiringItems.where((item) => 
+        _getExpirationStatus(item['expire_date']?.toString()) == 'Expiring Soon').length;
+    final expiredCount = expiringItems.where((item) => 
+        _getExpirationStatus(item['expire_date']?.toString()) == 'Expired').length;
+
+    print('📊 [UI] Building summary cards:');
+    print('   - Total: $totalItems, Good: $goodCount, Expiring Soon: $expiringSoonCount, Expired: $expiredCount');
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Row(
             children: [
-              TextField(
-                controller: quantityController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Quantity',
-                  border: OutlineInputBorder(),
+              Expanded(
+                child: _buildSummaryCard(
+                  'Total Items',
+                  totalItems.toString(),
+                  Icons.inventory_2,
+                  Colors.blue,
                 ),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: reasonController,
-                decoration: const InputDecoration(
-                  labelText: 'Reason',
-                  border: OutlineInputBorder(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryCard(
+                  'Good',
+                  goodCount.toString(),
+                  Icons.check_circle,
+                  Colors.green,
                 ),
               ),
-              const SizedBox(height: 16),
-              Row(
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  'Expiring Soon',
+                  expiringSoonCount.toString(),
+                  Icons.warning,
+                  Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryCard(
+                  'Expired',
+                  expiredCount.toString(),
+                  Icons.error,
+                  Colors.red,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(String title, String count, IconData icon, Color color) {
+    return FadeTransition(
+      opacity: _fadeController,
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Icon(icon, size: 32, color: color),
+              const SizedBox(height: 8),
+              Text(
+                count,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpiryItemsList() {
+    if (expiringItems.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inventory_2, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'No expiry items found',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: expiringItems.length,
+      itemBuilder: (context, index) {
+        final item = expiringItems[index];
+        final expirationStatus = _getExpirationStatus(item['expire_date']?.toString());
+        
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: _slideController,
+            curve: Interval(
+              index * 0.1,
+              1.0,
+              curve: Curves.easeOut,
+            ),
+          )),
+          child: Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: _getExpirationColor(expirationStatus).withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.all(16),
+              leading: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: _getExpirationColor(expirationStatus).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: Icon(
+                  _getExpirationIcon(expirationStatus),
+                  color: _getExpirationColor(expirationStatus),
+                  size: 24,
+                ),
+              ),
+              title: Text(
+                item['product_name'] ?? 'Unknown Product',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: RadioListTile<bool>(
-                      title: const Text('Add Stock'),
-                      value: true,
-                      groupValue: isStockIn,
-                      onChanged: (value) => setState(() => isStockIn = value!),
-                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          item['location'] ?? 'Unknown Location',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: RadioListTile<bool>(
-                      title: const Text('Remove Stock'),
-                      value: false,
-                      groupValue: isStockIn,
-                      onChanged: (value) => setState(() => isStockIn = value!),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.inventory, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Qty: ${item['amount'] ?? 0}',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                  if (item['expire_date'] != null && item['expire_date'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.schedule, size: 16, color: Colors.grey[600]),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Expires: ${item['expire_date']}',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _getExpirationColor(expirationStatus).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _getExpirationColor(expirationStatus),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  expirationStatus,
+                  style: TextStyle(
+                    color: _getExpirationColor(expirationStatus),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              onTap: () {
+                // Handle item tap - navigate to details or show more info
+                _showItemDetails(item);
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showItemDetails(Map<String, dynamic> item) {
+    final expirationStatus = _getExpirationStatus(item['expire_date']?.toString());
+    
+    print('🔍 [UI] Showing item details for: ${item['product_name']}');
+    print('🔍 [UI] Item data: $item');
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.4,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: _getExpirationColor(expirationStatus).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Icon(
+                          _getExpirationIcon(expirationStatus),
+                          color: _getExpirationColor(expirationStatus),
+                          size: 30,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['product_name'] ?? 'Unknown Product',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _getExpirationColor(expirationStatus).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                expirationStatus,
+                                style: TextStyle(
+                                  color: _getExpirationColor(expirationStatus),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _buildDetailRow('Location', item['location'] ?? 'Unknown', Icons.location_on),
+                  const SizedBox(height: 16),
+                  _buildDetailRow('Quantity', item['amount']?.toString() ?? '0', Icons.inventory),
+                  const SizedBox(height: 16),
+                  _buildDetailRow(
+                    'Expire Date', 
+                    item['expire_date']?.toString().isNotEmpty == true ? item['expire_date'].toString() : 'No expiry date', 
+                    Icons.schedule
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        // Add action for managing this item
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _getExpirationColor(expirationStatus),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Manage Expiry',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final quantity = int.tryParse(quantityController.text);
-                final reason = reasonController.text.trim();
-                if (quantity != null && quantity > 0 && reason.isNotEmpty) {
-                  Navigator.pop(context);
-                  _adjustStock(item['inventory_id'], quantity, isStockIn, reason);
-                } else {
-                  _showErrorSnackBar('Please enter valid quantity and reason');
-                }
-              },
-              child: const Text('Update'),
             ),
           ],
         ),
@@ -553,826 +694,73 @@ class _InventoryDashboardState extends State<InventoryDashboard>
     );
   }
 
-  void _showBarcodeSearchDialog() {
-    final TextEditingController barcodeController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Search by Barcode'),
-        content: TextField(
-          controller: barcodeController,
-          decoration: const InputDecoration(
-            labelText: 'Barcode',
-            border: OutlineInputBorder(),
+  Widget _buildDetailRow(String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: Colors.grey[600]),
+        const SizedBox(width: 12),
+        Text(
+          '$label:',
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final barcode = barcodeController.text.trim();
-              if (barcode.isNotEmpty) {
-                Navigator.pop(context);
-                final item = await _searchByBarcode(barcode);
-                if (item != null) {
-                  setState(() {
-                    inventoryItems = [item];
-                  });
-                  _tabController.animateTo(1); // Switch to inventory tab
-                }
-              }
-            },
-            child: const Text('Search'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Custom Header (replacing AppBar)
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
-                  decoration: BoxDecoration(
-                    color: ThemeConfig.getPrimaryColor(widget.currentTheme ?? 'default'),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'IoInventory Dashboard',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (companyId != null)
-                                Text(
-                                  'Company ID: $companyId',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-                                onPressed: _showBarcodeSearchDialog,
-                                tooltip: 'Search by Barcode',
-                              ),
-                              IconButton(
-                                icon: isRefreshing
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                        ),
-                                      )
-                                    : const Icon(Icons.refresh, color: Colors.white),
-                                onPressed: isRefreshing ? null : _refreshData,
-                                tooltip: 'Refresh',
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // Tab Bar
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: TabBar(
-                          controller: _tabController,
-                          indicatorColor: Colors.white,
-                          labelColor: Colors.white,
-                          unselectedLabelColor: Colors.white70,
-                          labelStyle: const TextStyle(fontSize: 12),
-                          unselectedLabelStyle: const TextStyle(fontSize: 12),
-                          tabs: const [
-                            Tab(text: 'Overview', icon: Icon(Icons.dashboard, size: 20)),
-                            Tab(text: 'Inventory', icon: Icon(Icons.inventory, size: 20)),
-                            Tab(text: 'Alerts', icon: Icon(Icons.warning, size: 20)),
-                            Tab(text: 'Reports', icon: Icon(Icons.analytics, size: 20)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Tab Content
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildOverviewTab(),
-                      _buildInventoryTab(),
-                      _buildAlertsTab(),
-                      _buildReportsTab(),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildOverviewTab() {
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: FadeTransition(
-          opacity: _fadeController,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Company Info Card
-              if (companyId != null)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.business, size: 32, color: Colors.blue),
-                        const SizedBox(width: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Company ID: $companyId',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            if (userId != null) Text('User ID: $userId'),
-                            if (branchId != null) Text('Branch ID: $branchId'),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 16),
-              
-              // Summary Cards
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildSummaryCard(
-                      'Total Items',
-                      inventoryItems.length.toString(),
-                      Icons.inventory_2,
-                      Colors.blue,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildSummaryCard(
-                      'Low Stock',
-                      lowStockItems.length.toString(),
-                      Icons.warning,
-                      Colors.orange,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildSummaryCard(
-                      'Expiring Soon',
-                      expiringItems.length.toString(),
-                      Icons.schedule,
-                      Colors.red,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildSummaryCard(
-                      'Total Value',
-                      '${_formatCurrency(valueReport['total_value'])} LAK',
-                      Icons.attach_money,
-                      Colors.green,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              
-              // Quick Actions
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Quick Actions',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: () => _fetchInventoryByFilters(status: 'ACTIVE'),
-                            icon: const Icon(Icons.filter_list),
-                            label: const Text('Active Items'),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: () => _fetchInventoryByFilters(lowStock: true),
-                            icon: const Icon(Icons.warning),
-                            label: const Text('Low Stock'),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: () => _fetchInventoryByFilters(status: 'RESERVED'),
-                            icon: const Icon(Icons.lock),
-                            label: const Text('Reserved'),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: _showBarcodeSearchDialog,
-                            icon: const Icon(Icons.qr_code_scanner),
-                            label: const Text('Scan Barcode'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Recent Activity
-              const Text(
-                'Recent Inventory Items',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildRecentItemsList(),
-            ],
-          ),
+      appBar: AppBar(
+        title: const Text(
+          'Expiry Dashboard',
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
-      ),
-    );
-  }
-
-  Widget _buildInventoryTab() {
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: inventoryItems.isEmpty
-          ? const Center(
-              child: Text(
-                'No inventory items found for this company',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: inventoryItems.length,
-              itemBuilder: (context, index) {
-                final item = inventoryItems[index];
-                return SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(1.0, 0.0),
-                    end: Offset.zero,
-                  ).animate(CurvedAnimation(
-                    parent: _slideController,
-                    curve: Interval(
-                      index * 0.1,
-                      (index * 0.1) + 0.3,
-                      curve: Curves.easeOut,
-                    ),
-                  )),
-                  child: _buildInventoryCard(item),
-                );
-              },
-            ),
-    );
-  }
-
-  Widget _buildAlertsTab() {
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (lowStockItems.isNotEmpty) ...[
-              const Text(
-                'Low Stock Items',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ...lowStockItems.map((item) => _buildAlertCard(
-                    item,
-                    'Low Stock',
-                    Colors.orange,
-                    Icons.warning,
-                  )),
-              const SizedBox(height: 24),
-            ],
-            
-            if (expiringItems.isNotEmpty) ...[
-              const Text(
-                'Expiring Items (Next 30 days)',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ...expiringItems.map((item) => _buildAlertCard(
-                    item,
-                    'Expiring Soon',
-                    Colors.red,
-                    Icons.schedule,
-                  )),
-            ],
-            
-            if (lowStockItems.isEmpty && expiringItems.isEmpty)
-              const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.check_circle,
-                      size: 80,
-                      color: Colors.green,
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'No alerts at the moment',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReportsTab() {
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Company-specific report header
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    const Icon(Icons.analytics, size: 32, color: Colors.blue),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Company Inventory Report',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        if (companyId != null)
-                          Text('Company ID: $companyId', style: const TextStyle(color: Colors.grey)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            const Text(
-              'Inventory Value Report',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    _buildReportRow('Total Items', inventoryItems.length.toString()),
-                    _buildReportRow('Total Value', '${_formatCurrency(valueReport['total_value'])} LAK'),
-                    _buildReportRow('Average Item Value', '${_formatCurrency(_calculateAverageValue())} LAK'),
-                    _buildReportRow('Low Stock Items', lowStockItems.length.toString()),
-                    _buildReportRow('Expiring Items', expiringItems.length.toString()),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            
-            // Transaction Type Filters
-            const Text(
-              'Filter by Transaction Type',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ElevatedButton(
-                  onPressed: () => _fetchInventoryByFilters(txntype: 'PURCHASE'),
-                  child: const Text('Purchase'),
-                ),
-                ElevatedButton(
-                  onPressed: () => _fetchInventoryByFilters(txntype: 'SALE'),
-                  child: const Text('Sale'),
-                ),
-                ElevatedButton(
-                  onPressed: () => _fetchInventoryByFilters(txntype: 'ADJUSTMENT'),
-                  child: const Text('Adjustment'),
-                ),
-                ElevatedButton(
-                  onPressed: () => _fetchInventoryByFilters(txntype: 'STOCK_IN'),
-                  child: const Text('Stock In'),
-                ),
-                ElevatedButton(
-                  onPressed: () => _fetchInventoryByFilters(txntype: 'STOCK_OUT'),
-                  child: const Text('Stock Out'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard(String title, String value, IconData icon, Color color) {
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 32,
-              color: color,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecentItemsList() {
-    final recentItems = inventoryItems.take(5).toList();
-    
-    if (recentItems.isEmpty) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text(
-            'No inventory items found for this company',
-            style: TextStyle(color: Colors.grey),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-    
-    return Card(
-      child: Column(
-        children: recentItems.map((item) => ListTile(
-          leading: CircleAvatar(
-            backgroundColor: _getStatusColor(item['status']),
-            child: Text(
-              item['inventory_id'].toString(),
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-            ),
-          ),
-          title: Text(
-            'Product ${item['product_id']}',
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(
-            'Stock: ${item['stock_quantity']} | Location: ${item['location_id']}',
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: SizedBox(
-            width: 80,
-            child: Text(
-              '${_formatCurrency(item['unit_price_lak'])} LAK',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              textAlign: TextAlign.right,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        )).toList(),
-      ),
-    );
-  }
-
-  Widget _buildInventoryCard(Map<String, dynamic> item) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12.0),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    'Product ${item['product_id']}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(item['status']),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    item['status'] ?? 'UNKNOWN',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            
-            // Company and context info
-            if (item['company_id'] != null)
-              Text(
-                'Company: ${item['company_id']} | Barcode: ${item['barcode'] ?? 'N/A'}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            const SizedBox(height: 4),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Stock: ${item['stock_quantity']}'),
-                      Text('Reserved: ${item['reserved_quantity'] ?? 0}'),
-                      Text('Min Stock: ${item['minimum_stock'] ?? 'N/A'}'),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Location: ${item['location_id'] ?? 'N/A'}'),
-                      Text('Store: ${item['store_id'] ?? 'N/A'}'),
-                      Text('Batch: ${item['batch_number'] ?? 'N/A'}'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (item['expire_date'] != null) ...[
-              const SizedBox(height: 4),
-              Text('Expires: ${item['expire_date']}'),
-            ],
-            const SizedBox(height: 8),
-            
-            // Price information (both currencies if available)
-            if (item['unit_price_lak'] != null || item['unit_price_thb'] != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (item['unit_price_lak'] != null)
-                    Text('Unit Price: ${_formatCurrency(item['unit_price_lak'])} LAK'),
-                  if (item['unit_price_thb'] != null)
-                    Text('Unit Price: ${_formatCurrency(item['unit_price_thb'])} THB'),
-                  if (item['cost_price_lak'] != null)
-                    Text('Cost Price: ${_formatCurrency(item['cost_price_lak'])} LAK'),
-                ],
-              ),
-            const SizedBox(height: 8),
-            
-            // Action buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
-                  onPressed: () => _reserveStock(
-                    item['inventory_id'], 
-                    1, 
-                    'Manual reservation from dashboard'
-                  ),
-                  icon: const Icon(Icons.lock, size: 16),
-                  label: const Text('Reserve'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.orange,
-                    textStyle: const TextStyle(fontSize: 12),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () => _showStockUpdateDialog(item),
-                  icon: const Icon(Icons.edit, size: 16),
-                  label: const Text('Update'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    textStyle: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAlertCard(Map<String, dynamic> item, String alertType, Color color, IconData icon) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12.0),
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text('Product ${item['product_id']}'),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Current Stock: ${item['stock_quantity']}'),
-            if (item['company_id'] != null)
-              Text('Company: ${item['company_id']}'),
-            if (alertType == 'Low Stock' && item['minimum_stock'] != null)
-              Text('Minimum Required: ${item['minimum_stock']}'),
-            if (alertType == 'Expiring Soon' && item['expire_date'] != null)
-              Text('Expires: ${item['expire_date']}'),
-          ],
-        ),
-        trailing: SizedBox(
-          width: 70,
-          child: ElevatedButton(
-            onPressed: () => _showStockUpdateDialog(item),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              textStyle: const TextStyle(fontSize: 11),
-            ),
-            child: const Text('Action'),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReportRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 16),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+        elevation: 0,
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: isLoading ? null : _refresh,
           ),
         ],
       ),
-    );
-  }
-
-  Color _getStatusColor(String? status) {
-    switch (status) {
-      case 'ACTIVE':
-        return Colors.green;
-      case 'INACTIVE':
-        return Colors.grey;
-      case 'EXPIRED':
-        return Colors.red;
-      case 'RESERVED':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _formatCurrency(dynamic value) {
-    double numValue;
-    
-    if (value == null) {
-      numValue = 0.0;
-    } else if (value is String) {
-      numValue = double.tryParse(value) ?? 0.0;
-    } else if (value is num) {
-      numValue = value.toDouble();
-    } else {
-      numValue = 0.0;
-    }
-    
-    return numValue.toStringAsFixed(2).replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},',
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: isLoading
+            ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Loading expiry data...'),
+                  ],
+                ),
+              )
+            : Column(
+                children: [
+                  _buildExpirySummaryCards(),
+                  Expanded(
+                    child: _buildExpiryItemsList(),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 }
