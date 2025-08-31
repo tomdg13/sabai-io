@@ -39,6 +39,9 @@ class _ExpirePageState extends State<ExpirePage>
   bool isLoading = true;
   bool isRefreshing = false;
   
+  // Filter state
+  String? selectedFilter; // null means show all
+  
   // Animation controllers
   late AnimationController _fadeController;
   late AnimationController _slideController;
@@ -274,17 +277,30 @@ class _ExpirePageState extends State<ExpirePage>
     print('🔄 [UI] Refresh completed');
   }
 
+  // Enhanced _getExpirationStatus method
   String _getExpirationStatus(String? expireDate) {
-    if (expireDate == null || expireDate.isEmpty) {
+    // Check for null, empty, or common "no expiry" indicators
+    if (expireDate == null || 
+        expireDate.isEmpty || 
+        expireDate.toLowerCase() == 'null' ||
+        expireDate.toLowerCase() == 'n/a' ||
+        expireDate.toLowerCase() == 'none' ||
+        expireDate == '0000-00' ||
+        expireDate == '0000-0') {
       return 'No Expiry';
     }
     
     try {
       final parts = expireDate.split('-');
-      if (parts.length != 2) return 'Invalid Date';
+      if (parts.length != 2) return 'No Expiry';
       
       final year = int.parse(parts[0]);
       final month = int.parse(parts[1]);
+      
+      // Additional check for zero or invalid dates
+      if (year == 0 || month == 0 || month > 12) {
+        return 'No Expiry';
+      }
       
       final expiry = DateTime(year, month);
       final now = DateTime.now();
@@ -300,10 +316,11 @@ class _ExpirePageState extends State<ExpirePage>
         return 'Good';
       }
     } catch (e) {
-      return 'Invalid Date';
+      return 'No Expiry'; // Changed from 'Invalid Date' to 'No Expiry'
     }
   }
 
+  // Enhanced color method with better "No Expiry" styling
   Color _getExpirationColor(String status) {
     switch (status.toLowerCase()) {
       case 'good':
@@ -313,12 +330,13 @@ class _ExpirePageState extends State<ExpirePage>
       case 'expired':
         return Colors.red;
       case 'no expiry':
-        return Colors.blue;
+        return Colors.blue.shade600; // More prominent blue
       default:
         return Colors.grey;
     }
   }
 
+  // Enhanced icon method
   IconData _getExpirationIcon(String status) {
     switch (status.toLowerCase()) {
       case 'good':
@@ -328,12 +346,13 @@ class _ExpirePageState extends State<ExpirePage>
       case 'expired':
         return Icons.error;
       case 'no expiry':
-        return Icons.all_inclusive;
+        return Icons.all_inclusive; // or Icons.infinity or Icons.timer_off
       default:
         return Icons.inventory;
     }
   }
 
+  // Enhanced summary cards with always visible filtering layout
   Widget _buildExpirySummaryCards() {
     final totalItems = expiringItems.length;
     final goodCount = expiringItems.where((item) => 
@@ -342,63 +361,26 @@ class _ExpirePageState extends State<ExpirePage>
         _getExpirationStatus(item['expire_date']?.toString()) == 'Expiring Soon').length;
     final expiredCount = expiringItems.where((item) => 
         _getExpirationStatus(item['expire_date']?.toString()) == 'Expired').length;
+    final noExpiryCount = expiringItems.where((item) => 
+        _getExpirationStatus(item['expire_date']?.toString()) == 'No Expiry').length;
 
     print('📊 [UI] Building summary cards:');
-    print('   - Total: $totalItems, Good: $goodCount, Expiring Soon: $expiringSoonCount, Expired: $expiredCount');
+    print('   - Total: $totalItems, Good: $goodCount, Expiring Soon: $expiringSoonCount, Expired: $expiredCount, No Expiry: $noExpiryCount');
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildSummaryCard(
-                  'Total Items',
-                  totalItems.toString(),
-                  Icons.inventory_2,
-                  Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSummaryCard(
-                  'Good',
-                  goodCount.toString(),
-                  Icons.check_circle,
-                  Colors.green,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildSummaryCard(
-                  'Expiring Soon',
-                  expiringSoonCount.toString(),
-                  Icons.warning,
-                  Colors.orange,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSummaryCard(
-                  'Expired',
-                  expiredCount.toString(),
-                  Icons.error,
-                  Colors.red,
-                ),
-              ),
-            ],
-          ),
-        ],
+      child: _buildAlwaysVisibleFilterableCard(
+        totalItems,
+        goodCount,
+        expiringSoonCount,
+        expiredCount,
+        noExpiryCount,
       ),
     );
   }
 
-  Widget _buildSummaryCard(String title, String count, IconData icon, Color color) {
+  // Always visible filterable summary card - shows total + clickable detail cards with status display
+  Widget _buildAlwaysVisibleFilterableCard(int total, int good, int expiring, int expired, int noExpiry) {
     return FadeTransition(
       opacity: _fadeController,
       child: Card(
@@ -408,23 +390,134 @@ class _ExpirePageState extends State<ExpirePage>
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              Icon(icon, size: 32, color: color),
-              const SizedBox(height: 8),
-              Text(
-                count,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
+              // Main summary row (always visible)
+              Row(
+                children: [
+                  Icon(
+                    Icons.inventory_2,
+                    size: 32,
+                    color: Colors.blue,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Inventory Summary',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '$total Total Items',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        // Show selected status
+                        if (selectedFilter != null)
+                          Container(
+                            margin: const EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getExpirationColor(selectedFilter!).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(
+                                color: _getExpirationColor(selectedFilter!),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _getExpirationIcon(selectedFilter!),
+                                  size: 14,
+                                  color: _getExpirationColor(selectedFilter!),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${selectedFilter!} Status',
+                                  style: TextStyle(
+                                    color: _getExpirationColor(selectedFilter!),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Show clear button when filtered
+                  if (selectedFilter != null)
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          selectedFilter = null;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(
+                          Icons.clear,
+                          size: 20,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+              // Always visible clickable detail cards
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildFilterableSummaryCard(
+                      'Good',
+                      good.toString(),
+                      Icons.check_circle,
+                      Colors.green,
+                      'Good',
+                    ),
+                    const SizedBox(width: 12),
+                    _buildFilterableSummaryCard(
+                      'Expiring',
+                      expiring.toString(),
+                      Icons.warning,
+                      Colors.orange,
+                      'Expiring Soon',
+                    ),
+                    const SizedBox(width: 12),
+                    _buildFilterableSummaryCard(
+                      'Expired',
+                      expired.toString(),
+                      Icons.error,
+                      Colors.red,
+                      'Expired',
+                    ),
+                    const SizedBox(width: 12),
+                    _buildFilterableSummaryCard(
+                      'No Expiry',
+                      noExpiry.toString(),
+                      Icons.all_inclusive,
+                      Colors.blue.shade600,
+                      'No Expiry',
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -433,143 +526,318 @@ class _ExpirePageState extends State<ExpirePage>
     );
   }
 
+  // Filterable summary card - click to filter the list
+  Widget _buildFilterableSummaryCard(String title, String count, IconData icon, Color color, String? filterStatus) {
+    final isSelected = selectedFilter == filterStatus;
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          // Toggle filter: if already selected, show all; otherwise apply filter
+          selectedFilter = isSelected ? null : filterStatus;
+        });
+        print('🔍 [Filter] Applied filter: ${selectedFilter ?? "All"}');
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        child: Card(
+          elevation: isSelected ? 6 : 2,
+          color: isSelected ? color.withOpacity(0.1) : null,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(
+              color: isSelected ? color : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon, 
+                  size: 20, 
+                  color: isSelected ? color : color,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  count,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? color : color,
+                  ),
+                ),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isSelected ? color : Colors.grey,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Enhanced trailing widget for list items with better "No Expiry" button
+  Widget _buildExpirationStatusButton(String status) {
+    final color = _getExpirationColor(status);
+    final isNoExpiry = status.toLowerCase() == 'no expiry';
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: color,
+          width: isNoExpiry ? 2 : 1, // Thicker border for "No Expiry"
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _getExpirationIcon(status),
+            color: color,
+            size: 14,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            status,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: isNoExpiry ? FontWeight.bold : FontWeight.w600, // Bold for "No Expiry"
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Updated list item builder with filtering functionality
   Widget _buildExpiryItemsList() {
-    if (expiringItems.isEmpty) {
-      return const Center(
+    // Filter items based on selected filter
+    List<Map<String, dynamic>> filteredItems = expiringItems.where((item) {
+      if (selectedFilter == null) return true; // Show all items
+      final itemStatus = _getExpirationStatus(item['expire_date']?.toString());
+      return itemStatus == selectedFilter;
+    }).toList();
+
+    if (filteredItems.isEmpty) {
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.inventory_2, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'No expiry items found',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+            Icon(
+              selectedFilter == null ? Icons.inventory_2 : _getExpirationIcon(selectedFilter!),
+              size: 64, 
+              color: Colors.grey,
             ),
+            const SizedBox(height: 16),
+            Text(
+              selectedFilter == null 
+                ? 'No expiry items found'
+                : 'No ${selectedFilter!.toLowerCase()} items found',
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            if (selectedFilter != null) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    selectedFilter = null;
+                  });
+                },
+                child: const Text('Show All Items'),
+              ),
+            ],
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: expiringItems.length,
-      itemBuilder: (context, index) {
-        final item = expiringItems[index];
-        final expirationStatus = _getExpirationStatus(item['expire_date']?.toString());
-        
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(
-            parent: _slideController,
-            curve: Interval(
-              index * 0.1,
-              1.0,
-              curve: Curves.easeOut,
-            ),
-          )),
-          child: Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(
-                color: _getExpirationColor(expirationStatus).withOpacity(0.3),
+    return Column(
+      children: [
+        // Filter indicator
+        if (selectedFilter != null)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: _getExpirationColor(selectedFilter!).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _getExpirationColor(selectedFilter!),
                 width: 1,
               ),
             ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: _getExpirationColor(expirationStatus).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(25),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _getExpirationIcon(selectedFilter!),
+                  size: 16,
+                  color: _getExpirationColor(selectedFilter!),
                 ),
-                child: Icon(
-                  _getExpirationIcon(expirationStatus),
-                  color: _getExpirationColor(expirationStatus),
-                  size: 24,
-                ),
-              ),
-              title: Text(
-                item['product_name'] ?? 'Unknown Product',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          item['location'] ?? 'Unknown Location',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.inventory, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Qty: ${item['amount'] ?? 0}',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                  if (item['expire_date'] != null && item['expire_date'].toString().isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.schedule, size: 16, color: Colors.grey[600]),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Expires: ${item['expire_date']}',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _getExpirationColor(expirationStatus).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: _getExpirationColor(expirationStatus),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  expirationStatus,
+                const SizedBox(width: 8),
+                Text(
+                  'Showing ${selectedFilter!} Items (${filteredItems.length})',
                   style: TextStyle(
-                    color: _getExpirationColor(expirationStatus),
-                    fontSize: 12,
+                    color: _getExpirationColor(selectedFilter!),
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-              ),
-              onTap: () {
-                // Handle item tap - navigate to details or show more info
-                _showItemDetails(item);
-              },
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      selectedFilter = null;
+                    });
+                  },
+                  child: Icon(
+                    Icons.close,
+                    size: 16,
+                    color: _getExpirationColor(selectedFilter!),
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      },
+        // Filtered list
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: filteredItems.length,
+            itemBuilder: (context, index) {
+              final item = filteredItems[index];
+              final expirationStatus = _getExpirationStatus(item['expire_date']?.toString());
+              
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1, 0),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(
+                  parent: _slideController,
+                  curve: Interval(
+                    index * 0.1,
+                    1.0,
+                    curve: Curves.easeOut,
+                  ),
+                )),
+                child: Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: _getExpirationColor(expirationStatus).withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16),
+                    leading: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: _getExpirationColor(expirationStatus).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      child: Icon(
+                        _getExpirationIcon(expirationStatus),
+                        color: _getExpirationColor(expirationStatus),
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      item['product_name'] ?? 'Unknown Product',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                item['location'] ?? 'Unknown Location',
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.inventory, size: 16, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Qty: ${item['amount'] ?? 0}',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                        if (expirationStatus.toLowerCase() != 'no expiry' && 
+                            item['expire_date'] != null && 
+                            item['expire_date'].toString().isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.schedule, size: 16, color: Colors.grey[600]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Expires: ${item['expire_date']}',
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                            ],
+                          ),
+                        ] else if (expirationStatus.toLowerCase() == 'no expiry') ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.all_inclusive, size: 16, color: Colors.blue.shade600),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Never expires',
+                                style: TextStyle(
+                                  color: Colors.blue.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                    trailing: _buildExpirationStatusButton(expirationStatus),
+                    onTap: () {
+                      _showItemDetails(item);
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -660,8 +928,14 @@ class _ExpirePageState extends State<ExpirePage>
                   const SizedBox(height: 16),
                   _buildDetailRow(
                     'Expire Date', 
-                    item['expire_date']?.toString().isNotEmpty == true ? item['expire_date'].toString() : 'No expiry date', 
-                    Icons.schedule
+                    expirationStatus.toLowerCase() == 'no expiry' 
+                        ? 'Never expires'
+                        : (item['expire_date']?.toString().isNotEmpty == true 
+                            ? item['expire_date'].toString() 
+                            : 'No expiry date'), 
+                    expirationStatus.toLowerCase() == 'no expiry' 
+                        ? Icons.all_inclusive 
+                        : Icons.schedule
                   ),
                   const SizedBox(height: 24),
                   SizedBox(
@@ -679,9 +953,11 @@ class _ExpirePageState extends State<ExpirePage>
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Manage Expiry',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      child: Text(
+                        expirationStatus.toLowerCase() == 'no expiry' 
+                            ? 'Manage Item'
+                            : 'Manage Expiry',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
