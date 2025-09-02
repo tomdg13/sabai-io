@@ -36,6 +36,10 @@ class _storeEditPageState extends State<storeEditPage> {
   late final TextEditingController _openingHoursController;
   late final TextEditingController _squareFootageController;
   late final TextEditingController _notesController;
+  late final TextEditingController _upiPercentageController;
+  late final TextEditingController _visaPercentageController;
+  late final TextEditingController _masterPercentageController;
+  late final TextEditingController _accountController;
 
   String? _base64Image;
   String? _currentImageUrl;
@@ -77,7 +81,10 @@ class _storeEditPageState extends State<storeEditPage> {
     _openingHoursController = TextEditingController(text: widget.storeData['opening_hours'] ?? '');
     _squareFootageController = TextEditingController(text: widget.storeData['square_footage']?.toString() ?? '');
     _notesController = TextEditingController(text: widget.storeData['notes'] ?? '');
-    
+    _upiPercentageController = TextEditingController(text: widget.storeData['upi_percentage']?.toString() ?? '');
+    _visaPercentageController = TextEditingController(text: widget.storeData['visa_percentage']?.toString() ?? '');
+    _masterPercentageController = TextEditingController(text: widget.storeData['master_percentage']?.toString() ?? '');
+    _accountController = TextEditingController(text: widget.storeData['account'] ?? '');
     
     print('🔧 DEBUG: Initialized edit form with store: ${widget.storeData['store']}');
     print('🔧 DEBUG: store ID: ${widget.storeData['store_id']}');
@@ -102,6 +109,10 @@ class _storeEditPageState extends State<storeEditPage> {
     _openingHoursController.dispose();
     _squareFootageController.dispose();
     _notesController.dispose();
+    _upiPercentageController.dispose();
+    _visaPercentageController.dispose();
+    _masterPercentageController.dispose();
+    _accountController.dispose();
     super.dispose();
   }
 
@@ -258,6 +269,61 @@ class _storeEditPageState extends State<storeEditPage> {
       if (_base64Image != null) {
         storeData['image'] = _base64Image;
       }
+      if (_storeCodeController.text.trim().isNotEmpty) {
+        storeData['store_code'] = _storeCodeController.text.trim();
+      }
+      if (_storeManagerController.text.trim().isNotEmpty) {
+        storeData['store_manager'] = _storeManagerController.text.trim();
+      }
+      if (_emailController.text.trim().isNotEmpty) {
+        storeData['email'] = _emailController.text.trim();
+      }
+      if (_phoneController.text.trim().isNotEmpty) {
+        storeData['phone'] = _phoneController.text.trim();
+      }
+      if (_addressController.text.trim().isNotEmpty) {
+        storeData['address'] = _addressController.text.trim();
+      }
+      if (_cityController.text.trim().isNotEmpty) {
+        storeData['city'] = _cityController.text.trim();
+      }
+      if (_stateController.text.trim().isNotEmpty) {
+        storeData['state'] = _stateController.text.trim();
+      }
+      if (_countryController.text.trim().isNotEmpty) {
+        storeData['country'] = _countryController.text.trim();
+      }
+      if (_postalCodeController.text.trim().isNotEmpty) {
+        storeData['postal_code'] = _postalCodeController.text.trim();
+      }
+      if (_storeTypeController.text.trim().isNotEmpty) {
+        storeData['store_type'] = _storeTypeController.text.trim();
+      }
+      if (_statusController.text.trim().isNotEmpty) {
+        storeData['status'] = _statusController.text.trim();
+      }
+      if (_openingHoursController.text.trim().isNotEmpty) {
+        storeData['opening_hours'] = _openingHoursController.text.trim();
+      }
+      if (_squareFootageController.text.trim().isNotEmpty) {
+        storeData['square_footage'] = int.tryParse(_squareFootageController.text.trim());
+      }
+      if (_notesController.text.trim().isNotEmpty) {
+        storeData['notes'] = _notesController.text.trim();
+      }
+      if (_upiPercentageController.text.trim().isNotEmpty) {
+        storeData['upi_percentage'] = double.tryParse(_upiPercentageController.text.trim());
+      }
+      if (_visaPercentageController.text.trim().isNotEmpty) {
+        storeData['visa_percentage'] = double.tryParse(_visaPercentageController.text.trim());
+      }
+      if (_masterPercentageController.text.trim().isNotEmpty) {
+        storeData['master_percentage'] = double.tryParse(_masterPercentageController.text.trim());
+      }
+      if (_accountController.text.trim().isNotEmpty) {
+        storeData['account'] = _accountController.text.trim();
+      }
+      
 
       print('📝 DEBUG: Update data: ${storeData.toString()}');
 
@@ -417,6 +483,18 @@ class _storeEditPageState extends State<storeEditPage> {
       }
       if (_notesController.text.trim().isNotEmpty) {
         storeData['notes'] = _notesController.text.trim();
+      }
+      if (_upiPercentageController.text.trim().isNotEmpty) {
+        storeData['upi_percentage'] = double.tryParse(_upiPercentageController.text.trim());
+      }
+      if (_visaPercentageController.text.trim().isNotEmpty) {
+        storeData['visa_percentage'] = double.tryParse(_visaPercentageController.text.trim());
+      }
+      if (_masterPercentageController.text.trim().isNotEmpty) {
+        storeData['master_percentage'] = double.tryParse(_masterPercentageController.text.trim());
+      }
+      if (_accountController.text.trim().isNotEmpty) {
+        storeData['account'] = _accountController.text.trim();
       }
       
       if (_base64Image != null) {
@@ -1057,6 +1135,157 @@ class _storeEditPageState extends State<storeEditPage> {
                       ),
                       
                       SizedBox(height: 16),
+                      // ✅ ADDED: UPI Percentage Field
+                      TextFormField(
+                        controller: _upiPercentageController,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: 'UPI Percentage',
+                          hintText: 'e.g., 2.5 (optional)',
+                          prefixIcon: Icon(
+                            Icons.payment,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              width: 2,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                        validator: (value) {
+                          if (value != null && value.trim().isNotEmpty) {
+                            final num = double.tryParse(value.trim());
+                            if (num == null || num < 0) {
+                              return 'Please enter a valid non-negative number';
+                            }
+                          }
+                          return null;
+                        },
+                      ), 
+                      SizedBox(height: 16),
+                      // ✅ ADDED: Visa Percentage Field
+                      TextFormField(
+                        controller: _visaPercentageController,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: 'Visa Percentage',
+                          hintText: 'e.g., 2.5 (optional)',
+                          prefixIcon: Icon(
+                            Icons.credit_card,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),      
+                        ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              width: 2,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                        validator: (value) {
+                          if (value != null && value.trim().isNotEmpty) {
+                            final num = double.tryParse(value.trim());
+                            if (num == null || num < 0) {
+                              return 'Please enter a valid non-negative number';
+                            }
+                          }
+                          return null;
+                        },
+                      ), 
+                      SizedBox(height: 16),
+                      // ✅ ADDED: MasterCard Percentage Field
+                      TextFormField(
+                        controller: _masterPercentageController,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: 'MasterCard Percentage',
+                          hintText: 'e.g., 2.5 (optional)',
+                          prefixIcon: Icon(
+                            Icons.credit_card,
+                            color: ThemeConfig.getPrimaryColor(currentTheme), 
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              width: 2,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                        validator: (value) {
+                          if (value != null && value.trim().isNotEmpty) {
+                            final num = double.tryParse(value.trim());
+                            if (num == null || num < 0) {
+                              return 'Please enter a valid non-negative number';
+                            }
+                          }
+                          return null;
+                        },
+                      ), 
+                      SizedBox(height: 16),
+                      // ✅ ADDED: Account Field
+                      TextFormField(
+                        controller: _accountController,
+                        decoration: InputDecoration(
+                          labelText: 'Account',
+                          hintText: 'Account details (optional)',
+                          prefixIcon: Icon(
+                            Icons.account_balance,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              width: 2, 
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                      ),
+                    
+                  
+                
+              
+
+
 
               // Update Button
               Container(

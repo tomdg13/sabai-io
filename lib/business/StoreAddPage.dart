@@ -35,6 +35,11 @@ class _storeAddPageState extends State<storeAddPage> with TickerProviderStateMix
   final _openingHoursController = TextEditingController();
   final _squareFootageController = TextEditingController();
   final _notesController = TextEditingController();
+   // New payment-related controllers
+  final _upiPercentageController = TextEditingController();
+  final _visaPercentageController = TextEditingController();
+  final _masterPercentageController = TextEditingController();
+  final _accountController = TextEditingController();
 
   String? _base64Image;
   File? _imageFile;
@@ -61,6 +66,12 @@ class _storeAddPageState extends State<storeAddPage> with TickerProviderStateMix
   final _openingHoursFocus = FocusNode();
   final _squareFootageFocus = FocusNode();
   final _notesFocus = FocusNode();
+
+  // New payment-related focus nodes
+  final _upiPercentageFocus = FocusNode();
+  final _visaPercentageFocus = FocusNode();
+  final _masterPercentageFocus = FocusNode();
+  final _accountFocus = FocusNode();
 
   @override
   void initState() {
@@ -105,6 +116,10 @@ class _storeAddPageState extends State<storeAddPage> with TickerProviderStateMix
     _openingHoursController.dispose();
     _squareFootageController.dispose();
     _notesController.dispose();
+    _upiPercentageController.dispose();
+    _visaPercentageController.dispose();
+    _masterPercentageController.dispose();
+    _accountController.dispose();
     
     // Dispose all focus nodes
     _storeNameFocus.dispose();
@@ -122,6 +137,10 @@ class _storeAddPageState extends State<storeAddPage> with TickerProviderStateMix
     _openingHoursFocus.dispose();
     _squareFootageFocus.dispose();
     _notesFocus.dispose();
+    _upiPercentageFocus.dispose();
+    _visaPercentageFocus.dispose();
+    _masterPercentageFocus.dispose();
+    _accountFocus.dispose();
     
     _fadeController.dispose();
     super.dispose();
@@ -317,6 +336,13 @@ class _storeAddPageState extends State<storeAddPage> with TickerProviderStateMix
         'square_footage': _squareFootageController.text.trim().isEmpty ? null : int.tryParse(_squareFootageController.text.trim()),
         'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
         'image': _base64Image,
+
+          // New payment fields
+        'upi_percentage': _upiPercentageController.text.trim().isEmpty ? null : double.tryParse(_upiPercentageController.text.trim()),
+        'visa_percentage': _visaPercentageController.text.trim().isEmpty ? null : double.tryParse(_visaPercentageController.text.trim()),
+        'master_percentage': _masterPercentageController.text.trim().isEmpty ? null : double.tryParse(_masterPercentageController.text.trim()),
+        'account': _accountController.text.trim().isEmpty ? null : _accountController.text.trim(),
+     
       };
 
       print('📝 DEBUG: store data: ${storeData.toString()}');
@@ -760,6 +786,92 @@ class _storeAddPageState extends State<storeAddPage> with TickerProviderStateMix
                           icon: Icons.local_post_office,
                           focusNode: _postalCodeFocus,
                           hint: 'ZIP/Postal',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              
+              SizedBox(height: 20),
+
+              _buildSectionCard(
+                title: 'Payment Information',
+                icon: Icons.payment,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildEnhancedTextField(
+                          controller: _upiPercentageController,
+                          label: 'UPI Percentage',
+                          icon: Icons.percent,
+                          focusNode: _upiPercentageFocus,
+                          hint: 'e.g., 1.5',
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            if (value != null && value.trim().isNotEmpty) {
+                              final num = double.tryParse(value.trim());
+                              if (num == null || num < 0 || num > 100) {
+                                return 'Enter a valid percentage (0-100)';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: _buildEnhancedTextField(
+                          controller: _visaPercentageController,
+                          label: 'Visa Percentage',
+                          icon: Icons.percent,
+                          focusNode: _visaPercentageFocus,
+                          hint: 'e.g., 2.0',
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            if (value != null && value.trim().isNotEmpty) {
+                              final num = double.tryParse(value.trim());
+                              if (num == null || num < 0 || num > 100) {
+                                return 'Enter a valid percentage (0-100)';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildEnhancedTextField(
+                          controller: _masterPercentageController,
+                          label: 'Master Percentage',
+                          icon: Icons.percent,
+                          focusNode: _masterPercentageFocus,
+                          hint: 'e.g., 1.8',
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            if (value != null && value.trim().isNotEmpty) {
+                              final num = double.tryParse(value.trim());
+                              if (num == null || num < 0 || num > 100) {
+                                return 'Enter a valid percentage (0-100)';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: _buildEnhancedTextField(
+                          controller: _accountController,
+                          label: 'Account Number',
+                          icon: Icons.account_balance,
+                          focusNode: _accountFocus,
+                          hint: 'Enter account number',
+                          keyboardType: TextInputType.number,
                         ),
                       ),
                     ],
