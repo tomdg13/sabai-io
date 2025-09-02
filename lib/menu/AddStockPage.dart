@@ -135,7 +135,7 @@ class _AddStockPageState extends State<AddStockPage> {
 
     try {
       final response = await _makeApiRequest(
-        '/api/iostore?status=admin&company_id=$_companyId',
+        '/api/iovendor?status=admin&company_id=$_companyId',
         method: 'GET',
       );
 

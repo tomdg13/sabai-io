@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:inventory/business/StorePage.dart';
 import 'package:inventory/business/UserPage.dart';
 import 'package:inventory/business/VendorPage.dart';
+import 'package:inventory/login/login_page.dart' show LoginPage;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart'; // Import your existing ThemeConfig
+import '../utils/simple_translations.dart';
 
 class MenuSettingsPage extends StatefulWidget {
   const MenuSettingsPage({Key? key}) : super(key: key);
@@ -22,7 +24,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   bool isLoading = true;
   
   // Add these properties for the AppBar pattern
-  // ignore: unused_field
   String _langCode = 'en'; // Default language code
   Color get _primaryColor => Theme.of(context).primaryColor;
 
@@ -66,6 +67,9 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
           ? savedLanguage
           : 'English';
 
+      // Load language code directly from SharedPreferences
+      _langCode = prefs.getString('languageCode') ?? 'en';
+
       if (mounted) {
         setState(() {
           selectedTheme = validTheme;
@@ -82,6 +86,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
           selectedTheme = ThemeConfig.defaultTheme;
           currentTheme = ThemeConfig.defaultTheme;
           selectedLanguage = 'English';
+          _langCode = 'en';
           isLoading = false;
         });
       }
@@ -122,7 +127,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       }
     } catch (e) {
       debugPrint('Error saving theme: $e');
-      _showErrorSnackBar('Failed to save theme setting');
+      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'error_save_theme'));
     }
   }
 
@@ -132,14 +137,19 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selectedLanguage', language);
 
+      // Save language code and update state
+      String langCode = language == 'Lao' ? 'la' : 'en';
+      await prefs.setString('languageCode', langCode);
+      
       if (mounted) {
         setState(() {
           selectedLanguage = language;
+          _langCode = langCode;
         });
       }
     } catch (e) {
       debugPrint('Error saving language: $e');
-      _showErrorSnackBar('Failed to save language setting');
+      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'error_save_language'));
     }
   }
 
@@ -149,6 +159,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       final prefs = await SharedPreferences.getInstance();
       
       // Clear user session data (customize based on your app's structure)
+      await prefs.remove('access_token');
       await prefs.remove('user_token');
       await prefs.remove('user_id');
       await prefs.remove('user_email');
@@ -160,21 +171,15 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       // await prefs.remove('selectedLanguage');
       
       if (mounted) {
-        // Navigate to login page and clear navigation stack
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          '/login', // Replace with your login route
+        // Navigate to LoginPage and clear navigation stack
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginPage()),
           (Route<dynamic> route) => false,
         );
-        
-        // Alternative if you don't use named routes:
-        // Navigator.of(context).pushAndRemoveUntil(
-        //   MaterialPageRoute(builder: (context) => const LoginPage()),
-        //   (Route<dynamic> route) => false,
-        // );
       }
     } catch (e) {
       debugPrint('Error during logout: $e');
-      _showErrorSnackBar('Failed to logout. Please try again.');
+      _showErrorSnackBar(SimpleTranslations.get(_langCode, 'error_logout'));
     }
   }
 
@@ -184,18 +189,18 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
               Icon(Icons.logout, color: Colors.red),
               SizedBox(width: 8),
-              Text('Logout'),
+              Text(SimpleTranslations.get(_langCode, 'logout')),
             ],
           ),
-          content: const Text('Are you sure you want to logout?'),
+          content: Text(SimpleTranslations.get(_langCode, 'logout_confirmation')),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: Text(SimpleTranslations.get(_langCode, 'cancel')),
             ),
             ElevatedButton(
               onPressed: () {
@@ -206,7 +211,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Logout'),
+              child: Text(SimpleTranslations.get(_langCode, 'logout')),
             ),
           ],
         );
@@ -234,44 +239,44 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
           children: [
             _buildGridItem(
               icon: Icons.business_outlined,
-              title: 'Branch',
+              title: SimpleTranslations.get(_langCode, 'branch'),
               color: Colors.blue,
               onTap: _navigateToBranchPage,
             ),
             _buildGridItem(
               icon: Icons.store,
-              title: 'Vender',
+              title: SimpleTranslations.get(_langCode, 'vendor'),
               color: Colors.green,
               onTap: _navigateToVenderPage,
             ),
             _buildGridItem(
               icon: Icons.storefront,
-              title: 'Store',
+              title: SimpleTranslations.get(_langCode, 'store'),
               color: Colors.orange,
               onTap: _navigateToStorePage,
             ),
             _buildGridItem(
               icon: Icons.computer,
-              title: 'Product',
+              title: SimpleTranslations.get(_langCode, 'product'),
               color: Colors.purple,
               onTap: _navigateToProductPage,
             ),
             _buildGridItem(
               icon: Icons.view_in_ar,
-              title: 'Location',
+              title: SimpleTranslations.get(_langCode, 'location'),
               color: const Color.fromARGB(255, 1, 136, 35),
               onTap: _navigateToLocationPage,
             ),
             _buildGridItem(
               icon: Icons.person,
-              title: 'User',
+              title: SimpleTranslations.get(_langCode, 'user'),
               color: Colors.cyan,
               onTap: _navigateToUserPage,
             ),
             _buildLanguageGridItem(),
             _buildThemeGridItem(),
             _buildLogoutGridItem(), // Added logout grid item
-            _buildPlaceholderGridItem('Help', Icons.help_outline),
+            _buildPlaceholderGridItem(SimpleTranslations.get(_langCode, 'help'), Icons.help_outline),
           ],
         ),
       ),
@@ -301,11 +306,11 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
                 child: const Icon(Icons.logout, color: Colors.red, size: 28),
               ),
               const SizedBox(height: 6),
-              const Flexible(
+              Flexible(
                 child: Text(
-                  'Logout',
+                  SimpleTranslations.get(_langCode, 'logout'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 11,
                     color: Colors.red,
@@ -391,10 +396,10 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
                 child: const Icon(Icons.language, color: Colors.teal, size: 28),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'Language',
+              Text(
+                SimpleTranslations.get(_langCode, 'language'),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
               ),
               const SizedBox(height: 2),
               Flexible(
@@ -440,10 +445,10 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'Theme',
+              Text(
+                SimpleTranslations.get(_langCode, 'theme'),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
               ),
               const SizedBox(height: 2),
               Flexible(
@@ -471,7 +476,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         border: Border.all(color: Colors.grey.withOpacity(0.2), width: 1),
       ),
       child: InkWell(
-        onTap: () => _showSnackBar('$title feature coming soon'),
+        onTap: () => _showSnackBar('$title ${SimpleTranslations.get(_langCode, 'coming_soon')}'),
         borderRadius: BorderRadius.circular(16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -548,7 +553,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Select Language'),
+          title: Text(SimpleTranslations.get(_langCode, 'select_language')),
           content: SizedBox(
             width: double.minPositive,
             child: ListView.builder(
@@ -564,10 +569,10 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
                     onChanged: (String? value) async {
                       if (value != null) {
                         await _saveLanguage(value);
-                        if (mounted) {
-                          Navigator.of(context).pop();
-                          _showSnackBar('Language changed to $value');
-                        }
+                          if (mounted) {
+                            Navigator.of(context).pop();
+                            _showSnackBar('${SimpleTranslations.get(_langCode, 'language_changed')} $value');
+                          }
                       }
                     },
                   ),
@@ -575,7 +580,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
                     await _saveLanguage(language);
                     if (mounted) {
                       Navigator.of(context).pop();
-                      _showSnackBar('Language changed to $language');
+                      _showSnackBar('${SimpleTranslations.get(_langCode, 'language_changed')} $language');
                     }
                   },
                 );
@@ -585,7 +590,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: Text(SimpleTranslations.get(_langCode, 'cancel')),
             ),
           ],
         );
@@ -599,7 +604,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Select Theme'),
+          title: Text(SimpleTranslations.get(_langCode, 'select_theme')),
           content: SizedBox(
             width: double.minPositive,
             child: Column(
@@ -622,7 +627,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
                             if (mounted) {
                               Navigator.of(context).pop();
                               _showSnackBar(
-                                'Theme changed to ${ThemeConfig.getThemeDisplayName(value)}',
+                                '${SimpleTranslations.get(_langCode, 'theme_changed')} ${ThemeConfig.getThemeDisplayName(value)}',
                               );
                             }
                           }
@@ -644,7 +649,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
                     if (mounted) {
                       Navigator.of(context).pop();
                       _showSnackBar(
-                        'Theme changed to ${ThemeConfig.getThemeDisplayName(theme)}',
+                        '${SimpleTranslations.get(_langCode, 'theme_changed')} ${ThemeConfig.getThemeDisplayName(theme)}',
                       );
                     }
                   },
@@ -655,7 +660,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: Text(SimpleTranslations.get(_langCode, 'cancel')),
             ),
           ],
         );
@@ -692,67 +697,18 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   /// Build AppBar following the exact pattern provided
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      title: const Text(
-        'Settings & Management', // You can replace with SimpleTranslations.get(_langCode, 'settings_management') when you have translations
-        style: TextStyle(fontWeight: FontWeight.bold),
+      title: Text(
+        SimpleTranslations.get(_langCode, 'settings_management'),
+        style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       backgroundColor: _primaryColor,
       foregroundColor: Colors.white,
       elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
-        onPressed: _handleBackPress,
-      ),
-      actions: [
-        // Refresh/Reload button
-        IconButton(
-          icon: const Icon(Icons.refresh),
-          tooltip: 'Refresh Settings',
-          onPressed: () {
-            setState(() {
-              isLoading = true;
-            });
-            _loadSavedSettings();
-            _showSnackBar('Settings refreshed');
-          },
-        ),
-        // Info/Help button
-        IconButton(
-          icon: const Icon(Icons.info_outline),
-          tooltip: 'Help',
-          onPressed: () {
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Settings Help'),
-                content: const Text(
-                  'Manage your inventory system settings:\n\n'
-                  '• Branch: Configure business branches\n'
-                  '• Vendor: Manage suppliers\n'
-                  '• Store: Setup store locations\n'
-                  '• Product: Add and edit products\n'
-                  '• Location: Manage storage locations\n'
-                  '• User: User account management\n'
-                  '• Language: Change app language\n'
-                  '• Theme: Customize app appearance\n'
-                  '• Logout: Sign out of the application',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Got it'),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(width: 8),
-      ],
-    );
+     );
   }
 
   /// Handle back button press
+  // ignore: unused_element
   void _handleBackPress() {
     Navigator.of(context).pop();
   }

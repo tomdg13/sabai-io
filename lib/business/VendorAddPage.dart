@@ -233,6 +233,16 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
   Future<void> _createvendor() async {
     print('🚀 DEBUG: Create vendor button pressed');
     
+    // Add debug logging for controller values
+    print('🔍 DEBUG: Controller values before sending:');
+    print('   - vendor_name: "${_vendorNameController.text}"');
+    print('   - vendor_code: "${_vendorCodeController.text}"');
+    print('   - province_name: "${_provinceNameController.text}"');
+    print('   - address: "${_addressController.text}"');
+    print('   - phone: "${_phoneController.text}"');
+    print('   - email: "${_emailController.text}"');
+    print('   - manager_name: "${_managerNameController.text}"');
+    
     // Dismiss keyboard
     FocusScope.of(context).unfocus();
     
@@ -267,17 +277,14 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
       print('🔑 DEBUG: Company ID: $companyId');
       print('🔑 DEBUG: Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
 
-      // CORRECTED: Use the exact field names that your backend DTO expects
+      // Use the exact field names that your backend DTO expects
       final vendorData = <String, dynamic>{
         'company_id': companyId,
-        'vendor_name': _vendorNameController.text.trim(),     // ✅ Changed from 'vendor'
-        'vendor_code': _vendorCodeController.text.trim(),     // ✅ Changed from 'code'
+        'vendor_name': _vendorNameController.text.trim(),
+        'vendor_code': _vendorCodeController.text.trim(),
       };
 
-      // Add province_name as required field
-      vendorData['province_name'] = _provinceNameController.text.trim();
-      
-      // Add optional fields only if they have values
+      // Add optional fields only if they have values - EXCLUDING province_name
       if (_addressController.text.trim().isNotEmpty) {
         vendorData['address'] = _addressController.text.trim();
       }
@@ -291,14 +298,14 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
       }
       
       if (_managerNameController.text.trim().isNotEmpty) {
-        vendorData['manager_name'] = _managerNameController.text.trim(); // ✅ Changed from 'manager'
+        vendorData['manager_name'] = _managerNameController.text.trim();
       }
       
       if (_base64Image != null) {
         vendorData['image'] = _base64Image;
       }
 
-      print('📝 DEBUG: Corrected vendor data: ${vendorData.toString()}');
+      print('📝 DEBUG: vendor data to be sent: ${vendorData.toString()}');
       print('🔑 DEBUG: Field names being sent:');
       vendorData.keys.forEach((key) {
         String value = vendorData[key].toString();
@@ -357,7 +364,7 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
             Text('Success!'),
           ],
         ),
-        content: Text('vendor "${_vendorNameController.text}" (${_vendorCodeController.text}) has been created successfully.'),
+        content: Text('Vendor "${_vendorNameController.text}" (${_vendorCodeController.text}) has been created successfully.'),
         actions: [
           TextButton(
             onPressed: () {
@@ -529,7 +536,7 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text('Add New vendor'),
+        title: Text('Add New Vendor'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         elevation: 0,
@@ -555,9 +562,9 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // vendor Image Section
+              // Vendor Image Section
               _buildSectionCard(
-                title: 'vendor Image',
+                title: 'Vendor Image',
                 icon: Icons.image,
                 children: [
                   Center(
@@ -648,21 +655,21 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
               
               SizedBox(height: 20),
 
-              // Basic Information
+              // Basic Information - Required Fields Only
               _buildSectionCard(
                 title: 'Required Information',
                 icon: Icons.business,
                 children: [
                   _buildEnhancedTextField(
                     controller: _vendorNameController,
-                    label: 'vendor Name',
+                    label: 'Vendor Name',
                     icon: Icons.business,
                     focusNode: _vendorNameFocus,
                     hint: 'Enter vendor name',
                     required: true,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'vendor name is required';
+                        return 'Vendor name is required';
                       }
                       return null;
                     },
@@ -670,17 +677,17 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
                   
                   _buildEnhancedTextField(
                     controller: _vendorCodeController,
-                    label: 'vendor Code',
+                    label: 'Vendor Code',
                     icon: Icons.qr_code,
                     focusNode: _vendorCodeFocus,
                     hint: 'Enter unique vendor code (e.g., VTE001)',
                     required: true,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'vendor code is required';
+                        return 'Vendor code is required';
                       }
                       if (value.trim().length < 3) {
-                        return 'vendor code must be at least 3 characters';
+                        return 'Vendor code must be at least 3 characters';
                       }
                       return null;
                     },
@@ -690,26 +697,11 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
 
               SizedBox(height: 20),
 
-              // Optional Information
+              // Optional Information - All fields are now optional
               _buildSectionCard(
                 title: 'Additional Information',
                 icon: Icons.info_outline,
                 children: [
-                  _buildEnhancedTextField(
-                    controller: _provinceNameController,
-                    label: 'Province',
-                    icon: Icons.location_city,
-                    focusNode: _provinceNameFocus,
-                    hint: 'Enter province name',
-                    required: true,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Province name is required';
-                      }
-                      return null;
-                    },
-                  ),
-                  
                   _buildEnhancedTextField(
                     controller: _addressController,
                     label: 'Address',
@@ -790,7 +782,7 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
                               ),
                               SizedBox(width: 16),
                               Text(
-                                'Creating vendor...',
+                                'Creating Vendor...',
                                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                               ),
                             ],
@@ -801,7 +793,7 @@ class _vendorAddPageState extends State<vendorAddPage> with TickerProviderStateM
                               Icon(Icons.add_circle, size: 24),
                               SizedBox(width: 12),
                               Text(
-                                'Create vendor',
+                                'Create Vendor',
                                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                               ),
                             ],

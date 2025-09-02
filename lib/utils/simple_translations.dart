@@ -663,22 +663,22 @@ class SimpleTranslations {
       'creating_inventory_exit_warning':
           'Inventory creation is in progress. Are you sure you want to exit?',
 
-          // App Title
+      // App Title
       'deductStock': 'Deduct Stock',
       'deductStockItem': 'Deduct Stock Item',
-      
+
       // Authentication
       'authTokenNotFound': 'Auth token not found',
       'sessionExpired': 'Session expired',
       'companyIdNotFound': 'Company ID not found',
-      
+
       // Loading states
       'loadingData': 'Loading data...',
       'loadingLocations': 'Loading locations...',
       'loadingStores': 'Loading stores...',
       'initializingCamera': 'Initializing camera...',
       'deductingStock': 'Deducting stock...',
-      
+
       // Form fields
       'productId': 'Product ID',
       'productName': 'Product Name',
@@ -689,13 +689,13 @@ class SimpleTranslations {
       'expireDate': 'Expire Date (Optional)',
       'selectExpireDate': 'Select expire date',
       'transactionType': 'Transaction Type',
-      
+
       // Dropdowns and selections
       'selectLocation': 'Select location',
       'selectStore': 'Select store',
       'locationRequired': 'Location is required',
       'storeRequired': 'Store is required',
-      
+
       // Buttons
       'scanBarcode': 'Scan Barcode',
 
@@ -715,7 +715,7 @@ class SimpleTranslations {
       'networkError': 'Network error - check connection',
       'invalidDataFormat': 'Invalid data format',
       'cameraErrorOccurred': 'Camera error occurred',
-      
+
       // Validation messages
       'pleaseSelectLocation': 'Please select location',
       'pleaseSelectStore': 'Please select store',
@@ -728,16 +728,17 @@ class SimpleTranslations {
       'fieldIsRequired': 'Field is required',
       'enterValidNumber': 'Enter a valid number',
       'enterValidPrice': 'Enter a valid price',
-      
+
       // Scanner
       'scannedProduct': 'Scanned Product',
       'barcodeDetected': 'Barcode detected',
       'positionBarcodeWithinFrame': 'Position barcode within the frame to scan',
-      
+
       // Confirmation dialogs
       'confirmExit': 'Confirm Exit',
-      'confirmExitMessage': 'Are you sure you want to exit while deducting stock?',
-      
+      'confirmExitMessage':
+          'Are you sure you want to exit while deducting stock?',
+
       // Misc
       'na': 'N/A',
       'unknownStore': 'Unknown Store',
@@ -764,9 +765,51 @@ class SimpleTranslations {
       'manage_item': 'Manage Item',
       'unknown_product': 'Unknown Product',
       'qty': 'Qty',
-    
+      'branch': 'Branch',
+      'vendor': 'Vendor',
+      'select_vendor': 'Select Vendor',
+      'add_vendor': 'Add Vendor',
+      'edit_vendor': 'Edit Vendor',
+      'delete_vendor': 'Delete Vendor',
+      'vendor_name': 'Vendor Name',
+      'contact_person': 'Contact Person',
+      'phone_number': 'Phone Number',
+      'email_address': 'Email Address',
+      'address': 'Address',
+      'vendor_added_successfully': 'Vendor added successfully',
+      'vendor_updated_successfully': 'Vendor updated successfully',
+      'vendor_deleted_successfully': 'Vendor deleted successfully',
+      'delete_vendor_confirmation':
+          'Are you sure you want to delete this vendor?',
+      'no_vendors_found': 'No vendors found',
+      'search_vendors_hint':
+          'Search vendors by name, contact person, or phone...',
+      'dashboard': 'Dashboard',
+      'deduct': 'Deduct',
+      'increase': 'Add Stock',
+      'logout_confirmation': 'Are you sure you want to logout?',
+      'select_theme': 'Select Theme',
+      'settings_management': 'Settings & Management',
+      // English translations for DeductStockPage
+'deduct_stock': 'Deduct Stock',
+'increase_stock': 'Increase Stock',
+'deduct_stock_item': 'Deduct Stock Item',
+'deduct_amount': 'Deduct Amount',
+'batch_number': 'Batch Number',
+'optional': 'Optional',
+'select_expire_date': 'Select Expire Date',
+'deduct_stock_confirmation': 'Confirm Stock Deduction',
+'deduct_stock_confirmation_message': 'Are you sure you want to deduct this stock?',
+'stock_deducted_successfully': 'Stock deducted successfully',
+'failed_to_deduct_stock': 'Failed to deduct stock',
+'deducting_stock': 'Deducting stock...',
+'group':'Group',
+'merchants':'Merchants',
+'terminal':'Terminal',
+'home_menu':'Dashboard',
     },
     'la': {
+      'settings_management': 'ການຕັ້ງຄ່າ ແລະ ການຈັດການ',
       'searching_nearby_customers': 'ກໍາລັງຊອກຫາລູກຄ້າໃກ້ຄຽງ...',
 
       // --- Product Management (Lao) ---
@@ -1422,46 +1465,46 @@ class SimpleTranslations {
       'creating_inventory_exit_warning':
           'ກຳລັງສ້າງສິນຄ້າໃນສາງຄັງ. ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການອອກ?',
 
-          // App Title
-      'deductStock': 'ຫັກສິນຄ້າ',
-      'deductStockItem': 'ຫັກລາຍການສິນຄ້າ',
-      
+      // App Title
+      'deductStock': 'ນຳສົງສິນຄ້າ',
+      'deductStockItem': 'ນຳສົງລາຍການສິນຄ້າ',
+
       // Authentication
       'authTokenNotFound': 'ບໍ່ພົບ token ການຢັ້ງຢືນ',
       'sessionExpired': 'ໝົດກຳນົດເວລາ',
       'companyIdNotFound': 'ບໍ່ພົບ ID ບໍລິສັດ',
-      
+
       // Loading states
       'loadingData': 'ກຳລັງໂຫລດຂໍ້ມູນ...',
       'loadingLocations': 'ກຳລັງໂຫລດສະຖານທີ່...',
       'loadingStores': 'ກຳລັງໂຫລດຮ້ານ...',
       'initializingCamera': 'ກຳລັງເລີ່ມຕົ້ນກ້ອງ...',
-      'deductingStock': 'ກຳລັງຫັກສິນຄ້າ...',
-      
+      'deductingStock': 'ກຳລັງນຳສົງສິນຄ້າ...',
+
       // Form fields
       'productId': 'ID ສິນຄ້າ',
       'productName': 'ຊື່ສິນຄ້າ',
-      'deductAmount': 'ຈຳນວນຫັກ',
+      'deductAmount': 'ຈຳນວນນຳສົງ',
       'batchNumber': 'ເລກ Batch (ທາງເລືອກ)',
       'supplierId': 'ID ຜູ້ສະໜອງ (ທາງເລືອກ)',
       'expireDate': 'ວັນໝົດອາຍຸ (ທາງເລືອກ)',
       'selectExpireDate': 'ເລືອກວັນໝົດອາຍຸ',
       'transactionType': 'ປະເພດທຸລະກຳ',
-      
+
       // Dropdowns and selections
       'selectLocation': 'ເລືອກສະຖານທີ່',
       'selectStore': 'ເລືອກຮ້ານ',
       'locationRequired': 'ຈຳເປັນຕ້ອງເລືອກສະຖານທີ່',
       'storeRequired': 'ຈຳເປັນຕ້ອງເລືອກຮ້ານ',
-      
+
       // Buttons
       'scanBarcode': 'ສະແກນບາໂຄດ',
-      
+
       // Messages
       'productFound': 'ພົບສິນຄ້າສຳເລັດແລ້ວ',
       'productNotFound': 'ບໍ່ພົບສິນຄ້າ',
-      'stockDeductedSuccessfully': 'ຫັກສິນຄ້າສຳເລັດແລ້ວ',
-      'failedToDeductStock': 'ຫັກສິນຄ້າບໍ່ສຳເລັດ',
+      'stockDeductedSuccessfully': 'ນຳສົງສິນຄ້າສຳເລັດແລ້ວ',
+      'failedToDeductStock': 'ນຳສົງສິນຄ້າບໍ່ສຳເລັດ',
       'failedToLoadLocations': 'ໂຫລດສະຖານທີ່ບໍ່ສຳເລັດ',
       'failedToLoadStores': 'ໂຫລດຮ້ານບໍ່ສຳເລັດ',
       'failedToLookupProduct': 'ຄົ້ນຫາສິນຄ້າບໍ່ສຳເລັດ',
@@ -1469,11 +1512,11 @@ class SimpleTranslations {
       'errorLoadingLocations': 'ຜິດພາດໃນການໂຫລດສະຖານທີ່',
       'errorLoadingStores': 'ຜິດພາດໃນການໂຫລດຮ້ານ',
       'errorLookingUpProduct': 'ຜິດພາດໃນການຄົ້ນຫາສິນຄ້າ',
-      'errorDeductingStock': 'ຜິດພາດໃນການຫັກສິນຄ້າ',
+      'errorDeductingStock': 'ຜິດພາດໃນການນຳສົງສິນຄ້າ',
       'networkError': 'ຜິດພາດເຄືອຂ່າຍ - ກະລຸນາກວດສອບການເຊື່ອມຕໍ່',
       'invalidDataFormat': 'ຮູບແບບຂໍ້ມູນບໍ່ຖືກຕ້ອງ',
       'cameraErrorOccurred': 'ເກີດຜິດພາດກ້ອງຖ່າຍຮູບ',
-      
+
       // Validation messages
       'pleaseSelectLocation': 'ກະລຸນາເລືອກສະຖານທີ່',
       'pleaseSelectStore': 'ກະລຸນາເລືອກຮ້ານ',
@@ -1486,16 +1529,16 @@ class SimpleTranslations {
       'fieldIsRequired': 'ຊ່ອງນີ້ຈຳເປັນຕ້ອງໃສ່',
       'enterValidNumber': 'ໃສ່ຕົວເລກທີ່ຖືກຕ້ອງ',
       'enterValidPrice': 'ໃສ່ລາຄາທີ່ຖືກຕ້ອງ',
-      
+
       // Scanner
       'scannedProduct': 'ສິນຄ້າທີ່ສະແກນ',
       'barcodeDetected': 'ພົບບາໂຄດ',
       'positionBarcodeWithinFrame': 'ວາງບາໂຄດໃນກອບເພື່ອສະແກນ',
-      
+
       // Confirmation dialogs
       'confirmExit': 'ຢັ້ງຢືນການອອກ',
-      'confirmExitMessage': 'ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການອອກໃນຂະນະທີ່ກຳລັງຫັກສິນຄ້າ?',
-      
+      'confirmExitMessage': 'ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການອອກໃນຂະນະທີ່ກຳລັງນຳສົງສິນຄ້າ?',
+
       // Misc
       'na': 'ບໍ່ມີ',
       'unknownStore': 'ຮ້ານບໍ່ຮູ້ຈັກ',
@@ -1522,6 +1565,34 @@ class SimpleTranslations {
       'manage_item': 'ຈັດການສິນຄ້າ',
       'unknown_product': 'ສິນຄ້າບໍ່ຮູ້',
       'qty': 'ຈໍານວນ',
+      'branch': 'ສາຂາ', // Branch in Lao
+      'vendor': 'ຜູ້ສະໜອງ', // Vendor/Supplier in Lao
+      'all_locations': 'ທຸກສະຖານີ',
+      'all_stores': 'ທຸກຮ້ານ',
+      'select_branch': 'ເລືອກສາຂາ',
+      'select_vendor': 'ເລືອກຜູ້ສະໜອງ',
+      'dashboard': 'ໜ້າຫຼັກ',
+      'deduct': 'ນຳສົງສິນຄ້າ',
+      'increase': 'ເພີ່ມສິນຄ້າເຂົ້າສາງ',
+      'logout_confirmation': 'ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການອອກຈາກລະບົບ?',
+      'select_theme': 'ເລືອກຫົວຂໍ້',
+      'deduct_stock': 'ນຳສົງສິນຄ້າ',
+      'increase_stock': 'ເພີ່ມສິນຄ້າເຂົ້າສາງ',
+      'deduct_stock_item': 'ນຳສົງລາຍການສິນຄ້າ',
+      'deduct_amount': 'ຈຳນວນທີ່ນຳສົງ',
+      'batch_number': 'ເລກ Batch',
+      'optional': 'ທາງເລືອກ',
+      'select_expire_date': 'ເລືອກວັນໝົດອາຍຸ',
+      'deduct_stock_confirmation': 'ຢືນຢັນການນຳສົງສິນຄ້າ',
+      'deduct_stock_confirmation_message':
+          'ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການນຳສົງສິນຄ້ານີ້?',
+      'stock_deducted_successfully': 'ນຳສົງສິນຄ້າສຳເລັດແລ້ວ',
+      'failed_to_deduct_stock': 'ນຳສົງສິນຄ້າບໍ່ສຳເລັດ',
+      'deducting_stock': 'ກຳລັງນຳສົງສິນຄ້າ...',
+      'group':'ກຸ່ມບໍລິສັດ',
+      'merchant':'ຮ້ານຄ້າ',
+      'terminal':'ອຸປະກອນ/ເຄົາເຕີ',
+      'home_menu':'ໜ້າຫຼັກ',
     },
   };
 

@@ -102,69 +102,110 @@ class _UserAddPageState extends State<UserAddPage> {
     }
   }
 
-  Future<void> _loadBranches() async {
-    setState(() {
-      _isLoadingBranches = true;
-    });
+Future<void> _loadBranches() async {
+  print('🔍 DEBUG: Starting _loadBranches()');
+  
+  if (!mounted) {
+    print('⚠️ DEBUG: Widget not mounted, aborting _loadBranches()');
+    return;
+  }
+  
+  setState(() {
+    _isLoadingBranches = true;
+  });
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+    final companyId = CompanyConfig.getCompanyId();
+    
+    print('🔑 DEBUG: Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
+    print('🏢 DEBUG: Company ID: $companyId');
 
-      final url = AppConfig.api('/api/iobranch');
+    final url = AppConfig.api('/api/iobranch');
+    print('🌐 DEBUG: API URL: $url');
+    
+    // Build query parameters
+    final queryParams = {
+      'status': 'admin', // Use admin to see all branches
+      'company_id': companyId.toString(),
+    };
+    
+    final uri = Uri.parse(url.toString()).replace(queryParameters: queryParams);
+    print('🔗 DEBUG: Full URI: $uri');
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+    print('📡 DEBUG: Response Status Code: ${response.statusCode}');
+    print('📝 DEBUG: Response Body: ${response.body}');
+
+    if (!mounted) {
+      print('⚠️ DEBUG: Widget not mounted after API call, aborting');
+      return;
+    }
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      print('✅ DEBUG: Parsed JSON successfully');
+      
+      if (data['status'] == 'success' && data['data'] != null) {
+        final List<dynamic> branchList = data['data'];
+        print('📦 DEBUG: Raw branches count: ${branchList.length}');
         
-        if (data['status'] == 'success' && data['data'] != null) {
-          final List<dynamic> branchList = data['data'];
-          
-          setState(() {
-            _branches = branchList.map((branch) => {
-              'id': branch['branch_id'],
-              'branch_name': branch['branch_name'] ?? 'Unknown Branch',
-              'branch_code': branch['branch_code'] ?? '',
-              'address': branch['address'] ?? '',
-              'image_url': branch['image_url'] ?? '',
-            }).toList();
-            
-            // Don't auto-select first branch, let user choose
-            _isLoadingBranches = false;
-          });
-        } else {
-          setState(() {
-            _isLoadingBranches = false;
-          });
-          _showErrorSnackBar(
-            SimpleTranslations.get(langCode, 'no_branches_found'),
-          );
+        // Print first branch for debugging
+        if (branchList.isNotEmpty) {
+          print('🔍 DEBUG: First branch data: ${branchList[0]}');
         }
+        
+        setState(() {
+          _branches = branchList.map((branch) => {
+            'id': branch['branch_id'],
+            'branch_name': branch['branch_name'] ?? 'Unknown Branch',
+            'branch_code': branch['branch_code'] ?? '',
+            'address': branch['address'] ?? '',
+            'image_url': branch['image_url'] ?? '',
+          }).toList();
+          
+          // Don't auto-select first branch, let user choose
+          _isLoadingBranches = false;
+        });
+        
+        print('✅ DEBUG: Total branches loaded: ${_branches.length}');
       } else {
+        print('❌ DEBUG: API returned error status or no data: ${data['status']}');
         setState(() {
           _isLoadingBranches = false;
         });
         _showErrorSnackBar(
-          'Failed to load branches: ${response.statusCode}',
+          SimpleTranslations.get(langCode, 'no_branches_found'),
         );
       }
-    } catch (e) {
+    } else {
+      print('❌ DEBUG: HTTP Error ${response.statusCode}');
       setState(() {
         _isLoadingBranches = false;
       });
       _showErrorSnackBar(
-        'Error loading branches: $e',
+        'Failed to load branches: ${response.statusCode}',
       );
     }
+  } catch (e, stackTrace) {
+    print('💥 DEBUG: Exception caught: $e');
+    print('📚 DEBUG: Stack trace: $stackTrace');
+    setState(() {
+      _isLoadingBranches = false;
+    });
+    _showErrorSnackBar(
+      'Error loading branches: $e',
+    );
   }
-
+}
   Future<void> _pickImage() async {
     showModalBottomSheet(
       context: context,
