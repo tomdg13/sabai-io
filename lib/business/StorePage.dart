@@ -203,7 +203,7 @@ class _storePageState extends State<storePage> {
     
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => storeAddPage()),
+      MaterialPageRoute(builder: (context) => StoreAddPage()),
     );
 
     print('📝 DEBUG: Add store result: $result');

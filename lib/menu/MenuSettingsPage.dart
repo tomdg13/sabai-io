@@ -1,8 +1,11 @@
 import 'package:inventory/business/BranchPage.dart';
+import 'package:inventory/business/GroupPage.dart' show GroupPage;
 import 'package:inventory/business/LocationPage.dart';
+import 'package:inventory/business/MerchantPage.dart';
 import 'package:inventory/business/ProductPage.dart';
 import 'package:flutter/material.dart';
 import 'package:inventory/business/StorePage.dart';
+import 'package:inventory/business/TerminalPage.dart';
 import 'package:inventory/business/UserPage.dart';
 import 'package:inventory/business/VendorPage.dart';
 import 'package:inventory/login/login_page.dart' show LoginPage;
@@ -238,41 +241,60 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
           childAspectRatio: 0.9,
           children: [
             _buildGridItem(
-              icon: Icons.business_outlined,
-              title: SimpleTranslations.get(_langCode, 'branch'),
-              color: Colors.blue,
-              onTap: _navigateToBranchPage,
-            ),
-            _buildGridItem(
-              icon: Icons.store,
-              title: SimpleTranslations.get(_langCode, 'vendor'),
-              color: Colors.green,
-              onTap: _navigateToVenderPage,
-            ),
-            _buildGridItem(
-              icon: Icons.storefront,
-              title: SimpleTranslations.get(_langCode, 'store'),
-              color: Colors.orange,
-              onTap: _navigateToStorePage,
-            ),
-            _buildGridItem(
-              icon: Icons.computer,
-              title: SimpleTranslations.get(_langCode, 'product'),
-              color: Colors.purple,
-              onTap: _navigateToProductPage,
-            ),
-            _buildGridItem(
-              icon: Icons.view_in_ar,
-              title: SimpleTranslations.get(_langCode, 'location'),
-              color: const Color.fromARGB(255, 1, 136, 35),
-              onTap: _navigateToLocationPage,
-            ),
-            _buildGridItem(
-              icon: Icons.person,
-              title: SimpleTranslations.get(_langCode, 'user'),
-              color: Colors.cyan,
-              onTap: _navigateToUserPage,
-            ),
+      icon: Icons.group,
+      title: SimpleTranslations.get(_langCode, 'group'),
+      color: Colors.blue,
+      onTap: _navigateToGroupPage,
+    ),
+    _buildGridItem(
+      icon: Icons.business,
+      title: SimpleTranslations.get(_langCode, 'merchant'),
+      color: Colors.green,
+      onTap: _navigateToMerchantPage,
+    ),
+    _buildGridItem(
+      icon: Icons.storefront,
+      title: SimpleTranslations.get(_langCode, 'store'),
+      color: Colors.orange,
+      onTap: _navigateToStorePage,
+    ),
+    _buildGridItem(
+      icon: Icons.computer,
+      title: SimpleTranslations.get(_langCode, 'terminal'),
+      color: Colors.purple,
+      onTap: _navigateToTerminalPage,
+    ),
+    _buildGridItem(
+      icon: Icons.account_tree, // Changed from business_outlined to account_tree for branch
+      title: SimpleTranslations.get(_langCode, 'branch'),
+      color: Colors.teal, // Changed from blue to avoid duplication
+      onTap: _navigateToBranchPage,
+    ),
+    _buildGridItem(
+      icon: Icons.local_shipping, // Changed from store to local_shipping for vendor
+      title: SimpleTranslations.get(_langCode, 'vendor'),
+      color: Colors.indigo, // Changed from green to avoid duplication
+      onTap: _navigateToVenderPage,
+    ),
+    _buildGridItem(
+      icon: Icons.inventory, // Changed from computer to inventory for product
+      title: SimpleTranslations.get(_langCode, 'product'),
+      color: Colors.amber.shade700, // More consistent amber shade
+      onTap: _navigateToProductPage,
+    ),
+    _buildGridItem(
+      icon: Icons.location_on, // Changed from view_in_ar to location_on for location
+      title: SimpleTranslations.get(_langCode, 'location'),
+      color: Colors.green.shade600, // Better green shade
+      onTap: _navigateToLocationPage,
+    ),
+    _buildGridItem(
+      icon: Icons.person,
+      title: SimpleTranslations.get(_langCode, 'user'),
+      color: Colors.cyan,
+      onTap: _navigateToUserPage,
+    ),
+            
             _buildLanguageGridItem(),
             _buildThemeGridItem(),
             _buildLogoutGridItem(), // Added logout grid item
@@ -544,6 +566,32 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const storePage()),
+    );
+  }
+
+  void _navigateToGroupPage() {
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const GroupPage()),
+    );
+  
+  }
+
+  /// Navigate to Merchant page
+  void _navigateToMerchantPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MerchantPage() ),
+    );
+  }
+
+
+  /// Navigate to Terminal page
+  void _navigateToTerminalPage() {
+ Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TerminalPage()),
     );
   }
 
