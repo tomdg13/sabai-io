@@ -1,16 +1,17 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:inventory/business/BranchPage.dart';
 import 'package:inventory/business/GroupPage.dart' show GroupPage;
 import 'package:inventory/business/LocationPage.dart';
 import 'package:inventory/business/MerchantPage.dart';
 import 'package:inventory/business/ProductPage.dart';
-import 'package:flutter/material.dart';
 import 'package:inventory/business/StorePage.dart';
 import 'package:inventory/business/TerminalPage.dart';
 import 'package:inventory/business/UserPage.dart';
 import 'package:inventory/business/VendorPage.dart';
 import 'package:inventory/login/login_page.dart' show LoginPage;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../config/theme.dart'; // Import your existing ThemeConfig
+import '../config/theme.dart';
 import '../utils/simple_translations.dart';
 
 class MenuSettingsPage extends StatefulWidget {
@@ -26,18 +27,32 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   String currentTheme = ThemeConfig.defaultTheme;
   bool isLoading = true;
   
-  // Add these properties for the AppBar pattern
-  String _langCode = 'en'; // Default language code
+  String _langCode = 'en';
   Color get _primaryColor => Theme.of(context).primaryColor;
 
-  final List<String> languages = [
-    'English',
-    'Lao',
-
-  ];
-
-  // Get available themes from ThemeConfig
+  final List<String> languages = ['English', 'Lao'];
   List<String> get themes => ThemeConfig.getAvailableThemes();
+
+  // Responsive design helpers
+  bool get _isWebDesktop => kIsWeb && MediaQuery.of(context).size.width > 1000;
+  bool get _isTablet => MediaQuery.of(context).size.width > 600 && MediaQuery.of(context).size.width <= 1000;
+  
+  int get _crossAxisCount {
+    if (_isWebDesktop) return 5;
+    if (_isTablet) return 4;
+    return 3; // Mobile
+  }
+  
+  double get _childAspectRatio {
+    if (_isWebDesktop) return 1.1;
+    if (_isTablet) return 1.0;
+    return 0.9; // Mobile
+  }
+  
+  double get _maxWidth {
+    if (_isWebDesktop) return 1400;
+    return double.infinity;
+  }
 
   @override
   void initState() {
@@ -48,29 +63,19 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Only reload theme if needed to avoid unnecessary rebuilds
     _reloadThemeIfChanged();
   }
 
-  /// Load all saved settings from SharedPreferences
   Future<void> _loadSavedSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // Load theme
-      final savedTheme =
-          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
-      final validTheme = ThemeConfig.isValidTheme(savedTheme)
-          ? savedTheme
-          : ThemeConfig.defaultTheme;
+      final savedTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      final validTheme = ThemeConfig.isValidTheme(savedTheme) ? savedTheme : ThemeConfig.defaultTheme;
 
-      // Load language
       final savedLanguage = prefs.getString('selectedLanguage') ?? 'English';
-      final validLanguage = languages.contains(savedLanguage)
-          ? savedLanguage
-          : 'English';
+      final validLanguage = languages.contains(savedLanguage) ? savedLanguage : 'English';
 
-      // Load language code directly from SharedPreferences
       _langCode = prefs.getString('languageCode') ?? 'en';
 
       if (mounted) {
@@ -83,7 +88,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       }
     } catch (e) {
       debugPrint('Error loading settings: $e');
-      // Use defaults if loading fails
       if (mounted) {
         setState(() {
           selectedTheme = ThemeConfig.defaultTheme;
@@ -96,14 +100,12 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     }
   }
 
-  /// Reload theme only if it changed externally
   Future<void> _reloadThemeIfChanged() async {
     if (isLoading) return;
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedTheme =
-          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      final savedTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
 
       if (mounted && currentTheme != savedTheme) {
         setState(() {
@@ -116,7 +118,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     }
   }
 
-  /// Save theme to SharedPreferences
   Future<void> _saveTheme(String theme) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -134,13 +135,11 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     }
   }
 
-  /// Save language to SharedPreferences
   Future<void> _saveLanguage(String language) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selectedLanguage', language);
 
-      // Save language code and update state
       String langCode = language == 'Lao' ? 'la' : 'en';
       await prefs.setString('languageCode', langCode);
       
@@ -156,25 +155,17 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     }
   }
 
-  /// Handle logout functionality
   Future<void> _handleLogout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // Clear user session data (customize based on your app's structure)
       await prefs.remove('access_token');
       await prefs.remove('user_token');
       await prefs.remove('user_id');
       await prefs.remove('user_email');
       await prefs.remove('is_logged_in');
-      // Add any other user-related keys you want to clear
-      
-      // You can keep theme and language settings if desired
-      // await prefs.remove('selectedTheme');
-      // await prefs.remove('selectedLanguage');
       
       if (mounted) {
-        // Navigate to LoginPage and clear navigation stack
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginPage()),
           (Route<dynamic> route) => false,
@@ -186,7 +177,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     }
   }
 
-  /// Show logout confirmation dialog
   void _showLogoutDialog() {
     showDialog(
       context: context,
@@ -194,8 +184,8 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         return AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.logout, color: Colors.red),
-              SizedBox(width: 8),
+              const Icon(Icons.logout, color: Colors.red),
+              const SizedBox(width: 8),
               Text(SimpleTranslations.get(_langCode, 'logout')),
             ],
           ),
@@ -232,109 +222,362 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
 
     return Scaffold(
       appBar: _buildAppBar(),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: GridView.count(
-          crossAxisCount: 3,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 0.9,
-          children: [
-            _buildGridItem(
-      icon: Icons.group,
-      title: SimpleTranslations.get(_langCode, 'group'),
-      color: Colors.blue,
-      onTap: _navigateToGroupPage,
-    ),
-    _buildGridItem(
-      icon: Icons.business,
-      title: SimpleTranslations.get(_langCode, 'merchant'),
-      color: Colors.green,
-      onTap: _navigateToMerchantPage,
-    ),
-    _buildGridItem(
-      icon: Icons.storefront,
-      title: SimpleTranslations.get(_langCode, 'store'),
-      color: Colors.orange,
-      onTap: _navigateToStorePage,
-    ),
-    _buildGridItem(
-      icon: Icons.computer,
-      title: SimpleTranslations.get(_langCode, 'terminal'),
-      color: Colors.purple,
-      onTap: _navigateToTerminalPage,
-    ),
-    _buildGridItem(
-      icon: Icons.account_tree, // Changed from business_outlined to account_tree for branch
-      title: SimpleTranslations.get(_langCode, 'branch'),
-      color: Colors.teal, // Changed from blue to avoid duplication
-      onTap: _navigateToBranchPage,
-    ),
-    _buildGridItem(
-      icon: Icons.local_shipping, // Changed from store to local_shipping for vendor
-      title: SimpleTranslations.get(_langCode, 'vendor'),
-      color: Colors.indigo, // Changed from green to avoid duplication
-      onTap: _navigateToVenderPage,
-    ),
-    _buildGridItem(
-      icon: Icons.inventory, // Changed from computer to inventory for product
-      title: SimpleTranslations.get(_langCode, 'product'),
-      color: Colors.amber.shade700, // More consistent amber shade
-      onTap: _navigateToProductPage,
-    ),
-    _buildGridItem(
-      icon: Icons.location_on, // Changed from view_in_ar to location_on for location
-      title: SimpleTranslations.get(_langCode, 'location'),
-      color: Colors.green.shade600, // Better green shade
-      onTap: _navigateToLocationPage,
-    ),
-    _buildGridItem(
-      icon: Icons.person,
-      title: SimpleTranslations.get(_langCode, 'user'),
-      color: Colors.cyan,
-      onTap: _navigateToUserPage,
-    ),
-            
-            _buildLanguageGridItem(),
-            _buildThemeGridItem(),
-            _buildLogoutGridItem(), // Added logout grid item
-            _buildPlaceholderGridItem(SimpleTranslations.get(_langCode, 'help'), Icons.help_outline),
-          ],
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    return Center(
+      child: Container(
+        constraints: BoxConstraints(maxWidth: _maxWidth),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(_isWebDesktop ? 24.0 : 16.0),
+          child: Column(
+            children: [
+              if (_isWebDesktop) _buildHeaderSection(),
+              _buildMainGrid(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Build the logout grid item
-  Widget _buildLogoutGridItem() {
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: _showLogoutDialog,
+  Widget _buildHeaderSection() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 32),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            SimpleTranslations.get(_langCode, 'settings_management'),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            SimpleTranslations.get(_langCode, 'manage_system_settings'),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainGrid() {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: _crossAxisCount,
+      crossAxisSpacing: _isWebDesktop ? 24 : 16,
+      mainAxisSpacing: _isWebDesktop ? 24 : 16,
+      childAspectRatio: _childAspectRatio,
+      children: [
+        // Business Management Section
+        ..._buildBusinessGridItems(),
+        
+        // Settings Section
+        ..._buildSettingsGridItems(),
+        
+        // Additional Features
+        ..._buildAdditionalGridItems(),
+      ],
+    );
+  }
+
+  List<Widget> _buildBusinessGridItems() {
+    return [
+      _buildGridItem(
+        icon: Icons.group,
+        title: SimpleTranslations.get(_langCode, 'group'),
+        color: Colors.blue,
+        onTap: _navigateToGroupPage,
+      ),
+      _buildGridItem(
+        icon: Icons.business,
+        title: SimpleTranslations.get(_langCode, 'merchant'),
+        color: Colors.green,
+        onTap: _navigateToMerchantPage,
+      ),
+      _buildGridItem(
+        icon: Icons.storefront,
+        title: SimpleTranslations.get(_langCode, 'store'),
+        color: Colors.orange,
+        onTap: _navigateToStorePage,
+      ),
+      _buildGridItem(
+        icon: Icons.computer,
+        title: SimpleTranslations.get(_langCode, 'terminal'),
+        color: Colors.purple,
+        onTap: _navigateToTerminalPage,
+      ),
+      _buildGridItem(
+        icon: Icons.account_tree,
+        title: SimpleTranslations.get(_langCode, 'branch'),
+        color: Colors.teal,
+        onTap: _navigateToBranchPage,
+      ),
+      _buildGridItem(
+        icon: Icons.local_shipping,
+        title: SimpleTranslations.get(_langCode, 'vendor'),
+        color: Colors.indigo,
+        onTap: _navigateToVenderPage,
+      ),
+      _buildGridItem(
+        icon: Icons.inventory,
+        title: SimpleTranslations.get(_langCode, 'product'),
+        color: Colors.amber.shade700,
+        onTap: _navigateToProductPage,
+      ),
+      _buildGridItem(
+        icon: Icons.location_on,
+        title: SimpleTranslations.get(_langCode, 'location'),
+        color: Colors.green.shade600,
+        onTap: _navigateToLocationPage,
+      ),
+      _buildGridItem(
+        icon: Icons.person,
+        title: SimpleTranslations.get(_langCode, 'user'),
+        color: Colors.cyan,
+        onTap: _navigateToUserPage,
+      ),
+    ];
+  }
+
+  List<Widget> _buildSettingsGridItems() {
+    return [
+      _buildLanguageGridItem(),
+      _buildThemeGridItem(),
+    ];
+  }
+
+  List<Widget> _buildAdditionalGridItems() {
+    return [
+      _buildLogoutGridItem(),
+      _buildPlaceholderGridItem(
+        SimpleTranslations.get(_langCode, 'help'), 
+        Icons.help_outline
+      ),
+    ];
+  }
+
+  Widget _buildGridItem({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final isLargeScreen = _isWebDesktop || _isTablet;
+    
+    return Card(
+      elevation: _isWebDesktop ? 4 : 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
+        child: Container(
+          padding: EdgeInsets.all(isLargeScreen ? 16 : 8),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(isLargeScreen ? 20 : 12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(isLargeScreen ? 16 : 12),
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: isLargeScreen ? 40 : 28,
+                ),
+              ),
+              SizedBox(height: isLargeScreen ? 12 : 6),
+              Flexible(
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: isLargeScreen ? 14 : 11,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageGridItem() {
+    final isLargeScreen = _isWebDesktop || _isTablet;
+    
+    return Card(
+      elevation: _isWebDesktop ? 4 : 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
+      ),
+      child: InkWell(
+        onTap: _showLanguageDialog,
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
+        child: Container(
+          padding: EdgeInsets.all(isLargeScreen ? 16 : 8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(isLargeScreen ? 20 : 12),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(isLargeScreen ? 16 : 12),
+                ),
+                child: Icon(
+                  Icons.language,
+                  color: Colors.teal,
+                  size: isLargeScreen ? 40 : 28,
+                ),
+              ),
+              SizedBox(height: isLargeScreen ? 8 : 4),
+              Text(
+                SimpleTranslations.get(_langCode, 'language'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: isLargeScreen ? 14 : 11,
+                ),
+              ),
+              SizedBox(height: isLargeScreen ? 4 : 2),
+              Flexible(
+                child: Text(
+                  selectedLanguage,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: isLargeScreen ? 12 : 9,
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeGridItem() {
+    final isLargeScreen = _isWebDesktop || _isTablet;
+    
+    return Card(
+      elevation: _isWebDesktop ? 4 : 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
+      ),
+      child: InkWell(
+        onTap: _showThemeDialog,
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
+        child: Container(
+          padding: EdgeInsets.all(isLargeScreen ? 16 : 8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(isLargeScreen ? 20 : 12),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(isLargeScreen ? 16 : 12),
+                ),
+                child: Icon(
+                  Icons.palette,
+                  color: Colors.indigo,
+                  size: isLargeScreen ? 40 : 28,
+                ),
+              ),
+              SizedBox(height: isLargeScreen ? 8 : 4),
+              Text(
+                SimpleTranslations.get(_langCode, 'theme'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: isLargeScreen ? 14 : 11,
+                ),
+              ),
+              SizedBox(height: isLargeScreen ? 4 : 2),
+              Flexible(
+                child: Text(
+                  ThemeConfig.getThemeDisplayName(selectedTheme),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: isLargeScreen ? 12 : 9,
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutGridItem() {
+    final isLargeScreen = _isWebDesktop || _isTablet;
+    
+    return Card(
+      elevation: _isWebDesktop ? 4 : 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
+      ),
+      child: InkWell(
+        onTap: _showLogoutDialog,
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
+        child: Container(
+          padding: EdgeInsets.all(isLargeScreen ? 16 : 8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(isLargeScreen ? 20 : 12),
                 decoration: BoxDecoration(
                   color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(isLargeScreen ? 16 : 12),
                 ),
-                child: const Icon(Icons.logout, color: Colors.red, size: 28),
+                child: Icon(
+                  Icons.logout,
+                  color: Colors.red,
+                  size: isLargeScreen ? 40 : 28,
+                ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: isLargeScreen ? 12 : 6),
               Flexible(
                 child: Text(
                   SimpleTranslations.get(_langCode, 'logout'),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 11,
+                    fontSize: isLargeScreen ? 14 : 11,
                     color: Colors.red,
                   ),
                   maxLines: 2,
@@ -348,180 +591,49 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Build a standard grid item
-  Widget _buildGridItem({
-    required IconData icon,
-    required String title,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 28),
-              ),
-              const SizedBox(height: 6),
-              Flexible(
-                child: Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Build the language selection grid item
-  Widget _buildLanguageGridItem() {
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: _showLanguageDialog,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.teal.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.language, color: Colors.teal, size: 28),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                SimpleTranslations.get(_langCode, 'language'),
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
-              ),
-              const SizedBox(height: 2),
-              Flexible(
-                child: Text(
-                  selectedLanguage,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 9, color: Colors.grey[600]),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Build the theme selection grid item
-  Widget _buildThemeGridItem() {
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: _showThemeDialog,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.indigo.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.palette,
-                  color: Colors.indigo,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                SimpleTranslations.get(_langCode, 'theme'),
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
-              ),
-              const SizedBox(height: 2),
-              Flexible(
-                child: Text(
-                  ThemeConfig.getThemeDisplayName(selectedTheme),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 9, color: Colors.grey[600]),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Build placeholder grid items for future features
   Widget _buildPlaceholderGridItem(String title, IconData icon) {
+    final isLargeScreen = _isWebDesktop || _isTablet;
+    
     return Container(
       decoration: BoxDecoration(
         color: Colors.grey.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
         border: Border.all(color: Colors.grey.withOpacity(0.2), width: 1),
       ),
       child: InkWell(
         onTap: () => _showSnackBar('$title ${SimpleTranslations.get(_langCode, 'coming_soon')}'),
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.grey.withOpacity(0.6), size: 24),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                color: Colors.grey.withOpacity(0.6),
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
+        child: Padding(
+          padding: EdgeInsets.all(isLargeScreen ? 16 : 8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: EdgeInsets.all(isLargeScreen ? 20 : 12),
+                child: Icon(
+                  icon,
+                  color: Colors.grey.withOpacity(0.6),
+                  size: isLargeScreen ? 40 : 24,
+                ),
               ),
-            ),
-          ],
+              SizedBox(height: isLargeScreen ? 8 : 4),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.grey.withOpacity(0.6),
+                  fontSize: isLargeScreen ? 14 : 10,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // NAVIGATION METHODS - Each with specific purpose
-
-  /// Navigate to Branch page
+  // Navigation methods remain the same
   void _navigateToBranchPage() {
     Navigator.push(
       context,
@@ -529,7 +641,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Navigate to User page
   void _navigateToUserPage() {
     Navigator.push(
       context,
@@ -537,7 +648,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Navigate to Product page using new ProductPage class
   void _navigateToProductPage() {
     Navigator.push(
       context,
@@ -545,7 +655,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Navigate to Location page using new Location class
   void _navigateToLocationPage() {
     Navigator.push(
       context,
@@ -553,7 +662,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Navigate to Vender page (placeholder)
   void _navigateToVenderPage() {
     Navigator.push(
       context,
@@ -561,7 +669,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Navigate to Store page (placeholder)
   void _navigateToStorePage() {
     Navigator.push(
       context,
@@ -570,32 +677,26 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   }
 
   void _navigateToGroupPage() {
-
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const GroupPage()),
     );
-  
   }
 
-  /// Navigate to Merchant page
   void _navigateToMerchantPage() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const MerchantPage() ),
+      MaterialPageRoute(builder: (context) => const MerchantPage()),
     );
   }
 
-
-  /// Navigate to Terminal page
   void _navigateToTerminalPage() {
- Navigator.push(
+    Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const TerminalPage()),
     );
   }
 
-  /// Show language selection dialog
   void _showLanguageDialog() {
     showDialog(
       context: context,
@@ -603,7 +704,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         return AlertDialog(
           title: Text(SimpleTranslations.get(_langCode, 'select_language')),
           content: SizedBox(
-            width: double.minPositive,
+            width: _isWebDesktop ? 400 : double.minPositive,
             child: ListView.builder(
               shrinkWrap: true,
               itemCount: languages.length,
@@ -617,10 +718,10 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
                     onChanged: (String? value) async {
                       if (value != null) {
                         await _saveLanguage(value);
-                          if (mounted) {
-                            Navigator.of(context).pop();
-                            _showSnackBar('${SimpleTranslations.get(_langCode, 'language_changed')} $value');
-                          }
+                        if (mounted) {
+                          Navigator.of(context).pop();
+                          _showSnackBar('${SimpleTranslations.get(_langCode, 'language_changed')} $value');
+                        }
                       }
                     },
                   ),
@@ -646,7 +747,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Show theme selection dialog
   void _showThemeDialog() {
     showDialog(
       context: context,
@@ -654,7 +754,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         return AlertDialog(
           title: Text(SimpleTranslations.get(_langCode, 'select_theme')),
           content: SizedBox(
-            width: double.minPositive,
+            width: _isWebDesktop ? 400 : double.minPositive,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: themes.map((theme) {
@@ -716,7 +816,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Show success snackbar
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -729,7 +828,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Show error snackbar
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -742,7 +840,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     );
   }
 
-  /// Build AppBar following the exact pattern provided
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       title: Text(
@@ -752,16 +849,6 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       backgroundColor: _primaryColor,
       foregroundColor: Colors.white,
       elevation: 0,
-     );
+    );
   }
-
-  /// Handle back button press
-  // ignore: unused_element
-  void _handleBackPress() {
-    Navigator.of(context).pop();
-  }
-}
-
-class VendorPage {
-  const VendorPage();
 }
