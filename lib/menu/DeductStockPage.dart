@@ -10,6 +10,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
+// ignore: unused_import
 import '../utils/simple_translations.dart';
 
 class DeductStockPage extends StatefulWidget {

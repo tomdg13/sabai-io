@@ -163,6 +163,9 @@ class _StorePageState extends State<StorePage> {
               }
             }).toList();
             
+            // Client-side sorting as fallback (in case backend doesn't support ordering)
+            stores.sort((a, b) => b.storeId.compareTo(a.storeId));
+            
             filteredstores = List.from(stores);
             
             print('Total stores loaded: ${stores.length}');
@@ -647,7 +650,7 @@ class _StorePageState extends State<StorePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Store ID: ${store.storeId}',
+          'Code: ${store.storeCode}',
           style: TextStyle(
             fontSize: compact ? 11 : 13,
             fontWeight: FontWeight.w500,
@@ -702,12 +705,14 @@ class Iostore {
   final int storeId;
   final int companyId;
   final String storeName;
+  final String storeCode;
   final String? imageUrl;
   
   Iostore({
     required this.storeId,
     required this.companyId,
     required this.storeName,
+    required this.storeCode,
     this.imageUrl,
   });
   
@@ -721,6 +726,7 @@ class Iostore {
         storeId: json['store_id'] ?? 0,
         companyId: CompanyConfig.getCompanyId(), // Use centralized config instead
         storeName: json['store_name'] ?? '',
+        storeCode: json['store_code'] ?? '',
         imageUrl: json['image_url'],
       );
       print('Successfully created Iostore: ${store.storeName}');
@@ -738,6 +744,7 @@ class Iostore {
       'store_id': storeId,
       'company_id': companyId,
       'store_name': storeName,
+      'store_code': storeCode,
       'image_url': imageUrl,
     };
   }

@@ -9,6 +9,7 @@ import 'package:inventory/menu/menu_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:io';
+// ignore: unused_import
 import '../utils/simple_translations.dart';
 import 'dart:convert';
 
