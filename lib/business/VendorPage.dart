@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:http/http.dart' as http;
 import 'package:inventory/business/vendorAddPage.dart';
 import 'package:inventory/business/vendorEditPage.dart';
@@ -9,18 +10,18 @@ import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class vendorPage extends StatefulWidget {
-  const vendorPage({Key? key}) : super(key: key);
+class VendorPage extends StatefulWidget {
+  const VendorPage({Key? key}) : super(key: key);
 
   @override
-  State<vendorPage> createState() => _vendorPageState();
+  State<VendorPage> createState() => _VendorPageState();
 }
 
 String langCode = 'en';
 
-class _vendorPageState extends State<vendorPage> {
-  List<Iovendor> vendors = [];
-  List<Iovendor> filteredvendors = [];
+class _VendorPageState extends State<VendorPage> {
+  List<IoVendor> vendors = [];
+  List<IoVendor> filteredVendors = [];
   bool loading = true;
   String? error;
   String currentTheme = ThemeConfig.defaultTheme;
@@ -30,67 +31,69 @@ class _vendorPageState extends State<vendorPage> {
   @override
   void initState() {
     super.initState();
-    print('🚀 DEBUG: vendorPage initState() called');
+    print('VendorPage initState() called');
     debugPrint('Language code: $langCode');
 
     _loadLangCode();
     _loadCurrentTheme();
-    fetchvendors();
+    fetchVendors();
     
     _searchController.addListener(() {
-      print('🔍 DEBUG: Search query: ${_searchController.text}');
-      filtervendors(_searchController.text);
+      print('Search query: ${_searchController.text}');
+      filterVendors(_searchController.text);
     });
   }
 
   void _loadLangCode() async {
-    print('📱 DEBUG: Loading language code...');
+    print('Loading language code...');
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       langCode = prefs.getString('languageCode') ?? 'en';
-      print('🌐 DEBUG: Language code loaded: $langCode');
+      print('Language code loaded: $langCode');
     });
   }
 
   void _loadCurrentTheme() async {
-    print('🎨 DEBUG: Loading current theme...');
+    print('Loading current theme...');
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
-      print('🎨 DEBUG: Theme loaded: $currentTheme');
+      print('Theme loaded: $currentTheme');
     });
   }
 
   @override
   void dispose() {
-    print('🗑️ DEBUG: vendorPage dispose() called');
+    print('VendorPage dispose() called');
     _searchController.dispose();
     super.dispose();
   }
 
-  void filtervendors(String query) {
-    print('🔍 DEBUG: Filtering vendors with query: "$query"');
+  void filterVendors(String query) {
+    print('Filtering vendors with query: "$query"');
     final lowerQuery = query.toLowerCase();
     setState(() {
-      filteredvendors = vendors.where((vendor) {
+      filteredVendors = vendors.where((vendor) {
         final nameLower = vendor.vendorName.toLowerCase();
         final codeLower = vendor.vendorCode.toLowerCase();
         final provinceLower = (vendor.provinceName ?? '').toLowerCase();
+        final managerLower = (vendor.managerName ?? '').toLowerCase();
         
         bool matches = nameLower.contains(lowerQuery) || 
                       codeLower.contains(lowerQuery) ||
-                      provinceLower.contains(lowerQuery);
+                      provinceLower.contains(lowerQuery) ||
+                      managerLower.contains(lowerQuery);
         return matches;
       }).toList();
-      print('🔍 DEBUG: Filtered vendors count: ${filteredvendors.length}');
+      print('Filtered vendors count: ${filteredVendors.length}');
     });
   }
 
-  Future<void> fetchvendors() async {
-    print('🔍 DEBUG: Starting fetchvendors()');
+  Future<void> fetchVendors() async {
+    print('Starting fetchVendors()');
     
     if (!mounted) {
-      print('⚠️ DEBUG: Widget not mounted, aborting fetchvendors()');
+      print('Widget not mounted, aborting fetchVendors()');
       return;
     }
     
@@ -99,102 +102,100 @@ class _vendorPageState extends State<vendorPage> {
       error = null;
     });
 
-    // Correct API endpoint for your NestJS Iovendor API
     final url = AppConfig.api('/api/iovendor');
-    print('🌐 DEBUG: API URL: $url');
+    print('API URL: $url');
     
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
       final companyId = CompanyConfig.getCompanyId();
       
-      print('🔑 DEBUG: Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
-      print('🏢 DEBUG: Company ID: $companyId');
+      print('Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
+      print('Company ID: $companyId');
       
       // Build query parameters
       final queryParams = {
-        'status': 'admin', // Use admin to see all vendors
         'company_id': companyId.toString(),
       };
       
       final uri = Uri.parse(url.toString()).replace(queryParameters: queryParams);
-      print('🔗 DEBUG: Full URI: $uri');
+      print('Full URI: $uri');
       
       final headers = {
         'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
       };
-      print('📋 DEBUG: Request headers: $headers');
+      print('Request headers: $headers');
       
       final response = await http.get(uri, headers: headers);
 
-      print('📡 DEBUG: Response Status Code: ${response.statusCode}');
-      print('📄 DEBUG: Response Headers: ${response.headers}');
-      print('📝 DEBUG: Response Body: ${response.body}');
+      print('Response Status Code: ${response.statusCode}');
+      print('Response Headers: ${response.headers}');
+      print('Response Body: ${response.body}');
 
       if (!mounted) {
-        print('⚠️ DEBUG: Widget not mounted after API call, aborting');
+        print('Widget not mounted after API call, aborting');
         return;
       }
 
       if (response.statusCode == 200) {
         try {
           final data = jsonDecode(response.body);
-          print('✅ DEBUG: Parsed JSON successfully');
-          print('📊 DEBUG: API Response structure: ${data.keys.toList()}');
+          print('Parsed JSON successfully');
+          print('API Response structure: ${data.keys.toList()}');
           
           if (data['status'] == 'success') {
-            final List<dynamic> rawvendors = data['data'] ?? [];
-            print('📦 DEBUG: Raw vendors count: ${rawvendors.length}');
+            final List<dynamic> rawVendors = data['data'] ?? [];
+            print('Raw vendors count: ${rawVendors.length}');
             
             // Print first vendor for debugging
-            if (rawvendors.isNotEmpty) {
-              print('🔍 DEBUG: First vendor data: ${rawvendors[0]}');
+            if (rawVendors.isNotEmpty) {
+              print('First vendor data: ${rawVendors[0]}');
             }
             
-            vendors = rawvendors.map((e) {
+            vendors = rawVendors.map((e) {
               try {
-                return Iovendor.fromJson(e);
+                return IoVendor.fromJson(e);
               } catch (parseError) {
-                print('❌ DEBUG: Error parsing vendor: $parseError');
-                print('📝 DEBUG: Problem vendor data: $e');
+                print('Error parsing vendor: $parseError');
+                print('Problem vendor data: $e');
                 rethrow;
               }
             }).toList();
             
-            filteredvendors = List.from(vendors);
+            filteredVendors = List.from(vendors);
             
-            print('✅ DEBUG: Total vendors loaded: ${vendors.length}');
-            print('✅ DEBUG: Filtered vendors: ${filteredvendors.length}');
+            print('Total vendors loaded: ${vendors.length}');
+            print('Filtered vendors: ${filteredVendors.length}');
             
             setState(() => loading = false);
           } else {
-            print('❌ DEBUG: API returned error status: ${data['status']}');
-            print('❌ DEBUG: API error message: ${data['message']}');
+            print('API returned error status: ${data['status']}');
+            print('API error message: ${data['message']}');
             setState(() {
               loading = false;
               error = data['message'] ?? 'Unknown error from API';
             });
           }
         } catch (jsonError) {
-          print('❌ DEBUG: JSON parsing error: $jsonError');
-          print('📝 DEBUG: Raw response that failed to parse: ${response.body}');
+          print('JSON parsing error: $jsonError');
+          print('Raw response that failed to parse: ${response.body}');
           setState(() {
             loading = false;
             error = 'Failed to parse server response: $jsonError';
           });
         }
       } else {
-        print('❌ DEBUG: HTTP Error ${response.statusCode}');
-        print('❌ DEBUG: Error response body: ${response.body}');
+        print('HTTP Error ${response.statusCode}');
+        print('Error response body: ${response.body}');
         setState(() {
           loading = false;
           error = 'Server error: ${response.statusCode}\n${response.body}';
         });
       }
     } catch (e, stackTrace) {
-      print('💥 DEBUG: Exception caught: $e');
-      print('📚 DEBUG: Stack trace: $stackTrace');
+      print('Exception caught: $e');
+      print('Stack trace: $stackTrace');
       setState(() {
         loading = false;
         error = 'Failed to load data: $e';
@@ -202,28 +203,28 @@ class _vendorPageState extends State<vendorPage> {
     }
   }
 
-  void _onAddvendor() async {
-    print('➕ DEBUG: Add vendor button pressed');
+  void _onAddVendor() async {
+    print('Add Vendor button pressed');
     
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => vendorAddPage()),
+      MaterialPageRoute(builder: (context) => VendorAddPage()),
     );
 
-    print('📝 DEBUG: Add vendor result: $result');
+    print('Add Vendor result: $result');
     if (result == true) {
-      print('🔄 DEBUG: Refreshing vendors after add');
-      fetchvendors();
+      print('Refreshing vendors after add');
+      fetchVendors();
     }
   }
 
-  Widget _buildvendorImage(Iovendor vendor) {
-    print('🖼️ DEBUG: Building image for vendor: ${vendor.vendorName}');
-    print('🖼️ DEBUG: Image URL: ${vendor.imageUrl}');
+  Widget _buildVendorImage(IoVendor vendor) {
+    print('Building image for vendor: ${vendor.vendorName}');
+    print('Image URL: ${vendor.imageUrl}');
     
     // Check if we have a valid image URL
     if (vendor.imageUrl == null || vendor.imageUrl!.isEmpty) {
-      print('🖼️ DEBUG: No image URL, showing placeholder');
+      print('No image URL, showing placeholder');
       return CircleAvatar(
         radius: 25,
         backgroundColor: Colors.grey[200],
@@ -251,7 +252,7 @@ class _vendorPageState extends State<vendorPage> {
       }
     }
     
-    print('🖼️ DEBUG: Final image URL: $imageUrl');
+    print('Final image URL: $imageUrl');
 
     return CircleAvatar(
       radius: 25,
@@ -264,10 +265,10 @@ class _vendorPageState extends State<vendorPage> {
           fit: BoxFit.cover,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) {
-              print('🖼️ DEBUG: Image loaded successfully for ${vendor.vendorName}');
+              print('Image loaded successfully for ${vendor.vendorName}');
               return child;
             }
-            print('🖼️ DEBUG: Loading image for ${vendor.vendorName}...');
+            print('Loading image for ${vendor.vendorName}...');
             return Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
@@ -278,8 +279,8 @@ class _vendorPageState extends State<vendorPage> {
             );
           },
           errorBuilder: (context, error, stackTrace) {
-            print('❌ DEBUG: Error loading image for ${vendor.vendorName}: $error');
-            print('📝 DEBUG: Failed URL: $imageUrl');
+            print('Error loading image for ${vendor.vendorName}: $error');
+            print('Failed URL: $imageUrl');
             return Icon(
               Icons.business,
               color: Colors.grey[600],
@@ -293,14 +294,22 @@ class _vendorPageState extends State<vendorPage> {
 
   @override
   Widget build(BuildContext context) {
-    print('🎨 DEBUG: Building vendorPage widget');
-    print('📊 DEBUG: Current state - loading: $loading, error: $error, vendors: ${vendors.length}');
+    print('Building VendorPage widget');
+    print('Current state - loading: $loading, error: $error, vendors: ${vendors.length}');
     
+    // Get responsive dimensions
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+    final horizontalPadding = isWideScreen ? 32.0 : 16.0;
+    final cardMargin = isWideScreen ? 
+        EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8) :
+        EdgeInsets.symmetric(horizontal: 16, vertical: 8);
+
     if (loading) {
-      print('⏳ DEBUG: Showing loading indicator');
+      print('Showing loading indicator');
       return Scaffold(
         appBar: AppBar(
-          title: Text('vendores'),
+          title: Text('Vendors'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         ),
@@ -314,7 +323,7 @@ class _vendorPageState extends State<vendorPage> {
                 ),
               ),
               SizedBox(height: 16),
-              Text('Loading vendores...'),
+              Text('Loading Vendors...'),
             ],
           ),
         ),
@@ -322,41 +331,91 @@ class _vendorPageState extends State<vendorPage> {
     }
 
     if (error != null) {
-      print('❌ DEBUG: Showing error state: $error');
+      print('Showing error state: $error');
       return Scaffold(
         appBar: AppBar(
-          title: Text('vendores'),
+          title: Text('Vendors'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         ),
         body: Center(
-          child: Padding(
-            padding: EdgeInsets.all(16.0),
+          child: Container(
+            constraints: BoxConstraints(maxWidth: isWideScreen ? 600 : double.infinity),
+            child: Padding(
+              padding: EdgeInsets.all(horizontalPadding),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  SizedBox(height: 16),
+                  Text(
+                    'Error Loading Vendors',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      print('Retry button pressed');
+                      fetchVendors();
+                    },
+                    icon: Icon(Icons.refresh),
+                    label: Text('Retry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                      foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (vendors.isEmpty) {
+      print('Showing empty state');
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('Vendors (0)'),
+          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+          foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+          actions: [
+            IconButton(
+              onPressed: () {
+                print('Refresh button pressed from empty state');
+                fetchVendors();
+              },
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+            ),
+          ],
+        ),
+        body: Center(
+          child: Container(
+            constraints: BoxConstraints(maxWidth: isWideScreen ? 600 : double.infinity),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline, size: 64, color: Colors.red),
+                Icon(Icons.business_outlined, size: 80, color: Colors.grey),
                 SizedBox(height: 16),
                 Text(
-                  'Error Loading vendores',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  error!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
-                  ),
+                  'No Vendors found',
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
                 ),
                 SizedBox(height: 16),
                 ElevatedButton.icon(
-                  onPressed: () {
-                    print('🔄 DEBUG: Retry button pressed');
-                    fetchvendors();
-                  },
-                  icon: Icon(Icons.refresh),
-                  label: Text('Retry'),
+                  onPressed: _onAddVendor,
+                  icon: Icon(Icons.add),
+                  label: Text('Add First Vendor'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
                     foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
@@ -366,223 +425,286 @@ class _vendorPageState extends State<vendorPage> {
             ),
           ),
         ),
-      );
-    }
-
-    if (vendors.isEmpty) {
-      print('📭 DEBUG: Showing empty state');
-      return Scaffold(
-        appBar: AppBar(
-          title: Text('vendores (0)'),
+        floatingActionButton: isWideScreen ? null : FloatingActionButton(
+          onPressed: _onAddVendor,
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-          actions: [
-            IconButton(
-              onPressed: () {
-                print('🔄 DEBUG: Refresh button pressed from empty state');
-                fetchvendors();
-              },
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
-            ),
-          ],
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.business_outlined, size: 80, color: Colors.grey),
-              SizedBox(height: 16),
-              Text(
-                'No vendores found',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-              SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _onAddvendor,
-                icon: Icon(Icons.add),
-                label: Text('Add First vendor'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                  foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-                ),
-              ),
-            ],
-          ),
+          tooltip: SimpleTranslations.get(langCode, 'add_Vendor'),
+          child: const Icon(Icons.add),
         ),
       );
     }
 
-    print('📱 DEBUG: Rendering main vendor list with ${filteredvendors.length} vendores');
+    print('Rendering main vendor list with ${filteredVendors.length} vendors');
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('${SimpleTranslations.get(langCode, 'vendores')} (${filteredvendors.length})'),
+        title: Text('${SimpleTranslations.get(langCode, 'Vendors')} (${filteredVendors.length})'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         actions: [
+          if (isWideScreen) ...[
+            // Add button in app bar for wide screens
+            IconButton(
+              onPressed: _onAddVendor,
+              icon: const Icon(Icons.add),
+              tooltip: SimpleTranslations.get(langCode, 'add_Vendor'),
+            ),
+          ],
           IconButton(
             onPressed: () {
-              print('🔄 DEBUG: Refresh button pressed from app bar');
-              fetchvendors();
+              print('Refresh button pressed from app bar');
+              fetchVendors();
             },
             icon: const Icon(Icons.refresh),
             tooltip: SimpleTranslations.get(langCode, 'refresh'),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: SimpleTranslations.get(langCode, 'search'),
-                hintText: 'Search by name, code, or province...',
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        onPressed: () {
-                          print('🧹 DEBUG: Clear search button pressed');
-                          _searchController.clear();
-                        },
-                        icon: Icon(Icons.clear),
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                    width: 2,
+      body: Center(
+        child: Container(
+          constraints: BoxConstraints(maxWidth: isWideScreen ? 1200 : double.infinity),
+          child: Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    labelText: SimpleTranslations.get(langCode, 'search'),
+                    hintText: 'Search by name, code, province, or manager...',
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: ThemeConfig.getPrimaryColor(currentTheme),
+                    ),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            onPressed: () {
+                              print('Clear search button pressed');
+                              _searchController.clear();
+                            },
+                            icon: Icon(Icons.clear),
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: ThemeConfig.getPrimaryColor(currentTheme),
+                        width: 2,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-          Expanded(
-            child: filteredvendors.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.search_off, size: 80, color: Colors.grey),
-                        const SizedBox(height: 16),
-                        Text(
-                          _searchController.text.isNotEmpty
-                              ? 'No vendores match your search'
-                              : 'No vendores found',
-                          style: const TextStyle(fontSize: 18, color: Colors.grey),
-                        ),
-                        if (_searchController.text.isNotEmpty) ...[
-                          SizedBox(height: 8),
-                          Text(
-                            'Try a different search term',
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: fetchvendors,
-                    child: ListView.builder(
-                      itemCount: filteredvendors.length,
-                      itemBuilder: (ctx, i) {
-                        final vendor = filteredvendors[i];
-                        print('🏗️ DEBUG: Building list item for vendor: ${vendor.vendorName}');
-
-                        return Card(
-                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          elevation: 2,
-                          child: ListTile(
-                            leading: _buildvendorImage(vendor),
-                            title: Text(
-                              vendor.vendorName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+              Expanded(
+                child: filteredVendors.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.search_off, size: 80, color: Colors.grey),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchController.text.isNotEmpty
+                                  ? 'No Vendors match your search'
+                                  : 'No Vendors found',
+                              style: const TextStyle(fontSize: 18, color: Colors.grey),
+                            ),
+                            if (_searchController.text.isNotEmpty) ...[
+                              SizedBox(height: 8),
+                              Text(
+                                'Try a different search term',
+                                style: TextStyle(color: Colors.grey[600]),
                               ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Code: ${vendor.vendorCode}',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                                ),
-                                if (vendor.provinceName != null && vendor.provinceName!.isNotEmpty)
-                                  Text(
-                                    'Province: ${vendor.provinceName}',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                  ),
-                                if (vendor.managerName != null && vendor.managerName!.isNotEmpty)
-                                  Text(
-                                    'Manager: ${vendor.managerName}',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                  ),
-                              ],
-                            ),
-                            trailing: Icon(
-                              Icons.edit,
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                            ),
-                            isThreeLine: true,
-                            onTap: () async {
-                              print('👆 DEBUG: vendor tapped: ${vendor.vendorName}');
-                              
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => vendorEditPage(
-                                    vendorData: vendor.toJson(),
-                                  ),
-                                ),
-                              );
-
-                              print('📝 DEBUG: Edit vendor result: $result');
-                              if (result == true || result == 'deleted') {
-                                print('🔄 DEBUG: vendor operation completed, refreshing list...');
-                                fetchvendors();
-                                
-                                if (result == 'deleted') {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('vendor removed from list'),
-                                      backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: fetchVendors,
+                        child: isWideScreen
+                            ? _buildGridView(cardMargin)
+                            : _buildListView(cardMargin),
+                      ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _onAddvendor,
+      floatingActionButton: isWideScreen ? null : FloatingActionButton(
+        onPressed: _onAddVendor,
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-        tooltip: SimpleTranslations.get(langCode, 'add_vendor'),
+        tooltip: SimpleTranslations.get(langCode, 'add_Vendor'),
         child: const Icon(Icons.add),
       ),
     );
   }
+
+  Widget _buildListView(EdgeInsets cardMargin) {
+    return ListView.builder(
+      itemCount: filteredVendors.length,
+      itemBuilder: (ctx, i) {
+        final vendor = filteredVendors[i];
+        print('Building list item for vendor: ${vendor.vendorName}');
+
+        return Card(
+          margin: cardMargin,
+          elevation: 2,
+          child: ListTile(
+            leading: _buildVendorImage(vendor),
+            title: Text(
+              vendor.vendorName,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            subtitle: _buildVendorSubtitle(vendor),
+            trailing: Icon(
+              Icons.edit,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+            isThreeLine: true,
+            onTap: () => _navigateToEdit(vendor),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGridView(EdgeInsets cardMargin) {
+    return GridView.builder(
+      padding: EdgeInsets.symmetric(horizontal: cardMargin.horizontal / 2),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: MediaQuery.of(context).size.width > 900 ? 3 : 2,
+        childAspectRatio: 3.0,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: filteredVendors.length,
+      itemBuilder: (ctx, i) {
+        final vendor = filteredVendors[i];
+        print('Building grid item for vendor: ${vendor.vendorName}');
+
+        return Card(
+          elevation: 2,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => _navigateToEdit(vendor),
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  _buildVendorImage(vendor),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          vendor.vendorName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 4),
+                        _buildVendorSubtitle(vendor, compact: true),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.edit,
+                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildVendorSubtitle(IoVendor vendor, {bool compact = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Code: ${vendor.vendorCode}',
+          style: TextStyle(
+            fontSize: compact ? 11 : 13,
+            fontWeight: FontWeight.w500,
+            color: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (!compact && vendor.provinceName != null && vendor.provinceName!.isNotEmpty)
+          Text(
+            'Province: ${vendor.provinceName}',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        if (!compact && vendor.managerName != null && vendor.managerName!.isNotEmpty)
+          Text(
+            'Manager: ${vendor.managerName}',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        if (compact && vendor.provinceName != null && vendor.provinceName!.isNotEmpty)
+          Text(
+            vendor.provinceName!,
+            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+      ],
+    );
+  }
+
+  void _navigateToEdit(IoVendor vendor) async {
+    print('Vendor tapped: ${vendor.vendorName}');
+    
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => vendorEditPage(
+          vendorData: vendor.toJson(),
+        ),
+      ),
+    );
+
+    print('Edit Vendor result: $result');
+    if (result == true || result == 'deleted') {
+      print('Vendor operation completed, refreshing list...');
+      fetchVendors();
+      
+      if (result == 'deleted') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Vendor removed from list'),
+            backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
 }
 
-// Updated Iovendor model to match your io_vendor table structure
-class Iovendor {
+// Updated IoVendor model to match your io_vendor table structure
+class IoVendor {
   final int vendorId;
   final int companyId;
   final String vendorName;
@@ -597,7 +719,7 @@ class Iovendor {
   final DateTime? createdAt;
   final DateTime? updatedAt;
   
-  Iovendor({
+  IoVendor({
     required this.vendorId,
     required this.companyId,
     required this.vendorName,
@@ -613,15 +735,15 @@ class Iovendor {
     this.updatedAt,
   });
   
-  factory Iovendor.fromJson(Map<String, dynamic> json) {
-    print('🔄 DEBUG: Converting JSON to Iovendor');
-    print('📝 DEBUG: JSON keys: ${json.keys.toList()}');
-    print('📝 DEBUG: JSON data: $json');
+  factory IoVendor.fromJson(Map<String, dynamic> json) {
+    print('Converting JSON to IoVendor');
+    print('JSON keys: ${json.keys.toList()}');
+    print('JSON data: $json');
     
     try {
-      final vendor = Iovendor(
+      final vendor = IoVendor(
         vendorId: json['vendor_id'] ?? 0,
-        companyId: CompanyConfig.getCompanyId(), // Use centralized config instead
+        companyId: json['company_id'] ?? CompanyConfig.getCompanyId(),
         vendorName: json['vendor_name'] ?? '',
         vendorCode: json['vendor_code'] ?? '',
         provinceName: json['province_name'],
@@ -634,12 +756,12 @@ class Iovendor {
         createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
         updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at']) : null,
       );
-      print('✅ DEBUG: Successfully created Iovendor: ${vendor.vendorName} (${vendor.vendorCode})');
+      print('Successfully created IoVendor: ${vendor.vendorName} (${vendor.vendorCode})');
       return vendor;
     } catch (e, stackTrace) {
-      print('❌ DEBUG: Error parsing Iovendor JSON: $e');
-      print('📚 DEBUG: Stack trace: $stackTrace');
-      print('📝 DEBUG: Problem JSON: $json');
+      print('Error parsing IoVendor JSON: $e');
+      print('Stack trace: $stackTrace');
+      print('Problem JSON: $json');
       rethrow;
     }
   }

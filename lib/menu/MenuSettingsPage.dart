@@ -665,7 +665,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   void _navigateToVenderPage() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => vendorPage()),
+      MaterialPageRoute(builder: (context) => VendorPage()),
     );
   }
 

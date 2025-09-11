@@ -1,17 +1,16 @@
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
-import 'package:inventory/menu/menu_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:inventory/menu/MenuWigetPage.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'dart:io';
-// ignore: unused_import
-import '../utils/simple_translations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:developer' as developer;
 
 class AddStockPage extends StatefulWidget {
   final String? currentTheme;
@@ -23,7 +22,7 @@ class AddStockPage extends StatefulWidget {
 }
 
 class _AddStockPageState extends State<AddStockPage> {
-  // Core data
+  // Authentication & Config
   String? _accessToken;
   String _langCode = 'en';
   late final int _companyId;
@@ -31,9 +30,9 @@ class _AddStockPageState extends State<AddStockPage> {
   String? _branchId;
   late Color _primaryColor;
 
-  // Form state
+  // Form State
   final _formKey = GlobalKey<FormState>();
-  final Map<String, TextEditingController> _controllers = {
+  final _controllers = <String, TextEditingController>{
     'productId': TextEditingController(),
     'productName': TextEditingController(),
     'barcode': TextEditingController(),
@@ -43,27 +42,28 @@ class _AddStockPageState extends State<AddStockPage> {
     'supplierId': TextEditingController(),
   };
 
-  // Data collections
+  // Data
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _locations = [];
-  List<Map<String, dynamic>> _stores = [];
+  List<Map<String, dynamic>> _vendors = [];
 
-  // Selected items
+  // Selected Items
   Map<String, dynamic>? _selectedProduct;
   Map<String, dynamic>? _selectedLocation;
-  Map<String, dynamic>? _selectedStore;
+  Map<String, dynamic>? _selectedvendor;
+  Map<String, dynamic>? _scannedProduct;
   DateTime? _selectedExpireDate;
 
-  // Form selections
+  // Form Values
   String _selectedCurrency = 'LAK';
   String _selectedStatus = 'active';
 
-  // Loading states
+  // Loading States
   bool _isLoading = false;
   bool _isSubmitting = false;
   bool _isLoadingProducts = false;
   bool _isLoadingLocations = false;
-  bool _isLoadingStores = false;
+  bool _isLoadingvendors = false;
 
   @override
   void initState() {
@@ -74,11 +74,26 @@ class _AddStockPageState extends State<AddStockPage> {
 
   @override
   void dispose() {
-    _controllers.values.forEach((controller) => controller.dispose());
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
-  // INITIALIZATION
+  // LOGGING
+  void _logDropdown(String type, String action, [Map<String, dynamic>? data]) {
+    developer.log(
+      '📦 [$type] $action',
+      name: 'AddStock.Dropdown',
+      error: data != null ? jsonEncode(data) : null,
+    );
+    
+    if (kDebugMode && data != null) {
+      print('📦 [$type] $action: ${jsonEncode(data)}');
+    }
+  }
+
+  // INITIALIZATION & DATA LOADING
   Future<void> _initializeAuth() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -91,89 +106,142 @@ class _AddStockPageState extends State<AddStockPage> {
       if (_accessToken != null) {
         await Future.wait([
           _loadLocations(),
-          _loadStores(),
+          _loadvendors(),
           if (kIsWeb) _loadProducts(),
         ]);
       } else {
-        _showError('Authentication token not found');
+        _showMessage('Authentication token not found', isError: true);
       }
     } catch (e) {
-      _showError('Failed to initialize: $e');
+      _showMessage('Failed to initialize: $e', isError: true);
     }
   }
 
-  // DATA LOADING
   Future<void> _loadProducts() async {
+    if (!mounted) return;
     setState(() => _isLoadingProducts = true);
+    _logDropdown('PRODUCTS', 'LOAD_START');
     
     try {
-      final response = await _apiRequest('GET', '/api/ioproduct', queryParams: {
-        'company_id': _companyId.toString(),
-      });
+      final response = await _apiRequest('GET', '/api/ioproduct', 
+        queryParams: {'company_id': _companyId.toString()});
 
       final data = jsonDecode(response.body);
       if (data['status'] == 'success' && data['data'] != null) {
         setState(() {
-          _products = (data['data'] as List).map((product) => {
-            'product_id': product['product_id'] ?? product['id'],
-            'product_name': product['product_name'] ?? product['name'] ?? 'Unknown Product',
-            'barcode': product['barcode'] ?? '',
-            'price': product['price'] ?? 0,
-            'image_url': product['image_url'] ?? '',
-            'stock_quantity': product['stock_quantity'] ?? 0,
-            'category': product['category'] ?? '',
-          }).toList();
+          _products = (data['data'] as List).map(_mapProduct).toList();
         });
+        _logDropdown('PRODUCTS', 'LOADED', {'count': _products.length});
       }
     } catch (e) {
-      _showError('Error loading products: $e');
+      _logDropdown('PRODUCTS', 'ERROR', {'error': e.toString()});
+      _showMessage('Error loading products: $e', isError: true);
     } finally {
-      setState(() => _isLoadingProducts = false);
+      if (mounted) setState(() => _isLoadingProducts = false);
     }
   }
 
   Future<void> _loadLocations() async {
+    if (!mounted) return;
     setState(() => _isLoadingLocations = true);
+    _logDropdown('LOCATIONS', 'LOAD_START');
     
     try {
-      final response = await _apiRequest('GET', '/api/iolocation', queryParams: {
-        'status': 'admin',
-        'company_id': _companyId.toString(),
-      });
+      final response = await _apiRequest('GET', '/api/iolocation', 
+        queryParams: {
+          'status': 'admin',
+          'company_id': _companyId.toString(),
+        });
 
-      final data = jsonDecode(response.body);
-      if (data['status'] == 'success') {
-        setState(() => _locations = List<Map<String, dynamic>>.from(data['data'] ?? []));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'success') {
+          final rawLocations = data['data'] as List? ?? [];
+          setState(() {
+            _locations = rawLocations.map(_mapLocation).toList();
+          });
+          _logDropdown('LOCATIONS', 'LOADED', {
+            'count': _locations.length,
+            'locations': _locations,
+          });
+        } else {
+          throw Exception(data['message'] ?? 'Failed to load locations');
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
-      _showError('Error loading locations: $e');
+      _logDropdown('LOCATIONS', 'ERROR', {'error': e.toString()});
+      _showMessage('Error loading locations: $e', isError: true);
     } finally {
-      setState(() => _isLoadingLocations = false);
+      if (mounted) setState(() => _isLoadingLocations = false);
     }
   }
 
-  Future<void> _loadStores() async {
-    setState(() => _isLoadingStores = true);
+  Future<void> _loadvendors() async {
+    if (!mounted) return;
+    setState(() => _isLoadingvendors = true);
+    _logDropdown('vendorS', 'LOAD_START');
     
     try {
-      final response = await _apiRequest('GET', '/api/iovendor', queryParams: {
-        'status': 'admin',
-        'company_id': _companyId.toString(),
-      });
+      final response = await _apiRequest('GET', '/api/iovendor', 
+        queryParams: {
+          'status': 'admin',
+          'company_id': _companyId.toString(),
+        });
 
       final data = jsonDecode(response.body);
       if (data['status'] == 'success') {
-        setState(() => _stores = List<Map<String, dynamic>>.from(data['data'] ?? []));
+        setState(() {
+          _vendors = (data['data'] as List? ?? []).map(_mapvendor).toList();
+        });
+        _logDropdown('vendorS', 'LOADED', {'count': _vendors.length});
       }
     } catch (e) {
-      _showError('Error loading stores: $e');
+      _logDropdown('vendorS', 'ERROR', {'error': e.toString()});
+      _showMessage('Error loading vendors: $e', isError: true);
     } finally {
-      setState(() => _isLoadingStores = false);
+      if (mounted) setState(() => _isLoadingvendors = false);
     }
   }
+
+  // DATA MAPPING
+  Map<String, dynamic> _mapProduct(dynamic product) => {
+    'product_id': product['product_id'] ?? product['id'],
+    'product_name': product['product_name'] ?? product['name'] ?? 'Unknown Product',
+    'barcode': product['barcode'] ?? '',
+    'price': product['price'] ?? 0,
+    'image_url': product['image_url'] ?? '',
+    'stock_quantity': product['stock_quantity'] ?? 0,
+    'category': product['category'] ?? '',
+  };
+
+  Map<String, dynamic> _mapLocation(dynamic location) => {
+    'location_id': location['location_id'] ?? location['id'],
+    'location': location['location'] ?? location['location_name'] ?? 'Unknown Location',
+    'location_name': location['location_name'] ?? location['location'],
+    'description': location['description'] ?? '',
+    'address': location['address'] ?? '',
+    'status': location['status'] ?? 'active',
+    'company_id': location['company_id'],
+    'image': location['image'] ?? '',
+    'image_url': location['image_url'] ?? '',
+  };
+
+  Map<String, dynamic> _mapvendor(dynamic vendor) => {
+    'vendor_id': vendor['vendor_id'] ?? vendor['id'],
+    'vendor_name': vendor['vendor_name'] ?? vendor['name'] ?? 'Unknown vendor',
+    'name': vendor['name'] ?? vendor['vendor_name'],
+    'description': vendor['description'] ?? '',
+    'status': vendor['status'] ?? 'active',
+    'image': vendor['image'] ?? '',
+    'image_url': vendor['image_url'] ?? '',
+  };
 
   // PRODUCT OPERATIONS
   void _onProductSelected(Map<String, dynamic> product) {
+    _logDropdown('PRODUCTS', 'SELECTED', product);
+    
     setState(() {
       _selectedProduct = product;
       _controllers['productId']!.text = product['product_id'].toString();
@@ -183,7 +251,7 @@ class _AddStockPageState extends State<AddStockPage> {
         _controllers['price']!.text = product['price'].toString();
       }
     });
-    _showSuccess('Selected: ${product['product_name']}');
+    _showMessage('Selected: ${product['product_name']}');
   }
 
   Future<void> _scanBarcode() async {
@@ -249,65 +317,41 @@ class _AddStockPageState extends State<AddStockPage> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await _apiRequest('GET', '/api/ioproduct/barcode/$barcode', queryParams: {
-        'company_id': _companyId.toString(),
-      });
+      final response = await _apiRequest('GET', '/api/ioproduct/barcode/$barcode', 
+        queryParams: {'company_id': _companyId.toString()});
 
       final data = jsonDecode(response.body);
       if (response.statusCode == 200 && data['status'] == 'success') {
         final product = data['data'];
         setState(() {
+          _scannedProduct = product;
           _controllers['barcode']!.text = product['barcode'] ?? '';
           _controllers['productId']!.text = product['product_id'].toString();
           _controllers['productName']!.text = product['product_name'] ?? '';
         });
-        _showSuccess('Product found successfully');
+        _showMessage('Product found successfully');
       } else {
-        _showError('Product not found');
+        _showMessage('Product not found', isError: true);
       }
     } catch (e) {
-      _showError('Error looking up product: $e');
+      _showMessage('Error looking up product: $e', isError: true);
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
   // FORM OPERATIONS
-  Future<void> _createInventory() async {
+  Future<void> _addInventory() async {
     if (!_validateForm()) return;
 
     setState(() => _isSubmitting = true);
 
     try {
-      final body = {
-        'product_id': int.parse(_controllers['productId']!.text),
-        'product_name': _controllers['productName']!.text.trim(),
-        'location_id': _selectedLocation!['location_id'],
-        'location': _selectedLocation!['location'] ?? _selectedLocation!['location_name'],
-        'currency_primary': _selectedCurrency,
-        'amount': int.parse(_controllers['amount']!.text),
-        'price': double.parse(_controllers['price']!.text),
-        'status': _selectedStatus,
-        'store_id': _selectedStore!['store_id'],
-        'store_name': _selectedStore!['store_name'] ?? _selectedStore!['name'],
-        'user_id': _userId,
-        'branch_id': _branchId != null ? int.tryParse(_branchId!) : null,
-        'txntype': 'STOCK_IN',
-        'company_id': _companyId,
-        if (_controllers['barcode']!.text.trim().isNotEmpty)
-          'barcode': _controllers['barcode']!.text.trim(),
-        if (_controllers['batchNumber']!.text.trim().isNotEmpty)
-          'batch_number': _controllers['batchNumber']!.text.trim(),
-        if (_controllers['supplierId']!.text.trim().isNotEmpty)
-          'supplier_id': int.tryParse(_controllers['supplierId']!.text),
-        if (_selectedExpireDate != null)
-          'expire_date': _selectedExpireDate!.toIso8601String().split('T')[0],
-      };
-
+      final body = _buildRequestBody();
       final response = await _apiRequest('POST', '/api/inventory', body: body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _showSuccess('Inventory created successfully');
+        _showMessage('Stock added successfully');
         _clearForm();
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -316,38 +360,66 @@ class _AddStockPageState extends State<AddStockPage> {
         );
       } else {
         final data = jsonDecode(response.body);
-        _showError(data['message'] ?? 'Failed to create inventory');
+        _showMessage(data['message'] ?? 'Failed to add stock', isError: true);
       }
     } catch (e) {
-      _showError('Error creating inventory: $e');
+      _showMessage('Error adding stock: $e', isError: true);
     } finally {
       setState(() => _isSubmitting = false);
     }
   }
 
+  Map<String, dynamic> _buildRequestBody() => {
+    'product_id': int.parse(_controllers['productId']!.text),
+    'product_name': _controllers['productName']!.text.trim(),
+    'location_id': _selectedLocation!['location_id'],
+    'location': _selectedLocation!['location'] ?? _selectedLocation!['location_name'],
+    'currency_primary': _selectedCurrency,
+    'amount': int.parse(_controllers['amount']!.text), // Positive for addition
+    'price': double.parse(_controllers['price']!.text),
+    'status': _selectedStatus,
+    'vendor_id': _selectedvendor!['vendor_id'],
+    'vendor_name': _selectedvendor!['vendor_name'] ?? _selectedvendor!['name'],
+    'user_id': _userId,
+    'branch_id': _branchId != null ? int.tryParse(_branchId!) : null,
+    'txntype': 'STOCK_IN',
+    'company_id': _companyId,
+    if (_controllers['barcode']!.text.trim().isNotEmpty)
+      'barcode': _controllers['barcode']!.text.trim(),
+    if (_controllers['batchNumber']!.text.trim().isNotEmpty)
+      'batch_number': _controllers['batchNumber']!.text.trim(),
+    if (_controllers['supplierId']!.text.trim().isNotEmpty)
+      'supplier_id': int.tryParse(_controllers['supplierId']!.text),
+    if (_selectedExpireDate != null)
+      'expire_date': _selectedExpireDate!.toIso8601String().split('T')[0],
+  };
+
   bool _validateForm() {
     if (!_formKey.currentState!.validate()) {
-      _showError('Please fill required fields');
+      _showMessage('Please fill required fields', isError: true);
       return false;
     }
     if (_selectedLocation == null) {
-      _showError('Please select location');
+      _showMessage('Please select location', isError: true);
       return false;
     }
-    if (_selectedStore == null) {
-      _showError('Please select store');
+    if (_selectedvendor == null) {
+      _showMessage('Please select vendor', isError: true);
       return false;
     }
     return true;
   }
 
   void _clearForm() {
-    _controllers.values.forEach((controller) => controller.clear());
+    for (final controller in _controllers.values) {
+      controller.clear();
+    }
     setState(() {
       _selectedExpireDate = null;
       _selectedLocation = null;
-      _selectedStore = null;
+      _selectedvendor = null;
       _selectedProduct = null;
+      _scannedProduct = null;
       _selectedCurrency = 'LAK';
       _selectedStatus = 'active';
     });
@@ -364,48 +436,79 @@ class _AddStockPageState extends State<AddStockPage> {
       'Authorization': 'Bearer $_accessToken',
     };
 
-    switch (method) {
-      case 'GET':
-        return http.get(uri, headers: headers);
-      case 'POST':
-        return http.post(uri, headers: headers, body: jsonEncode(body));
-      default:
-        throw ArgumentError('Unsupported method: $method');
-    }
+    return switch (method) {
+      'GET' => http.get(uri, headers: headers),
+      'POST' => http.post(uri, headers: headers, body: jsonEncode(body)),
+      _ => throw ArgumentError('Unsupported method: $method'),
+    };
   }
 
   // UI HELPERS
-  void _showError(String message) {
+  void _showMessage(String message, {bool isError = false}) {
     if (!mounted) return;
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.error_outline, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+            ),
           ],
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: isError ? Colors.red[600] : Colors.green[600],
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.all(16),
       ),
     );
   }
 
-  void _showSuccess(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_outline, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
+  // IMAGE BUILDERS
+  Widget _buildImage(String? imageUrl, IconData fallbackIcon, {double size = 40}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(size * 0.2),
+        border: Border.all(color: Colors.grey[300]!),
+        color: Colors.grey[50],
       ),
+      child: imageUrl != null && imageUrl.isNotEmpty
+        ? ClipRRect(
+            borderRadius: BorderRadius.circular(size * 0.2 - 1),
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Icon(fallbackIcon, color: _primaryColor, size: size * 0.6),
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Center(
+                  child: SizedBox(
+                    width: size * 0.4,
+                    height: size * 0.4,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(_primaryColor),
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                          : null,
+                    ),
+                  ),
+                );
+              },
+            ),
+          )
+        : Icon(fallbackIcon, color: _primaryColor, size: size * 0.6),
     );
   }
 
@@ -413,244 +516,187 @@ class _AddStockPageState extends State<AddStockPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Add New Inventory', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: _primaryColor,
-        foregroundColor: Colors.white,
+        title: const Text('Add Stock', style: TextStyle(fontWeight: FontWeight.w600)),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.grey[800],
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: Colors.grey[200]),
+        ),
       ),
       body: _isLoading 
-        ? Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(color: _primaryColor),
-                const SizedBox(height: 16),
-                Text('Loading data...', style: TextStyle(color: Colors.grey[600])),
-              ],
-            ),
-          )
+        ? _buildLoadingScreen()
         : Column(
             children: [
               if (kIsWeb) _buildWebProductSelector(),
+              if (_scannedProduct != null) _buildScannedProductInfo(),
               Expanded(child: _buildForm()),
             ],
           ),
     );
   }
 
+  Widget _buildLoadingScreen() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 2,
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: _primaryColor, strokeWidth: 3),
+            const SizedBox(height: 16),
+            Text(
+              'Loading data...',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildWebProductSelector() {
     return Container(
       margin: const EdgeInsets.all(16),
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 2,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Icon(Icons.search, color: _primaryColor, size: 24),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Select Product',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: _primaryColor,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
               Container(
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: _isLoadingProducts
-                  ? _buildLoadingIndicator('Loading products...')
-                  : _products.isEmpty
-                    ? _buildEmptyState()
-                    : _buildProductDropdown(),
+                child: Icon(Icons.add_circle, color: Colors.green, size: 24),
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  TextButton.icon(
-                    onPressed: _loadProducts,
-                    icon: const Icon(Icons.refresh, size: 16),
-                    label: const Text('Refresh'),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${_products.length} products available',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _primaryColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+              const SizedBox(width: 12),
+              Text(
+                'Select Product to Add',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[800],
+                ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: _isLoadingProducts
+              ? _buildLoadingIndicator('Loading products...')
+              : _products.isEmpty
+                ? _buildEmptyState('products', _loadProducts)
+                : _buildProductDropdown(),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildActionButton('Refresh', Icons.refresh, Colors.green, _loadProducts),
+              const Spacer(),
+              _buildCountBadge('${_products.length} products available', Colors.green),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildLoadingIndicator(String text) {
+  Widget _buildScannedProductInfo() {
     return Container(
+      margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green[200]!),
+      ),
       child: Row(
         children: [
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(_primaryColor)),
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green[300]!),
+              color: Colors.green[100],
+            ),
+            child: Icon(Icons.qr_code_scanner, color: Colors.green[600], size: 24),
           ),
           const SizedBox(width: 12),
-          Text(text),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          const Text('No products loaded'),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: _loadProducts,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Load Products'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProductDropdown() {
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<Map<String, dynamic>>(
-        value: _selectedProduct != null && _products.any((p) => p['product_id'] == _selectedProduct!['product_id']) 
-            ? _selectedProduct : null,
-        hint: const Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('Select a product'),
-        ),
-        isExpanded: true,
-        items: _products.map((product) => DropdownMenuItem<Map<String, dynamic>>(
-          value: product,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildProductImage(product['image_url']),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        product['product_name'] ?? 'Unknown Product',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      // if (product['barcode']?.toString().isNotEmpty == true)
-                      //   Text(
-                      //     'Barcode: ${product['barcode']}',
-                      //     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      //     overflow: TextOverflow.ellipsis,
-                      //   ),
-                      // if (product['category']?.toString().isNotEmpty == true)
-                      //   Text(
-                      //     product['category'],
-                      //     style: TextStyle(fontSize: 12, color: Colors.blue[600], fontWeight: FontWeight.w500),
-                      //     overflow: TextOverflow.ellipsis,
-                      //   ),
-                    ],
+                Text(
+                  'Scanned Product',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green[700],
+                    fontSize: 14,
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // if (product['price'] != null)
-                    //   Text(
-                    //     '\$${product['price']}',
-                    //     style: TextStyle(fontWeight: FontWeight.bold, color: _primaryColor, fontSize: 14),
-                    //   ),
-                    if (product['stock_quantity'] != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: product['stock_quantity'] > 0 
-                              ? Colors.green.withOpacity(0.1) 
-                              : Colors.red.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          'Stock: ${product['stock_quantity']}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: product['stock_quantity'] > 0 ? Colors.green : Colors.red,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                  ],
+                const SizedBox(height: 4),
+                Text(
+                  'Product: ${_scannedProduct!['product_name'] ?? 'N/A'}',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+                Text(
+                  'ID: ${_scannedProduct!['product_id']}',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
                 ),
               ],
             ),
           ),
-        )).toList(),
-        onChanged: (value) {
-          if (value != null) _onProductSelected(value);
-        },
-      ),
-    );
-  }
-
-  Widget _buildProductImage(String? imageUrl) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: imageUrl != null && imageUrl.isNotEmpty
-        ? ClipRRect(
-            borderRadius: BorderRadius.circular(7),
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                color: Colors.grey[100],
-                child: Icon(Icons.inventory, color: Colors.grey[400], size: 20),
-              ),
-            ),
-          )
-        : Container(
-            color: Colors.grey[100],
-            child: Icon(Icons.inventory, color: Colors.grey[400], size: 20),
+          IconButton(
+            icon: Icon(Icons.close, color: Colors.grey[600]),
+            onPressed: () => setState(() {
+              _scannedProduct = null;
+              _controllers['productId']!.clear();
+              _controllers['productName']!.clear();
+            }),
           ),
+        ],
+      ),
     );
   }
 
@@ -662,134 +708,68 @@ class _AddStockPageState extends State<AddStockPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Create New Inventory Item', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text('Add Stock Item', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
             
-            // Barcode section
-            Row(
-              children: [
-                Expanded(
-                  child: _buildTextField(
-                    controller: _controllers['barcode']!,
-                    label: 'Barcode *',
-                    required: true,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: _primaryColor,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-                      onPressed: _scanBarcode,
-                      tooltip: 'Scan Barcode',
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            _buildBarcodeField(),
             const SizedBox(height: 16),
-
-            // Form fields with consistent spacing
-            _buildTextField(
-              controller: _controllers['productId']!, 
-              label: 'Product ID', 
-              keyboardType: TextInputType.number, 
-              required: true
-            ),
+            _buildTextField('productId', 'Product ID', required: true, keyboardType: TextInputType.number),
             const SizedBox(height: 16),
-            
-            _buildTextField(
-              controller: _controllers['productName']!, 
-              label: 'Product Name', 
-              required: true
-            ),
+            _buildTextField('productName', 'Product Name', required: true),
             const SizedBox(height: 16),
-            
-            _buildDropdownField(
-              value: _selectedLocation,
-              label: 'Location',
-              items: _locations,
-              isLoading: _isLoadingLocations,
-              onChanged: (value) => setState(() => _selectedLocation = value),
-              itemBuilder: (item) => Text(
-                item['location'] ?? item['location_name'] ?? 'Unknown',
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
+            _buildLocationDropdown(),
             const SizedBox(height: 16),
-            
-            _buildDropdownField(
-              value: _selectedStore,
-              label: 'Store',
-              items: _stores,
-              isLoading: _isLoadingStores,
-              onChanged: (value) => setState(() => _selectedStore = value),
-              itemBuilder: (item) => Text(
-                item['store_name'] ?? item['name'] ?? 'Unknown Store',
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
+            _buildvendorDropdown(),
             const SizedBox(height: 16),
-            
-            _buildTextField(
-              controller: _controllers['amount']!, 
-              label: 'Amount', 
-              keyboardType: TextInputType.number, 
-              required: true
-            ),
+            _buildTextField('amount', 'Add Amount', required: true, keyboardType: TextInputType.number),
             const SizedBox(height: 16),
-            
-            _buildTextField(
-              controller: _controllers['price']!, 
-              label: 'Price', 
-              keyboardType: const TextInputType.numberWithOptions(decimal: true), 
-              required: true
-            ),
+            _buildTextField('price', 'Price', required: true, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
             const SizedBox(height: 16),
-            
-            _buildTextField(
-              controller: _controllers['batchNumber']!, 
-              label: 'Batch Number (Optional)'
-            ),
+            _buildTextField('batchNumber', 'Batch Number (Optional)'),
             const SizedBox(height: 16),
-            
-            _buildTextField(
-              controller: _controllers['supplierId']!, 
-              label: 'Supplier ID (Optional)', 
-              keyboardType: TextInputType.number
-            ),
+            _buildTextField('supplierId', 'Supplier ID (Optional)', keyboardType: TextInputType.number),
             const SizedBox(height: 16),
-            
             _buildDatePicker(),
             const SizedBox(height: 16),
-            
-            _buildStatusDropdown(),
+            _buildStatusDropdowns(),
             const SizedBox(height: 32),
-            
             _buildSubmitButton(),
-            const SizedBox(height: 16), // Extra bottom padding
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    TextInputType? keyboardType,
+  Widget _buildBarcodeField() {
+    return Row(
+      children: [
+        Expanded(child: _buildTextField('barcode', 'Barcode *', required: true)),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 56,
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _scanBarcode,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Icon(Icons.qr_code_scanner),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTextField(String key, String label, {
     bool required = false,
+    TextInputType? keyboardType,
   }) {
     return TextFormField(
-      controller: controller,
+      controller: _controllers[key]!,
       keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
@@ -805,53 +785,241 @@ class _AddStockPageState extends State<AddStockPage> {
     );
   }
 
-  Widget _buildDropdownField<T>({
-  required T? value,
-  required String label,
-  required List<T> items,
-  required bool isLoading,
-  required ValueChanged<T?> onChanged,
-  required Widget Function(T) itemBuilder,
-}) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text('$label *', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      const SizedBox(height: 4),
-      Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey[300]!),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: isLoading
-          ? _buildLoadingIndicator('Loading $label...')
-          : DropdownButtonHideUnderline(
+  Widget _buildLocationDropdown() {
+    return _buildDropdownSection(
+      title: 'Location',
+      icon: Icons.location_on,
+      value: _selectedLocation,
+      items: _locations,
+      isLoading: _isLoadingLocations,
+      onRefresh: _loadLocations,
+      onChanged: (value) {
+        _logDropdown('LOCATIONS', 'SELECTED', value);
+        setState(() => _selectedLocation = value);
+      },
+      itemBuilder: (item) => _buildLocationItem(item),
+    );
+  }
+
+  Widget _buildvendorDropdown() {
+    return _buildDropdownSection(
+      title: 'vendor',
+      icon: Icons.local_shipping,
+      value: _selectedvendor,
+      items: _vendors,
+      isLoading: _isLoadingvendors,
+      onRefresh: _loadvendors,
+      onChanged: (value) {
+        _logDropdown('vendorS', 'SELECTED', value);
+        setState(() => _selectedvendor = value);
+      },
+      itemBuilder: (item) => _buildvendorItem(item),
+    );
+  }
+
+  Widget _buildDropdownSection<T>({
+    required String title,
+    required IconData icon,
+    required T? value,
+    required List<T> items,
+    required bool isLoading,
+    required VoidCallback onRefresh,
+    required ValueChanged<T?> onChanged,
+    required Widget Function(T) itemBuilder,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: _primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(icon, color: _primaryColor, size: 20),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Select $title',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (isLoading)
+            _buildLoadingIndicator('Loading ${title.toLowerCase()}...')
+          else if (items.isEmpty)
+            _buildEmptyState(title.toLowerCase(), onRefresh)
+          else
+            DropdownButtonHideUnderline(
               child: DropdownButton<T>(
                 value: value,
-                hint: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16), // Increased vertical padding
-                  child: Text('Select $label')
-                ),
+                hint: Text('Choose a ${title.toLowerCase()}'),
                 isExpanded: true,
                 items: items.map((item) => DropdownMenuItem<T>(
                   value: item,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16), // Increased vertical padding
-                    child: itemBuilder(item),
-                  ),
+                  child: itemBuilder(item),
                 )).toList(),
                 onChanged: onChanged,
               ),
             ),
+          if (value != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green[600], size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Selected: ${_getItemDisplayName(value)}',
+                    style: TextStyle(color: Colors.green[700], fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _buildActionButton('Refresh', Icons.refresh, _primaryColor, onRefresh),
+              const Spacer(),
+              _buildCountBadge('${items.length} ${title.toLowerCase()}s', _primaryColor),
+            ],
+          ),
+        ],
       ),
-      if (value == null)
-        Padding(
-          padding: const EdgeInsets.only(top: 8, left: 8, bottom: 4), // Added bottom padding
-          child: Text('$label is required', style: TextStyle(color: Colors.red[700], fontSize: 12)),
+    );
+  }
+
+  Widget _buildLocationItem(Map<String, dynamic> item) {
+    return Row(
+      children: [
+        _buildImage(item['image_url'], Icons.location_on),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item['location'] ?? item['location_name'] ?? 'Unknown',
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (item['description']?.toString().isNotEmpty == true)
+                Text(
+                  item['description'],
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ],
+          ),
         ),
-    ],
-  );
-}
+        _buildStatusBadge(item['status']),
+      ],
+    );
+  }
+
+  Widget _buildvendorItem(Map<String, dynamic> item) {
+    return Row(
+      children: [
+        _buildImage(item['image_url'], Icons.local_shipping),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item['vendor_name'] ?? item['name'] ?? 'Unknown vendor',
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (item['description']?.toString().isNotEmpty == true)
+                Text(
+                  item['description'],
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ],
+          ),
+        ),
+        _buildStatusBadge(item['status']),
+      ],
+    );
+  }
+
+  Widget _buildProductDropdown() {
+    _logDropdown('PRODUCTS', 'BUILD_DROPDOWN', {'count': _products.length});
+
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<Map<String, dynamic>>(
+        value: _selectedProduct != null && _products.any((p) => p['product_id'] == _selectedProduct!['product_id']) 
+            ? _selectedProduct : null,
+        hint: const Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('Select a product'),
+        ),
+        isExpanded: true,
+        items: _products.map((product) => DropdownMenuItem<Map<String, dynamic>>(
+          value: product,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                _buildImage(product['image_url'], Icons.inventory, size: 48),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    product['product_name'] ?? 'Unknown Product',
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (product['stock_quantity'] != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: product['stock_quantity'] > 0 
+                          ? Colors.green.withOpacity(0.1) 
+                          : Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'Stock: ${product['stock_quantity']}',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: product['stock_quantity'] > 0 ? Colors.green : Colors.red,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        )).toList(),
+        onChanged: (value) {
+          if (value != null) _onProductSelected(value);
+        },
+      ),
+    );
+  }
+
   Widget _buildDatePicker() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -860,13 +1028,19 @@ class _AddStockPageState extends State<AddStockPage> {
         const SizedBox(height: 4),
         InkWell(
           onTap: () async {
+            _logDropdown('DATE_PICKER', 'OPEN');
             final date = await showDatePicker(
               context: context,
               initialDate: _selectedExpireDate ?? DateTime.now().add(const Duration(days: 365)),
               firstDate: DateTime.now(),
               lastDate: DateTime.now().add(const Duration(days: 3650)),
             );
-            if (date != null) setState(() => _selectedExpireDate = date);
+            if (date != null) {
+              _logDropdown('DATE_PICKER', 'SELECTED', {'date': date.toIso8601String()});
+              setState(() => _selectedExpireDate = date);
+            } else {
+              _logDropdown('DATE_PICKER', 'CANCELLED');
+            }
           },
           child: Container(
             padding: const EdgeInsets.all(12),
@@ -892,11 +1066,86 @@ class _AddStockPageState extends State<AddStockPage> {
     );
   }
 
-  Widget _buildStatusDropdown() {
+  Widget _buildStatusDropdowns() {
+    final currencies = [
+      {'code': 'LAK', 'name': 'Lao Kip', 'image_url': 'https://flagcdn.com/w40/la.png'},
+      {'code': 'THB', 'name': 'Thai Baht', 'image_url': 'https://flagcdn.com/w40/th.png'},
+      {'code': 'USD', 'name': 'US Dollar', 'image_url': 'https://flagcdn.com/w40/us.png'},
+    ];
+
+    final statuses = [
+      {'value': 'active', 'name': 'Active', 'image_url': 'https://img.icons8.com/color/48/checked--v1.png'},
+      {'value': 'inactive', 'name': 'Inactive', 'image_url': 'https://img.icons8.com/color/48/cancel--v1.png'},
+    ];
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildSimpleDropdown(
+            'Currency',
+            _selectedCurrency,
+            currencies,
+            (currency) => currency['code'] as String,
+            (currency) => Row(
+              children: [
+                _buildImage(currency['image_url'], Icons.monetization_on, size: 32),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(currency['code'] as String, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                      Text(currency['name'] as String, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            (value) {
+              _logDropdown('CURRENCY', 'SELECTED', {'old': _selectedCurrency, 'new': value});
+              setState(() => _selectedCurrency = value);
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildSimpleDropdown(
+            'Status',
+            _selectedStatus,
+            statuses,
+            (status) => status['value'] as String,
+            (status) => Row(
+              children: [
+                _buildImage(status['image_url'], Icons.info, size: 32),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(status['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                ),
+                _buildStatusBadge(status['value']),
+              ],
+            ),
+            (value) {
+              _logDropdown('STATUS', 'SELECTED', {'old': _selectedStatus, 'new': value});
+              setState(() => _selectedStatus = value);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimpleDropdown<T>(
+    String label,
+    String currentValue,
+    List<T> items,
+    String Function(T) getValue,
+    Widget Function(T) buildItem,
+    ValueChanged<String> onChanged,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Status', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         const SizedBox(height: 4),
         Container(
           decoration: BoxDecoration(
@@ -905,13 +1154,14 @@ class _AddStockPageState extends State<AddStockPage> {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: _selectedStatus,
+              value: currentValue,
               isExpanded: true,
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              items: ['active', 'inactive', 'reserved']
-                  .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                  .toList(),
-              onChanged: (value) => setState(() => _selectedStatus = value!),
+              items: items.map((item) => DropdownMenuItem<String>(
+                value: getValue(item),
+                child: buildItem(item),
+              )).toList(),
+              onChanged: (value) => onChanged(value!),
             ),
           ),
         ),
@@ -923,18 +1173,19 @@ class _AddStockPageState extends State<AddStockPage> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _isSubmitting ? null : _createInventory,
+        onPressed: _isSubmitting ? null : _addInventory,
         style: ElevatedButton.styleFrom(
-          backgroundColor: _isSubmitting ? Colors.grey : _primaryColor,
+          backgroundColor: _isSubmitting ? Colors.grey : Colors.green,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           elevation: _isSubmitting ? 0 : 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: _isSubmitting
-          ? Row(
+          ? const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(
+                SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
@@ -942,24 +1193,145 @@ class _AddStockPageState extends State<AddStockPage> {
                     valueColor: AlwaysStoppedAnimation(Colors.white),
                   ),
                 ),
-                const SizedBox(width: 12),
-                const Text('Creating inventory...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                SizedBox(width: 12),
+                Text('Adding stock...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             )
-          : Row(
+          : const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.add_box, size: 24),
-                const SizedBox(width: 8),
-                const Text('Create Inventory Item', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Icon(Icons.add_shopping_cart, size: 24),
+                SizedBox(width: 8),
+                Text('Add Stock', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
       ),
     );
   }
+
+  // UTILITY WIDGETS
+  Widget _buildLoadingIndicator(String text) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(_primaryColor)),
+          ),
+          const SizedBox(width: 16),
+          Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String type, VoidCallback onRetry) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: Icon(
+              type == 'products' ? Icons.inventory_2_outlined : 
+              type == 'locations' ? Icons.location_off : Icons.local_shipping,
+              size: 48, 
+              color: Colors.grey[400]
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No $type available',
+            style: TextStyle(fontSize: 16, color: Colors.grey[700], fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh, size: 20),
+            label: Text('Load ${type[0].toUpperCase()}${type.substring(1)}'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(String label, IconData icon, Color color, VoidCallback onPressed) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        backgroundColor: color.withOpacity(0.1),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  Widget _buildCountBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String? status) {
+    if (status == null) return const SizedBox.shrink();
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: status == 'active' 
+            ? Colors.green.withOpacity(0.1) 
+            : Colors.orange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(
+          fontSize: 9,
+          color: status == 'active' ? Colors.green[700] : Colors.orange[700],
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  String _getItemDisplayName(dynamic item) {
+    if (item is Map<String, dynamic>) {
+      return item['location'] ?? item['location_name'] ?? 
+             item['vendor_name'] ?? item['name'] ?? 'Unknown';
+    }
+    return 'Unknown';
+  }
 }
 
-// Simplified Barcode Scanner Page
+// Barcode Scanner Page
 class BarcodeScannerPage extends StatefulWidget {
   final String langCode;
   final Color primaryColor;
@@ -1021,32 +1393,9 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
-            errorBuilder: (context, error) => Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.camera_alt_outlined, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Camera Error',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 16),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: widget.primaryColor,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Close'),
-                  ),
-                ],
-              ),
-            ),
+            errorBuilder: (context, error) => _buildErrorState(),
           ),
           
-          // Scanning overlay
           CustomPaint(
             painter: ScannerOverlay(
               scanAreaSize: 250,
@@ -1056,72 +1405,103 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
             child: const SizedBox.expand(),
           ),
 
-          // Success indicator
-          if (_isScanned)
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.check_circle, color: Colors.white),
-                    SizedBox(width: 8),
-                    Text(
-                      'Barcode Detected',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Bottom instructions
+          if (_isScanned) _buildSuccessIndicator(),
+          
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [Colors.black.withOpacity(0.8), Colors.transparent],
-                ),
+            child: _buildBottomInstructions(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.camera_alt_outlined, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'Camera Error',
+            style: TextStyle(color: Colors.grey[400], fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: widget.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessIndicator() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              'Barcode Detected',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomInstructions() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.qr_code_scanner, size: 48, color: widget.primaryColor),
+          const SizedBox(height: 16),
+          const Text(
+            'Position the barcode within the scanning area',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey[800],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.qr_code_scanner, size: 48, color: widget.primaryColor),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Position the barcode within the scanning area',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[800],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text('Cancel', style: TextStyle(fontSize: 16)),
-                    ),
-                  ),
-                ],
-              ),
+              child: const Text('Cancel', style: TextStyle(fontSize: 16)),
             ),
           ),
         ],
@@ -1176,15 +1556,19 @@ class ScannerOverlay extends CustomPainter {
 
     const cornerLength = 20.0;
     
-    // Draw corner brackets
-    _drawCorner(canvas, paint, scanRect.topLeft, cornerLength, true, true);
-    _drawCorner(canvas, paint, scanRect.topRight, cornerLength, false, true);
-    _drawCorner(canvas, paint, scanRect.bottomLeft, cornerLength, true, false);
-    _drawCorner(canvas, paint, scanRect.bottomRight, cornerLength, false, false);
+    final corners = [
+      (scanRect.topLeft, true, true),
+      (scanRect.topRight, false, true),
+      (scanRect.bottomLeft, true, false),
+      (scanRect.bottomRight, false, false),
+    ];
+
+    for (final (corner, isLeft, isTop) in corners) {
+      _drawCorner(canvas, paint, corner, cornerLength, isLeft, isTop);
+    }
   }
 
-  void _drawCorner(Canvas canvas, Paint paint, Offset corner, double length, 
-                  bool isLeft, bool isTop) {
+  void _drawCorner(Canvas canvas, Paint paint, Offset corner, double length, bool isLeft, bool isTop) {
     final horizontalStart = isLeft ? corner : Offset(corner.dx - length, corner.dy);
     final horizontalEnd = isLeft ? Offset(corner.dx + length, corner.dy) : corner;
     
