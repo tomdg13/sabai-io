@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
@@ -8,6 +9,7 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import 'dart:html' as html; // For web file picker
 
 class branchEditPage extends StatefulWidget {
   final Map<String, dynamic> branchData;
@@ -30,7 +32,9 @@ class _branchEditPageState extends State<branchEditPage> {
 
   String? _base64Image;
   String? _currentImageUrl;
-  File? _imageFile;
+  File? _imageFile; // For mobile
+  Uint8List? _webImageBytes; // For web
+  String? _webImageName; // For web
   bool _isLoading = false;
   bool _isDeleting = false;
   String currentTheme = ThemeConfig.defaultTheme;
@@ -76,7 +80,84 @@ class _branchEditPageState extends State<branchEditPage> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
+  // Web-specific image picker
+  Future<void> _pickImageWeb() async {
+    try {
+      final html.FileUploadInputElement uploadInput = html.FileUploadInputElement();
+      uploadInput.accept = 'image/*';
+      uploadInput.click();
+
+      await uploadInput.onChange.first;
+      final files = uploadInput.files;
+      if (files!.isEmpty) return;
+
+      final html.File file = files[0];
+      if (!file.type.startsWith('image/')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Please select an image file'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Check file size (limit to 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('File size should be less than 5MB'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final html.FileReader reader = html.FileReader();
+      reader.readAsArrayBuffer(file);
+      await reader.onLoad.first;
+
+      final Uint8List bytes = Uint8List.fromList(reader.result as List<int>);
+      final String base64String = base64Encode(bytes);
+      
+      setState(() {
+        _webImageBytes = bytes;
+        _webImageName = file.name;
+        _base64Image = 'data:${file.type};base64,$base64String';
+      });
+
+      print('📷 DEBUG: Web image selected for branch update');
+    } catch (e) {
+      print('❌ DEBUG: Error picking web image: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Error selecting image: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Mobile-specific image picker
+  Future<void> _pickImageMobile() async {
     try {
       // Show image source selection dialog
       final ImageSource? source = await showModalBottomSheet<ImageSource>(
@@ -144,10 +225,10 @@ class _branchEditPageState extends State<branchEditPage> {
           _base64Image = 'data:image/jpeg;base64,$base64String';
         });
 
-        print('📷 DEBUG: New image selected for branch update');
+        print('📷 DEBUG: Mobile image selected for branch update');
       }
     } catch (e) {
-      print('❌ DEBUG: Error picking image: $e');
+      print('❌ DEBUG: Error picking mobile image: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -160,6 +241,15 @@ class _branchEditPageState extends State<branchEditPage> {
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  // Platform-agnostic image picker
+  Future<void> _pickImage() async {
+    if (kIsWeb) {
+      await _pickImageWeb();
+    } else {
+      await _pickImageMobile();
     }
   }
 
@@ -456,7 +546,7 @@ class _branchEditPageState extends State<branchEditPage> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: _imageFile != null 
+                      color: (_imageFile != null || _webImageBytes != null)
                           ? ThemeConfig.getPrimaryColor(currentTheme)
                           : Colors.grey[300]!,
                       width: 2,
@@ -469,76 +559,15 @@ class _branchEditPageState extends State<branchEditPage> {
                       ),
                     ],
                   ),
-                  child: _imageFile != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: Stack(
-                            children: [
-                              Image.file(
-                                _imageFile!,
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: double.infinity,
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: Container(
-                                  padding: EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.6),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Icon(
-                                    Icons.edit,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : _currentImageUrl != null && _currentImageUrl!.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
-                              child: Stack(
-                                children: [
-                                  Image.network(
-                                    _currentImageUrl!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return _buildImagePlaceholder();
-                                    },
-                                  ),
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Container(
-                                      padding: EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.6),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Icon(
-                                        Icons.edit,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : _buildImagePlaceholder(),
+                  child: _buildImageContent(),
                 ),
               ),
             ),
             SizedBox(height: 12),
             Text(
-              'Tap to change image',
+              kIsWeb 
+                  ? 'Click to change image'
+                  : 'Tap to change image',
               style: TextStyle(
                 color: Colors.grey[600],
                 fontSize: 14,
@@ -549,6 +578,110 @@ class _branchEditPageState extends State<branchEditPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildImageContent() {
+    // Show new selected image
+    if (kIsWeb && _webImageBytes != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            Image.memory(
+              _webImageBytes!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (!kIsWeb && _imageFile != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            Image.file(
+              _imageFile!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    // Show existing image
+    else if (_currentImageUrl != null && _currentImageUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            Image.network(
+              _currentImageUrl!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              errorBuilder: (context, error, stackTrace) {
+                return _buildImagePlaceholder();
+              },
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    // Show placeholder
+    else {
+      return _buildImagePlaceholder();
+    }
   }
 
   Widget _buildImagePlaceholder() {
@@ -562,7 +695,7 @@ class _branchEditPageState extends State<branchEditPage> {
         ),
         SizedBox(height: 12),
         Text(
-          'Tap to add image',
+          kIsWeb ? 'Click to add image' : 'Tap to add image',
           style: TextStyle(
             color: Colors.grey[600],
             fontSize: 16,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
@@ -9,19 +10,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 
-class storeEditPage extends StatefulWidget {
+class StoreEditPage extends StatefulWidget {
   final Map<String, dynamic> storeData;
 
-  const storeEditPage({Key? key, required this.storeData}) : super(key: key);
+  const StoreEditPage({Key? key, required this.storeData}) : super(key: key);
 
   @override
-  State<storeEditPage> createState() => _storeEditPageState();
+  State<StoreEditPage> createState() => _StoreEditPageState();
 }
 
-class _storeEditPageState extends State<storeEditPage> {
+class _StoreEditPageState extends State<StoreEditPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _storeNameController;
-  // ✅ ADDED: All additional form controllers
   late final TextEditingController _storeCodeController;
   late final TextEditingController _storeManagerController;
   late final TextEditingController _emailController;
@@ -44,6 +44,7 @@ class _storeEditPageState extends State<storeEditPage> {
   String? _base64Image;
   String? _currentImageUrl;
   File? _imageFile;
+  Uint8List? _webImageBytes; // For web platform
   bool _isLoading = false;
   bool _isDeleting = false;
   String currentTheme = ThemeConfig.defaultTheme;
@@ -57,16 +58,18 @@ class _storeEditPageState extends State<storeEditPage> {
 
   void _loadCurrentTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
-    });
+    if (mounted) {
+      setState(() {
+        currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      });
+    }
   }
 
   void _initializeControllers() {
-    _storeNameController = TextEditingController(text: widget.storeData['store'] ?? '');
+    // Fixed: Use 'store_name' instead of 'store'
+    _storeNameController = TextEditingController(text: widget.storeData['store_name'] ?? '');
     _currentImageUrl = widget.storeData['image_url'];
 
-    // ✅ ADDED: Initialize all additional controllers
     _storeCodeController = TextEditingController(text: widget.storeData['store_code'] ?? '');
     _storeManagerController = TextEditingController(text: widget.storeData['store_manager'] ?? '');
     _emailController = TextEditingController(text: widget.storeData['email'] ?? '');
@@ -86,15 +89,14 @@ class _storeEditPageState extends State<storeEditPage> {
     _masterPercentageController = TextEditingController(text: widget.storeData['master_percentage']?.toString() ?? '');
     _accountController = TextEditingController(text: widget.storeData['account'] ?? '');
     
-    print('🔧 DEBUG: Initialized edit form with store: ${widget.storeData['store']}');
-    print('🔧 DEBUG: store ID: ${widget.storeData['store_id']}');
+    print('🔧 DEBUG: Initialized edit form with store: ${widget.storeData['store_name']}');
+    print('🔧 DEBUG: Store ID: ${widget.storeData['store_id']}');
     print('🔧 DEBUG: Company ID: ${widget.storeData['company_id']}');
   }
 
   @override
   void dispose() {
     _storeNameController.dispose();
-     // ✅ ADDED: Dispose all additional controllers
     _storeCodeController.dispose();
     _storeManagerController.dispose();
     _emailController.dispose();
@@ -151,11 +153,12 @@ class _storeEditPageState extends State<storeEditPage> {
                     label: 'Gallery',
                     onTap: () => Navigator.pop(context, ImageSource.gallery),
                   ),
-                  _buildImageSourceOption(
-                    icon: Icons.photo_camera,
-                    label: 'Camera',
-                    onTap: () => Navigator.pop(context, ImageSource.camera),
-                  ),
+                  if (!kIsWeb) // Camera not available on web
+                    _buildImageSourceOption(
+                      icon: Icons.photo_camera,
+                      label: 'Camera',
+                      onTap: () => Navigator.pop(context, ImageSource.camera),
+                    ),
                 ],
               ),
               SizedBox(height: 20),
@@ -175,12 +178,17 @@ class _storeEditPageState extends State<storeEditPage> {
       );
 
       if (image != null) {
-        final File imageFile = File(image.path);
-        final Uint8List imageBytes = await imageFile.readAsBytes();
+        final Uint8List imageBytes = await image.readAsBytes();
         final String base64String = base64Encode(imageBytes);
         
         setState(() {
-          _imageFile = imageFile;
+          if (kIsWeb) {
+            _webImageBytes = imageBytes;
+            _imageFile = null;
+          } else {
+            _imageFile = File(image.path);
+            _webImageBytes = null;
+          }
           _base64Image = 'data:image/jpeg;base64,$base64String';
         });
 
@@ -188,18 +196,20 @@ class _storeEditPageState extends State<storeEditPage> {
       }
     } catch (e) {
       print('❌ DEBUG: Error picking image: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(child: Text('Error selecting image: $e')),
-            ],
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text('Error selecting image: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
+        );
+      }
     }
   }
 
@@ -240,10 +250,12 @@ class _storeEditPageState extends State<storeEditPage> {
     );
   }
 
-  Future<void> _updatestore() async {
+  Future<void> _updateStore() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+
+    if (!mounted) return;
 
     setState(() {
       _isLoading = true;
@@ -258,8 +270,8 @@ class _storeEditPageState extends State<storeEditPage> {
       print('🌐 DEBUG: Updating store at: $url');
 
       final storeData = <String, dynamic>{
-  'company_id': CompanyConfig.getCompanyId(), // Add this line
-};
+        'company_id': CompanyConfig.getCompanyId(),
+      };
       
       // Only include fields that have values
       if (_storeNameController.text.trim().isNotEmpty) {
@@ -269,6 +281,7 @@ class _storeEditPageState extends State<storeEditPage> {
       if (_base64Image != null) {
         storeData['image'] = _base64Image;
       }
+      
       if (_storeCodeController.text.trim().isNotEmpty) {
         storeData['store_code'] = _storeCodeController.text.trim();
       }
@@ -323,7 +336,6 @@ class _storeEditPageState extends State<storeEditPage> {
       if (_accountController.text.trim().isNotEmpty) {
         storeData['account'] = _accountController.text.trim();
       }
-      
 
       print('📝 DEBUG: Update data: ${storeData.toString()}');
 
@@ -339,6 +351,8 @@ class _storeEditPageState extends State<storeEditPage> {
       print('📡 DEBUG: Update Response Status: ${response.statusCode}');
       print('📝 DEBUG: Update Response Body: ${response.body}');
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         if (responseData['status'] == 'success') {
@@ -348,13 +362,13 @@ class _storeEditPageState extends State<storeEditPage> {
                 children: [
                   Icon(Icons.check_circle, color: Colors.white),
                   SizedBox(width: 8),
-                  Text('store updated successfully!'),
+                  Text('Store updated successfully!'),
                 ],
               ),
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context, true); // Return true to indicate success
+          Navigator.pop(context, true);
         } else {
           throw Exception(responseData['message'] ?? 'Unknown error');
         }
@@ -364,26 +378,30 @@ class _storeEditPageState extends State<storeEditPage> {
       }
     } catch (e) {
       print('❌ DEBUG: Error updating store: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(child: Text('Error updating store: $e')),
-            ],
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text('Error updating store: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  Future<void> _deletestore() async {
+  Future<void> _deleteStore() async {
     // Show confirmation dialog
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -394,7 +412,7 @@ class _storeEditPageState extends State<storeEditPage> {
             children: [
               Icon(Icons.warning, color: Colors.red, size: 28),
               SizedBox(width: 12),
-              Text('Delete store'),
+              Text('Delete Store'),
             ],
           ),
           content: Text('Are you sure you want to delete "${_storeNameController.text}"? This action cannot be undone.'),
@@ -421,6 +439,8 @@ class _storeEditPageState extends State<storeEditPage> {
 
     if (confirm != true) return;
 
+    if (!mounted) return;
+
     setState(() {
       _isDeleting = true;
     });
@@ -433,74 +453,6 @@ class _storeEditPageState extends State<storeEditPage> {
       final url = AppConfig.api('/api/iostore/$storeId');
       print('🗑️ DEBUG: Deleting store at: $url');
 
-      // ✅ UPDATED: Include all fields in update request
-     final storeData = <String, dynamic>{
-  'company_id': CompanyConfig.getCompanyId(), // Add this line
-};
-      
-      // Only include fields that have values
-      if (_storeNameController.text.trim().isNotEmpty) {
-        storeData['store_name'] = _storeNameController.text.trim(); // ✅ FIXED: Changed from 'store' to 'store_name'
-      }
-      if (_storeCodeController.text.trim().isNotEmpty) {
-        storeData['store_code'] = _storeCodeController.text.trim();
-      }
-      if (_storeManagerController.text.trim().isNotEmpty) {
-        storeData['store_manager'] = _storeManagerController.text.trim();
-      }
-      if (_emailController.text.trim().isNotEmpty) {
-        storeData['email'] = _emailController.text.trim();
-      }
-      if (_phoneController.text.trim().isNotEmpty) {
-        storeData['phone'] = _phoneController.text.trim();
-      }
-      if (_addressController.text.trim().isNotEmpty) {
-        storeData['address'] = _addressController.text.trim();
-      }
-      if (_cityController.text.trim().isNotEmpty) {
-        storeData['city'] = _cityController.text.trim();
-      }
-      if (_stateController.text.trim().isNotEmpty) {
-        storeData['state'] = _stateController.text.trim();
-      }
-      if (_countryController.text.trim().isNotEmpty) {
-        storeData['country'] = _countryController.text.trim();
-      }
-      if (_postalCodeController.text.trim().isNotEmpty) {
-        storeData['postal_code'] = _postalCodeController.text.trim();
-      }
-      if (_storeTypeController.text.trim().isNotEmpty) {
-        storeData['store_type'] = _storeTypeController.text.trim();
-      }
-      if (_statusController.text.trim().isNotEmpty) {
-        storeData['status'] = _statusController.text.trim();
-      }
-      if (_openingHoursController.text.trim().isNotEmpty) {
-        storeData['opening_hours'] = _openingHoursController.text.trim();
-      }
-      if (_squareFootageController.text.trim().isNotEmpty) {
-        storeData['square_footage'] = int.tryParse(_squareFootageController.text.trim());
-      }
-      if (_notesController.text.trim().isNotEmpty) {
-        storeData['notes'] = _notesController.text.trim();
-      }
-      if (_upiPercentageController.text.trim().isNotEmpty) {
-        storeData['upi_percentage'] = double.tryParse(_upiPercentageController.text.trim());
-      }
-      if (_visaPercentageController.text.trim().isNotEmpty) {
-        storeData['visa_percentage'] = double.tryParse(_visaPercentageController.text.trim());
-      }
-      if (_masterPercentageController.text.trim().isNotEmpty) {
-        storeData['master_percentage'] = double.tryParse(_masterPercentageController.text.trim());
-      }
-      if (_accountController.text.trim().isNotEmpty) {
-        storeData['account'] = _accountController.text.trim();
-      }
-      
-      if (_base64Image != null) {
-        storeData['image'] = _base64Image;
-      }
-
       final response = await http.delete(
         Uri.parse(url.toString()),
         headers: {
@@ -512,6 +464,8 @@ class _storeEditPageState extends State<storeEditPage> {
       print('📡 DEBUG: Delete Response Status: ${response.statusCode}');
       print('📝 DEBUG: Delete Response Body: ${response.body}');
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         if (responseData['status'] == 'success') {
@@ -521,13 +475,13 @@ class _storeEditPageState extends State<storeEditPage> {
                 children: [
                   Icon(Icons.check_circle, color: Colors.white),
                   SizedBox(width: 8),
-                  Text('store deleted successfully!'),
+                  Text('Store deleted successfully!'),
                 ],
               ),
               backgroundColor: Colors.red,
             ),
           );
-          Navigator.pop(context, 'deleted'); // Return 'deleted' to indicate deletion
+          Navigator.pop(context, 'deleted');
         } else {
           throw Exception(responseData['message'] ?? 'Unknown error');
         }
@@ -537,22 +491,26 @@ class _storeEditPageState extends State<storeEditPage> {
       }
     } catch (e) {
       print('❌ DEBUG: Error deleting store: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(child: Text('Error deleting store: $e')),
-            ],
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text('Error deleting store: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
+        );
+      }
     } finally {
-      setState(() {
-        _isDeleting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
     }
   }
 
@@ -575,7 +533,7 @@ class _storeEditPageState extends State<storeEditPage> {
                 ),
                 SizedBox(width: 12),
                 Text(
-                  'store Image',
+                  'Store Image',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -595,7 +553,7 @@ class _storeEditPageState extends State<storeEditPage> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: _imageFile != null 
+                      color: (_imageFile != null || _webImageBytes != null)
                           ? ThemeConfig.getPrimaryColor(currentTheme)
                           : Colors.grey[300]!,
                       width: 2,
@@ -608,70 +566,7 @@ class _storeEditPageState extends State<storeEditPage> {
                       ),
                     ],
                   ),
-                  child: _imageFile != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: Stack(
-                            children: [
-                              Image.file(
-                                _imageFile!,
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: double.infinity,
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: Container(
-                                  padding: EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.6),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Icon(
-                                    Icons.edit,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : _currentImageUrl != null && _currentImageUrl!.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
-                              child: Stack(
-                                children: [
-                                  Image.network(
-                                    _currentImageUrl!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return _buildImagePlaceholder();
-                                    },
-                                  ),
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Container(
-                                      padding: EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.6),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Icon(
-                                        Icons.edit,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : _buildImagePlaceholder(),
+                  child: _buildImageContent(),
                 ),
               ),
             ),
@@ -688,6 +583,105 @@ class _storeEditPageState extends State<storeEditPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildImageContent() {
+    if (kIsWeb && _webImageBytes != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            Image.memory(
+              _webImageBytes!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (!kIsWeb && _imageFile != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            Image.file(
+              _imageFile!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (_currentImageUrl != null && _currentImageUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            Image.network(
+              _currentImageUrl!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              errorBuilder: (context, error, stackTrace) {
+                return _buildImagePlaceholder();
+              },
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return _buildImagePlaceholder();
+    }
   }
 
   Widget _buildImagePlaceholder() {
@@ -712,18 +706,77 @@ class _storeEditPageState extends State<storeEditPage> {
     );
   }
 
+  Widget _buildResponsiveLayout(Widget child) {
+    if (kIsWeb) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 800),
+          child: child,
+        ),
+      );
+    }
+    return child;
+  }
+
+  Widget _buildFormField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? hint,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint ?? 'Enter $label',
+          prefixIcon: Icon(
+            icon,
+            color: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+              width: 2,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+          filled: true,
+          fillColor: Colors.grey[50],
+        ),
+        validator: validator,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text('Edit store'),
+        title: Text('Edit Store'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         elevation: 0,
         actions: [
           IconButton(
-            onPressed: _isLoading || _isDeleting ? null : _deletestore,
+            onPressed: _isLoading || _isDeleting ? null : _deleteStore,
             icon: _isDeleting
                 ? SizedBox(
                     width: 20,
@@ -736,7 +789,7 @@ class _storeEditPageState extends State<storeEditPage> {
                     ),
                   )
                 : Icon(Icons.delete, color: Colors.red),
-            tooltip: 'Delete store',
+            tooltip: 'Delete Store',
           ),
           if (_isLoading)
             Container(
@@ -752,592 +805,523 @@ class _storeEditPageState extends State<storeEditPage> {
             ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // store Image Section
-              _buildImageSection(),
-              
-              SizedBox(height: 20),
+      body: _buildResponsiveLayout(
+        Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Store Image Section
+                _buildImageSection(),
+                
+                SizedBox(height: 20),
 
-              // store Information
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.store,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                            size: 24,
-                          ),
-                          SizedBox(width: 12),
-                          Text(
-                            'store Information',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 20),
-                      
-                      TextFormField(
-                        controller: _storeNameController,
-                        decoration: InputDecoration(
-                          labelText: 'store Name *',
-                          hintText: 'Enter store name',
-                          prefixIcon: Icon(
-                            Icons.store,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              width: 2,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'store name is required';
-                          }
-                          return null;
-                        },
-                      ),
-                      
-                      SizedBox(height: 16),
-                       // ✅ ADDED: Address Field
-                      TextFormField(
-                        controller: _addressController,
-                        maxLines: 2,
-                        decoration: InputDecoration(
-                          labelText: 'Address',
-                          hintText: 'Enter full address (optional)',
-                          prefixIcon: Icon(
-                            Icons.home,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              width: 2,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                        ),
-                      ),
-                      
-                      SizedBox(height: 16),
-
-
-
-
-                      // Display read-only company ID
-                      Container(
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: Row(
+                // Store Information
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
                             Icon(
-                              Icons.business,
-                              color: Colors.grey[600],
+                              Icons.store,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              size: 24,
                             ),
                             SizedBox(width: 12),
                             Text(
-                              'Company ID: ${CompanyConfig.getCompanyId()}',
+                              'Store Information',
                               style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[700],
-                                fontWeight: FontWeight.w500,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: ThemeConfig.getPrimaryColor(currentTheme),
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                        SizedBox(height: 20),
+                        
+                        // Basic Information
+                        _buildFormField(
+                          controller: _storeNameController,
+                          label: 'Store Name *',
+                          icon: Icons.store,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Store name is required';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        if (isWideScreen) ...[
+                          // Two-column layout for wide screens
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _storeCodeController,
+                                  label: 'Store Code',
+                                  icon: Icons.qr_code,
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _storeManagerController,
+                                  label: 'Store Manager',
+                                  icon: Icons.person,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _emailController,
+                                  label: 'Email',
+                                  icon: Icons.email,
+                                  keyboardType: TextInputType.emailAddress,
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _phoneController,
+                                  label: 'Phone',
+                                  icon: Icons.phone,
+                                  keyboardType: TextInputType.phone,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          // Single-column layout for mobile
+                          _buildFormField(
+                            controller: _storeCodeController,
+                            label: 'Store Code',
+                            icon: Icons.qr_code,
+                          ),
+                          _buildFormField(
+                            controller: _storeManagerController,
+                            label: 'Store Manager',
+                            icon: Icons.person,
+                          ),
+                          _buildFormField(
+                            controller: _emailController,
+                            label: 'Email',
+                            icon: Icons.email,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          _buildFormField(
+                            controller: _phoneController,
+                            label: 'Phone',
+                            icon: Icons.phone,
+                            keyboardType: TextInputType.phone,
+                          ),
+                        ],
+
+                        // Address Information
+                        _buildFormField(
+                          controller: _addressController,
+                          label: 'Address',
+                          icon: Icons.home,
+                          maxLines: 2,
+                        ),
+
+                        if (isWideScreen) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _cityController,
+                                  label: 'City',
+                                  icon: Icons.location_city,
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _stateController,
+                                  label: 'State',
+                                  icon: Icons.map,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _countryController,
+                                  label: 'Country',
+                                  icon: Icons.public,
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _postalCodeController,
+                                  label: 'Postal Code',
+                                  icon: Icons.local_post_office,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          _buildFormField(
+                            controller: _cityController,
+                            label: 'City',
+                            icon: Icons.location_city,
+                          ),
+                          _buildFormField(
+                            controller: _stateController,
+                            label: 'State',
+                            icon: Icons.map,
+                          ),
+                          _buildFormField(
+                            controller: _countryController,
+                            label: 'Country',
+                            icon: Icons.public,
+                          ),
+                          _buildFormField(
+                            controller: _postalCodeController,
+                            label: 'Postal Code',
+                            icon: Icons.local_post_office,
+                          ),
+                        ],
+
+                        // Store Details
+                        if (isWideScreen) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _storeTypeController,
+                                  label: 'Store Type',
+                                  icon: Icons.category,
+                                  hint: 'e.g., retail, warehouse',
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _statusController,
+                                  label: 'Status',
+                                  icon: Icons.info,
+                                  hint: 'e.g., active, inactive',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          _buildFormField(
+                            controller: _storeTypeController,
+                            label: 'Store Type',
+                            icon: Icons.category,
+                            hint: 'e.g., retail, warehouse',
+                          ),
+                          _buildFormField(
+                            controller: _statusController,
+                            label: 'Status',
+                            icon: Icons.info,
+                            hint: 'e.g., active, inactive',
+                          ),
+                        ],
+
+                        _buildFormField(
+                          controller: _openingHoursController,
+                          label: 'Opening Hours',
+                          icon: Icons.access_time,
+                          hint: 'e.g., Mon-Fri: 9AM-6PM',
+                        ),
+
+                        _buildFormField(
+                          controller: _squareFootageController,
+                          label: 'Square Footage',
+                          icon: Icons.square_foot,
+                          keyboardType: TextInputType.number,
+                          hint: 'Store size in sq ft',
+                          validator: (value) {
+                            if (value != null && value.trim().isNotEmpty) {
+                              final num = int.tryParse(value.trim());
+                              if (num == null || num <= 0) {
+                                return 'Please enter a valid positive number';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+
+                        _buildFormField(
+                          controller: _notesController,
+                          label: 'Notes',
+                          icon: Icons.note,
+                          maxLines: 3,
+                          hint: 'Additional notes',
+                        ),
+
+                        // Company ID (Read-only)
+                        Container(
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.business,
+                                color: Colors.grey[600],
+                              ),
+                              SizedBox(width: 12),
+                              Text(
+                                'Company ID: ${CompanyConfig.getCompanyId()}',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
-              SizedBox(height: 30),
+                SizedBox(height: 20),
 
-              // ✅ ADDED: Country and Postal Code Row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _countryController,
-                              decoration: InputDecoration(
-                                labelText: 'Country',
-                                hintText: 'Country',
-                                prefixIcon: Icon(
-                                  Icons.public,
-                                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                                    width: 2,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _postalCodeController,
-                              decoration: InputDecoration(
-                                labelText: 'Postal Code',
-                                hintText: 'ZIP/Postal',
-                                prefixIcon: Icon(
-                                  Icons.local_post_office,
-                                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                                    width: 2,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      
-                      SizedBox(height: 16),
-                      
-                      // ✅ ADDED: Store Type and Status Row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _storeTypeController,
-                              decoration: InputDecoration(
-                                labelText: 'Store Type',
-                                hintText: 'e.g., retail, warehouse',
-                                prefixIcon: Icon(
-                                  Icons.category,
-                                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                                    width: 2,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _statusController,
-                              decoration: InputDecoration(
-                                labelText: 'Status',
-                                hintText: 'e.g., active, inactive',
-                                prefixIcon: Icon(
-                                  Icons.info,
-                                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                                    width: 2,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      
-                      SizedBox(height: 16),
-                      
-                      // ✅ ADDED: Opening Hours Field
-                      TextFormField(
-                        controller: _openingHoursController,
-                        decoration: InputDecoration(
-                          labelText: 'Opening Hours',
-                          hintText: 'e.g., Mon-Fri: 9AM-6PM (optional)',
-                          prefixIcon: Icon(
-                            Icons.access_time,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              width: 2,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                        ),
-                      ),
-                      
-                      SizedBox(height: 16),
-                      
-                      // ✅ ADDED: Square Footage Field
-                      TextFormField(
-                        controller: _squareFootageController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'Square Footage',
-                          hintText: 'Store size in sq ft (optional)',
-                          prefixIcon: Icon(
-                            Icons.square_foot,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              width: 2,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                        ),
-                        validator: (value) {
-                          if (value != null && value.trim().isNotEmpty) {
-                            final num = int.tryParse(value.trim());
-                            if (num == null || num <= 0) {
-                              return 'Please enter a valid positive number';
-                            }
-                          }
-                          return null;
-                        },
-                      ),
-                      
-                      SizedBox(height: 16),
-                      
-                      // ✅ ADDED: Notes Field
-                      TextFormField(
-                        controller: _notesController,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          labelText: 'Notes',
-                          hintText: 'Additional notes (optional)',
-                          prefixIcon: Icon(
-                            Icons.note,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              width: 2,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                        ),
-                      ),
-                      
-                      SizedBox(height: 16),
-                      // ✅ ADDED: UPI Percentage Field
-                      TextFormField(
-                        controller: _upiPercentageController,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: 'UPI Percentage',
-                          hintText: 'e.g., 2.5 (optional)',
-                          prefixIcon: Icon(
-                            Icons.payment,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              width: 2,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                        ),
-                        validator: (value) {
-                          if (value != null && value.trim().isNotEmpty) {
-                            final num = double.tryParse(value.trim());
-                            if (num == null || num < 0) {
-                              return 'Please enter a valid non-negative number';
-                            }
-                          }
-                          return null;
-                        },
-                      ), 
-                      SizedBox(height: 16),
-                      // ✅ ADDED: Visa Percentage Field
-                      TextFormField(
-                        controller: _visaPercentageController,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: 'Visa Percentage',
-                          hintText: 'e.g., 2.5 (optional)',
-                          prefixIcon: Icon(
-                            Icons.credit_card,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),      
-                        ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              width: 2,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                        ),
-                        validator: (value) {
-                          if (value != null && value.trim().isNotEmpty) {
-                            final num = double.tryParse(value.trim());
-                            if (num == null || num < 0) {
-                              return 'Please enter a valid non-negative number';
-                            }
-                          }
-                          return null;
-                        },
-                      ), 
-                      SizedBox(height: 16),
-                      // ✅ ADDED: MasterCard Percentage Field
-                      TextFormField(
-                        controller: _masterPercentageController,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: 'MasterCard Percentage',
-                          hintText: 'e.g., 2.5 (optional)',
-                          prefixIcon: Icon(
-                            Icons.credit_card,
-                            color: ThemeConfig.getPrimaryColor(currentTheme), 
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              width: 2,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                        ),
-                        validator: (value) {
-                          if (value != null && value.trim().isNotEmpty) {
-                            final num = double.tryParse(value.trim());
-                            if (num == null || num < 0) {
-                              return 'Please enter a valid non-negative number';
-                            }
-                          }
-                          return null;
-                        },
-                      ), 
-                      SizedBox(height: 16),
-                      // ✅ ADDED: Account Field
-                      TextFormField(
-                        controller: _accountController,
-                        decoration: InputDecoration(
-                          labelText: 'Account',
-                          hintText: 'Account details (optional)',
-                          prefixIcon: Icon(
-                            Icons.account_balance,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              width: 2, 
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                        ),
-                      ),
-                    
-                  
-                
-              
-
-
-
-              // Update Button
-              Container(
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading || _isDeleting ? null : _updatestore,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                    foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 4,
-                    shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+                // Payment Information Card
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: _isLoading
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  ThemeConfig.getButtonTextColor(currentTheme),
-                                ),
-                              ),
+                            Icon(
+                              Icons.payment,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              size: 24,
                             ),
-                            SizedBox(width: 16),
-                            Text(
-                              'Updating store...',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.save, size: 24),
                             SizedBox(width: 12),
                             Text(
-                              'Update store',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              'Payment Information',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: ThemeConfig.getPrimaryColor(currentTheme),
+                              ),
                             ),
                           ],
                         ),
-                ),
-              ),
+                        SizedBox(height: 20),
 
-              SizedBox(height: 20),
-            ],
+                        if (isWideScreen) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _upiPercentageController,
+                                  label: 'UPI Percentage',
+                                  icon: Icons.payment,
+                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  hint: 'e.g., 2.5',
+                                  validator: (value) {
+                                    if (value != null && value.trim().isNotEmpty) {
+                                      final num = double.tryParse(value.trim());
+                                      if (num == null || num < 0) {
+                                        return 'Please enter a valid non-negative number';
+                                      }
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _visaPercentageController,
+                                  label: 'Visa Percentage',
+                                  icon: Icons.credit_card,
+                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  hint: 'e.g., 2.5',
+                                  validator: (value) {
+                                    if (value != null && value.trim().isNotEmpty) {
+                                      final num = double.tryParse(value.trim());
+                                      if (num == null || num < 0) {
+                                        return 'Please enter a valid non-negative number';
+                                      }
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _masterPercentageController,
+                                  label: 'MasterCard Percentage',
+                                  icon: Icons.credit_card,
+                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  hint: 'e.g., 2.5',
+                                  validator: (value) {
+                                    if (value != null && value.trim().isNotEmpty) {
+                                      final num = double.tryParse(value.trim());
+                                      if (num == null || num < 0) {
+                                        return 'Please enter a valid non-negative number';
+                                      }
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: _buildFormField(
+                                  controller: _accountController,
+                                  label: 'Account',
+                                  icon: Icons.account_balance,
+                                  hint: 'Account details',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          _buildFormField(
+                            controller: _upiPercentageController,
+                            label: 'UPI Percentage',
+                            icon: Icons.payment,
+                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            hint: 'e.g., 2.5',
+                            validator: (value) {
+                              if (value != null && value.trim().isNotEmpty) {
+                                final num = double.tryParse(value.trim());
+                                if (num == null || num < 0) {
+                                  return 'Please enter a valid non-negative number';
+                                }
+                              }
+                              return null;
+                            },
+                          ),
+                          _buildFormField(
+                            controller: _visaPercentageController,
+                            label: 'Visa Percentage',
+                            icon: Icons.credit_card,
+                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            hint: 'e.g., 2.5',
+                            validator: (value) {
+                              if (value != null && value.trim().isNotEmpty) {
+                                final num = double.tryParse(value.trim());
+                                if (num == null || num < 0) {
+                                  return 'Please enter a valid non-negative number';
+                                }
+                              }
+                              return null;
+                            },
+                          ),
+                          _buildFormField(
+                            controller: _masterPercentageController,
+                            label: 'MasterCard Percentage',
+                            icon: Icons.credit_card,
+                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            hint: 'e.g., 2.5',
+                            validator: (value) {
+                              if (value != null && value.trim().isNotEmpty) {
+                                final num = double.tryParse(value.trim());
+                                if (num == null || num < 0) {
+                                  return 'Please enter a valid non-negative number';
+                                }
+                              }
+                              return null;
+                            },
+                          ),
+                          _buildFormField(
+                            controller: _accountController,
+                            label: 'Account',
+                            icon: Icons.account_balance,
+                            hint: 'Account details',
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: 30),
+
+                // Update Button
+                Container(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading || _isDeleting ? null : _updateStore,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                      foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 4,
+                      shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+                    ),
+                    child: _isLoading
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    ThemeConfig.getButtonTextColor(currentTheme),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Text(
+                                'Updating Store...',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.save, size: 24),
+                              SizedBox(width: 12),
+                              Text(
+                                'Update Store',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+
+                SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),

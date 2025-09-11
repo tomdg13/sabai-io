@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
-import 'dart:convert';
-import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 import 'dart:io';
+
+import '../utils/simple_translations.dart';
 
 class UserEditPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -20,26 +22,18 @@ class UserEditPage extends StatefulWidget {
 
 class _UserEditPageState extends State<UserEditPage> {
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
-  String langCode = 'en';
-  String currentTheme = ThemeConfig.defaultTheme;
+  final _controllers = _Controllers();
   
-  // Image picker and photo handling
+  bool _isLoading = false;
+  String _langCode = 'en';
+  String _currentTheme = ThemeConfig.defaultTheme;
+  
+  // Image handling - compatible with both mobile and web
   final ImagePicker _picker = ImagePicker();
   File? _selectedImage;
   File? _selectedIdImage;
-  String? _photoBase64;
-  String? _photoIdBase64;
-
-  // Controllers for all form fields
-  late TextEditingController _nameController;
-  late TextEditingController _usernameController;
-  late TextEditingController _emailController;
-  late TextEditingController _phoneController;
-  late TextEditingController _documentIdController;
-  late TextEditingController _accountNoController;
-  late TextEditingController _accountNameController;
-  late TextEditingController _bioController;
+  String _base64Image = '';
+  String _base64IdImage = '';
 
   // Dropdown selections
   String _selectedRole = 'office';
@@ -56,166 +50,180 @@ class _UserEditPageState extends State<UserEditPage> {
   @override
   void initState() {
     super.initState();
-    _loadLangCode();
-    _loadCurrentTheme();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await _loadPreferences();
     _initializeControllers();
-    _loadBranches();
+    await _loadBranches();
   }
 
-  void _loadLangCode() async {
+  Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      langCode = prefs.getString('languageCode') ?? 'en';
-    });
-  }
-
-  void _loadCurrentTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      _langCode = prefs.getString('languageCode') ?? 'en';
+      _currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     });
   }
 
   void _initializeControllers() {
-    print('=== USER DATA DEBUG ===');
-    print('Full userData: ${widget.userData}');
-    print('branch_id: ${widget.userData['branch_id']}');
-    print('branch_id type: ${widget.userData['branch_id'].runtimeType}');
-    print('=======================');
+    _controllers.name.text = widget.userData['name'] ?? '';
+    _controllers.username.text = widget.userData['username'] ?? '';
+    _controllers.email.text = widget.userData['email'] ?? '';
+    _controllers.phone.text = widget.userData['phone'] ?? '';
+    _controllers.documentId.text = widget.userData['document_id'] ?? '';
+    _controllers.accountNo.text = widget.userData['account_no'] ?? '';
+    _controllers.accountName.text = widget.userData['account_name'] ?? '';
+    _controllers.bio.text = widget.userData['bio'] ?? '';
     
-    _nameController = TextEditingController(text: widget.userData['name'] ?? '');
-    _usernameController = TextEditingController(text: widget.userData['username'] ?? '');
-    _emailController = TextEditingController(text: widget.userData['email'] ?? '');
-    _phoneController = TextEditingController(text: widget.userData['phone'] ?? '');
-    _documentIdController = TextEditingController(text: widget.userData['document_id'] ?? '');
-    _accountNoController = TextEditingController(text: widget.userData['account_no'] ?? '');
-    _accountNameController = TextEditingController(text: widget.userData['account_name'] ?? '');
-    _bioController = TextEditingController(text: widget.userData['bio'] ?? '');
-    
-    // Set initial dropdown values
     _selectedRole = widget.userData['role'] ?? 'office';
     _selectedStatus = widget.userData['status'] ?? 'active';
   }
 
   Future<void> _loadBranches() async {
-    setState(() {
-      _isLoadingBranches = true;
+  setState(() => _isLoadingBranches = true);
+
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+    final companyId = CompanyConfig.getCompanyId();
+    
+    final uri = AppConfig.api('/api/iobranch').replace(queryParameters: {
+      'status': 'admin',
+      'company_id': companyId.toString(),
     });
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-      final url = AppConfig.api('/api/iobranch');
-
-      print('=== BRANCH LOADING DEBUG ===');
-      print('User branch_id from userData: ${widget.userData['branch_id']}');
-      print('Loading branches from: $url');
-
-      final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      
+      if (data['status'] == 'success' && data['data'] != null) {
+        final List<dynamic> branchList = data['data'];
         
-        if (data['status'] == 'success' && data['data'] != null) {
-          final List<dynamic> branchList = data['data'];
-          
-          setState(() {
-            _branches = branchList.map((branch) => {
-              'id': branch['branch_id'],
-              'branch_name': branch['branch_name'] ?? 'Unknown Branch',
-              'branch_code': branch['branch_code'] ?? '',
-              'address': branch['address'] ?? '',
-              'image_url': branch['image_url'] ?? '',
-            }).toList();
-            
-            print('Available branches: ${_branches.length}');
-            _branches.forEach((branch) {
-              print('Branch ID: ${branch['id']}, Name: ${branch['branch_name']}');
-            });
-            
-            // Find and set the user's current branch
-            final userBranchId = widget.userData['branch_id'];
-            if (userBranchId != null) {
-              _selectedBranch = _branches.firstWhere(
-                (branch) => branch['id'].toString() == userBranchId.toString(),
-                orElse: () {
-                  print('WARNING: User branch_id $userBranchId not found in branch list');
-                  return _branches.isNotEmpty ? _branches[0] : {};
-                },
-              );
-              print('Selected branch: ${_selectedBranch?['branch_name']} (ID: ${_selectedBranch?['id']})');
-            } else {
-              print('WARNING: No branch_id found in user data');
-              if (_branches.isNotEmpty) {
-                _selectedBranch = _branches[0];
-                print('Default selected to first branch: ${_selectedBranch?['branch_name']}');
-              }
-            }
-            
-            _isLoadingBranches = false;
-          });
-        } else {
-          print('ERROR: Invalid branch API response: ${data['status']}');
-          setState(() {
-            _isLoadingBranches = false;
-          });
-        }
-      } else {
-        print('ERROR: Branch API request failed with status: ${response.statusCode}');
-        print('Response body: ${response.body}');
         setState(() {
+          _branches = branchList.map((branch) => {
+            'id': branch['branch_id'],
+            'branch_name': branch['branch_name'] ?? 'Unknown Branch',
+            'branch_code': branch['branch_code'] ?? '',
+            'address': branch['address'] ?? '',
+            'image_url': branch['image_url'] ?? '',
+          }).toList();
+          
+          // Find and set the user's current branch
+          final userBranchId = widget.userData['branch_id'];
+          if (userBranchId != null) {
+            _selectedBranch = _branches.firstWhere(
+              (branch) => branch['id'].toString() == userBranchId.toString(),
+              orElse: () => _branches.isNotEmpty ? _branches[0] : {},
+            );
+          } else if (_branches.isNotEmpty) {
+            _selectedBranch = _branches[0];
+          }
+          
           _isLoadingBranches = false;
         });
       }
-    } catch (e) {
-      print('ERROR: Exception loading branches: $e');
-      setState(() {
-        _isLoadingBranches = false;
-      });
+    }
+  } catch (e) {
+    setState(() => _isLoadingBranches = false);
+    _showErrorSnackBar('Error loading branches: $e');
+  }
+}
+
+  // Future<void> _loadBranches() async {
+  //   setState(() => _isLoadingBranches = true);
+
+  //   try {
+  //     final prefs = await SharedPreferences.getInstance();
+  //     final token = prefs.getString('access_token');
+  //     final url = AppConfig.api('/api/iobranch');
+
+  //     final response = await http.get(
+  //       url,
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         'Authorization': 'Bearer $token',
+  //       },
+  //     );
+
+  //     if (response.statusCode == 200) {
+  //       final data = jsonDecode(response.body);
+        
+  //       if (data['status'] == 'success' && data['data'] != null) {
+  //         final List<dynamic> branchList = data['data'];
+          
+  //         setState(() {
+  //           _branches = branchList.map((branch) => {
+  //             'id': branch['branch_id'],
+  //             'branch_name': branch['branch_name'] ?? 'Unknown Branch',
+  //             'branch_code': branch['branch_code'] ?? '',
+  //             'address': branch['address'] ?? '',
+  //             'image_url': branch['image_url'] ?? '',
+  //           }).toList();
+            
+  //           // Find and set the user's current branch
+  //           final userBranchId = widget.userData['branch_id'];
+  //           if (userBranchId != null) {
+  //             _selectedBranch = _branches.firstWhere(
+  //               (branch) => branch['id'].toString() == userBranchId.toString(),
+  //               orElse: () => _branches.isNotEmpty ? _branches[0] : {},
+  //             );
+  //           } else if (_branches.isNotEmpty) {
+  //             _selectedBranch = _branches[0];
+  //           }
+            
+  //           _isLoadingBranches = false;
+  //         });
+  //       }
+  //     }
+  //   } catch (e) {
+  //     setState(() => _isLoadingBranches = false);
+  //     _showErrorSnackBar('Error loading branches: $e');
+  //   }
+  // }
+
+  // Image picker compatible with both mobile and web
+  Future<void> _pickImage({bool isIdImage = false}) async {
+    if (kIsWeb) {
+      await _pickImageFromSource(ImageSource.gallery, isIdImage: isIdImage);
+    } else {
+      _showImageSourceBottomSheet(isIdImage);
     }
   }
 
-  // Image picker methods
-  Future<void> _pickImage({bool isIdImage = false}) async {
+  void _showImageSourceBottomSheet(bool isIdImage) {
     showModalBottomSheet(
       context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-              ListTile(
-                leading: Icon(
-                  Icons.photo_library,
-                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                ),
-                title: Text(SimpleTranslations.get(langCode, 'gallery')),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImageFromSource(ImageSource.gallery, isIdImage: isIdImage);
-                },
-              ),
-              ListTile(
-                leading: Icon(
-                  Icons.camera_alt,
-                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                ),
-                title: Text(SimpleTranslations.get(langCode, 'camera')),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImageFromSource(ImageSource.camera, isIdImage: isIdImage);
-                },
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: Icon(Icons.photo_library, color: ThemeConfig.getPrimaryColor(_currentTheme)),
+              title: Text(_translate('gallery')),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromSource(ImageSource.gallery, isIdImage: isIdImage);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.camera_alt, color: ThemeConfig.getPrimaryColor(_currentTheme)),
+              title: Text(_translate('camera')),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromSource(ImageSource.camera, isIdImage: isIdImage);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -228,61 +236,61 @@ class _UserEditPageState extends State<UserEditPage> {
         imageQuality: 85,
       );
 
-      if (image != null) {
-        final File imageFile = File(image.path);
-        final List<int> imageBytes = await imageFile.readAsBytes();
+      if (image == null) return;
 
-        if (imageBytes.length > 500000) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Image too large. Please select a smaller image.'),
-              backgroundColor: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
-            ),
-          );
-          return;
-        }
-
-        final String base64String = base64Encode(imageBytes);
-        final String dataUrl = 'data:image/jpeg;base64,$base64String';
-
-        setState(() {
-          if (isIdImage) {
-            _selectedIdImage = imageFile;
-            _photoIdBase64 = dataUrl;
-          } else {
-            _selectedImage = imageFile;
-            _photoBase64 = dataUrl;
-          }
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Image selected successfully'),
-            backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
-          ),
-        );
+      final imageBytes = await image.readAsBytes();
+      
+      if (imageBytes.length > 500000) {
+        _showErrorSnackBar(_translate('image_too_large'));
+        return;
       }
+
+      final base64String = base64Encode(imageBytes);
+      final dataUrl = 'data:image/jpeg;base64,$base64String';
+
+      setState(() {
+        if (isIdImage) {
+          _selectedIdImage = kIsWeb ? null : File(image.path);
+          _base64IdImage = dataUrl;
+        } else {
+          _selectedImage = kIsWeb ? null : File(image.path);
+          _base64Image = dataUrl;
+        }
+      });
+
+      _showSuccessSnackBar(_translate('image_selected_successfully'));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error selecting image: $e'),
-          backgroundColor: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
-        ),
-      );
+      _showErrorSnackBar(_translate('error_selecting_image'));
     }
+  }
+
+  // Responsive layout helpers
+  bool get _isWebWideScreen => kIsWeb && MediaQuery.of(context).size.width > 600;
+  
+  Widget _buildResponsiveContainer({required Widget child}) {
+    return Center(
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: kIsWeb && MediaQuery.of(context).size.width > 800 ? 800 : double.infinity,
+        ),
+        padding: EdgeInsets.all(kIsWeb ? 32 : 16),
+        child: child,
+      ),
+    );
   }
 
   Widget _buildImagePicker({
     required String title,
     required String subtitle,
     required File? selectedImage,
+    required String base64Image,
     required String? existingImageUrl,
     required VoidCallback onTap,
     IconData icon = Icons.add_a_photo,
   }) {
     return Column(
       children: [
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         GestureDetector(
           onTap: onTap,
@@ -291,77 +299,148 @@ class _UserEditPageState extends State<UserEditPage> {
             height: 100,
             decoration: BoxDecoration(
               color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(12),
+              shape: BoxShape.circle,
               border: Border.all(
-                color: ThemeConfig.getPrimaryColor(currentTheme),
-                width: 2,
+                color: ThemeConfig.getPrimaryColor(_currentTheme),
+                width: 3,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.3),
+                  spreadRadius: 2,
+                  blurRadius: 5,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
-            child: selectedImage != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.file(
-                      selectedImage,
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : (existingImageUrl != null && existingImageUrl.isNotEmpty)
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.network(
-                          existingImageUrl,
-                          width: 100,
-                          height: 100,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  icon,
-                                  size: 30,
-                                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Change',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      )
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            icon,
-                            size: 30,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Add',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
+            child: _buildImageContent(selectedImage, base64Image, existingImageUrl, icon),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          textAlign: TextAlign.center,
+        ),
       ],
+    );
+  }
+
+  Widget _buildImageContent(File? selectedImage, String base64Image, String? existingImageUrl, IconData icon) {
+    // Handle new image selection
+    if (selectedImage != null || base64Image.isNotEmpty) {
+      return ClipOval(
+        child: kIsWeb && base64Image.isNotEmpty
+            ? Image.memory(
+                base64Decode(base64Image.split(',')[1]),
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+              )
+            : selectedImage != null
+                ? Image.file(
+                    selectedImage,
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.cover,
+                  )
+                : const SizedBox(),
+      );
+    }
+
+    // Handle existing image
+    if (existingImageUrl != null && existingImageUrl.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          existingImageUrl,
+          width: 100,
+          height: 100,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _buildDefaultImageContent(icon),
+        ),
+      );
+    }
+
+    // Default placeholder
+    return _buildDefaultImageContent(icon);
+  }
+
+  Widget _buildDefaultImageContent(IconData icon) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          icon,
+          size: 30,
+          color: ThemeConfig.getPrimaryColor(_currentTheme),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Add',
+          style: TextStyle(
+            fontSize: 10,
+            color: ThemeConfig.getPrimaryColor(_currentTheme),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    String? hint,
+    TextInputType? keyboardType,
+    bool required = false,
+    int maxLines = 1,
+    IconData? icon,
+    bool readOnly = false,
+    ValueChanged<String>? onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        readOnly: readOnly,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          labelText: required ? '$label *' : label,
+          hintText: hint,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(_currentTheme),
+              width: 2,
+            ),
+          ),
+          prefixIcon: icon != null ? Icon(
+            icon,
+            color: ThemeConfig.getPrimaryColor(_currentTheme),
+          ) : null,
+          filled: true,
+          fillColor: readOnly ? Colors.grey[100] : Colors.grey[50],
+        ),
+        validator: required
+            ? (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'This field is required';
+                }
+                if (label.toLowerCase().contains('email')) {
+                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                    return 'Please enter a valid email address';
+                  }
+                }
+                if (label.toLowerCase().contains('phone') && value.trim().length < 8) {
+                  return 'Phone number must be at least 8 digits';
+                }
+                return null;
+              }
+            : null,
+      ),
     );
   }
 
@@ -370,14 +449,14 @@ class _UserEditPageState extends State<UserEditPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${SimpleTranslations.get(langCode, 'branch')} *',
+          '${_translate('branch')} *',
           style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 4),
         Container(
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: _isLoadingBranches
               ? Container(
@@ -390,7 +469,7 @@ class _UserEditPageState extends State<UserEditPage> {
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            ThemeConfig.getPrimaryColor(currentTheme),
+                            ThemeConfig.getPrimaryColor(_currentTheme),
                           ),
                         ),
                       ),
@@ -411,13 +490,9 @@ class _UserEditPageState extends State<UserEditPage> {
                       return DropdownMenuItem<Map<String, dynamic>>(
                         value: branch,
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           child: Row(
                             children: [
-                              // branch Image
                               Container(
                                 width: 32,
                                 height: 32,
@@ -426,44 +501,19 @@ class _UserEditPageState extends State<UserEditPage> {
                                   border: Border.all(color: Colors.grey[300]!),
                                 ),
                                 child: branch['image_url'] != null &&
-                                        branch['image_url']
-                                            .toString()
-                                            .isNotEmpty &&
-                                        !branch['image_url'].toString().contains('undefined')
+                                        branch['image_url'].toString().isNotEmpty
                                     ? ClipRRect(
                                         borderRadius: BorderRadius.circular(5),
                                         child: Image.network(
                                           branch['image_url'],
                                           fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
+                                          errorBuilder: (context, error, stackTrace) {
                                             return Container(
                                               color: Colors.grey[100],
                                               child: Icon(
                                                 Icons.location_on,
                                                 color: Colors.grey[400],
                                                 size: 16,
-                                              ),
-                                            );
-                                          },
-                                          loadingBuilder: (
-                                            context,
-                                            child,
-                                            loadingProgress,
-                                          ) {
-                                            if (loadingProgress == null)
-                                              return child;
-                                            return Container(
-                                              color: Colors.grey[100],
-                                              child: const Center(
-                                                child: SizedBox(
-                                                  width: 12,
-                                                  height: 12,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                    strokeWidth: 1.5,
-                                                  ),
-                                                ),
                                               ),
                                             );
                                           },
@@ -479,7 +529,6 @@ class _UserEditPageState extends State<UserEditPage> {
                                       ),
                               ),
                               const SizedBox(width: 10),
-                              // branch Name
                               Expanded(
                                 child: Text(
                                   branch['branch_name'] ?? 'Unknown',
@@ -507,34 +556,115 @@ class _UserEditPageState extends State<UserEditPage> {
               style: TextStyle(color: Colors.red[700], fontSize: 12),
             ),
           ),
-        // Show current selection for debugging
-        if (_selectedBranch != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, left: 8),
-            child: Text(
-              'Selected: ${_selectedBranch!['branch_name']} (ID: ${_selectedBranch!['id']})',
-              style: TextStyle(
-                color: ThemeConfig.getPrimaryColor(currentTheme),
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
       ],
     );
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _usernameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _documentIdController.dispose();
-    _accountNoController.dispose();
-    _accountNameController.dispose();
-    _bioController.dispose();
-    super.dispose();
+  Widget _buildDropdownField({
+    required String label,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+    IconData? icon,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: '$label *',
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(_currentTheme),
+              width: 2,
+            ),
+          ),
+          prefixIcon: icon != null ? Icon(
+            icon,
+            color: ThemeConfig.getPrimaryColor(_currentTheme),
+          ) : null,
+          filled: true,
+          fillColor: Colors.grey[50],
+        ),
+        items: items.map((item) => DropdownMenuItem(
+          value: item,
+          child: Text(item.toUpperCase()),
+        )).toList(),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Future<void> _updateUser() async {
+    if (!_formKey.currentState!.validate() || _selectedBranch == null) {
+      if (_selectedBranch == null) {
+        _showErrorSnackBar('Please select a branch');
+      }
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      
+      final phone = widget.userData['phone'];
+      final url = AppConfig.api('/api/iouser/update/$phone');
+
+      final updateData = <String, dynamic>{
+        'name': _controllers.name.text.trim(),
+        'username': _controllers.phone.text.trim(), // Username same as phone
+        'email': _controllers.email.text.trim(),
+        'phone': _controllers.phone.text.trim(),
+        'role': _selectedRole,
+        'status': _selectedStatus,
+        'branch_id': _selectedBranch?['id'],
+        'company_id': CompanyConfig.getCompanyId(),
+        'document_id': _controllers.documentId.text.trim().isEmpty ? null : _controllers.documentId.text.trim(),
+        'account_no': _controllers.accountNo.text.trim().isEmpty ? null : _controllers.accountNo.text.trim(),
+        'account_name': _controllers.accountName.text.trim().isEmpty ? null : _controllers.accountName.text.trim(),
+        'bio': _controllers.bio.text.trim().isEmpty ? null : _controllers.bio.text.trim(),
+        'language': _langCode,
+      };
+
+      // Add photos only if new ones were selected
+      if (_base64Image.isNotEmpty) {
+        updateData['photo'] = _base64Image;
+      }
+      if (_base64IdImage.isNotEmpty) {
+        updateData['photo_id'] = _base64IdImage;
+      }
+
+      final response = await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(updateData),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'success') {
+          _showSuccessSnackBar('User updated successfully');
+          Navigator.pop(context, true);
+        } else {
+          _showErrorSnackBar(data['message'] ?? 'Update failed');
+        }
+      } else {
+        _showErrorSnackBar('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to update user: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _deleteUser() async {
@@ -542,17 +672,17 @@ class _UserEditPageState extends State<UserEditPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(SimpleTranslations.get(langCode, 'confirm_delete')),
+          title: Text(_translate('confirm_delete')),
           content: Text('Are you sure you want to delete this user?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text(SimpleTranslations.get(langCode, 'cancel')),
+              child: Text(_translate('cancel')),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
               style: TextButton.styleFrom(
-                foregroundColor: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
+                foregroundColor: ThemeConfig.getThemeColors(_currentTheme)['error'] ?? Colors.red,
               ),
               child: Text('Delete'),
             ),
@@ -572,17 +702,13 @@ class _UserEditPageState extends State<UserEditPage> {
       final phone = widget.userData['phone'];
       final url = AppConfig.api('/api/iouser/update/$phone');
 
-      final deleteData = {
-        'status': 'delete',
-      };
-
       final response = await http.put(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(deleteData),
+        body: jsonEncode({'status': 'delete'}),
       );
 
       if (!mounted) return;
@@ -590,203 +716,57 @@ class _UserEditPageState extends State<UserEditPage> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('User deleted successfully'),
-              backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
-            ),
-          );
+          _showSuccessSnackBar('User deleted successfully');
           Navigator.pop(context, 'deleted');
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['message'] ?? 'Delete failed'),
-              backgroundColor: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
-            ),
-          );
+          _showErrorSnackBar(data['message'] ?? 'Delete failed');
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Server error: ${response.statusCode}'),
-            backgroundColor: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
-          ),
-        );
+        _showErrorSnackBar('Server error: ${response.statusCode}');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to delete user: $e'),
-          backgroundColor: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
-        ),
-      );
+      _showErrorSnackBar('Failed to delete user: $e');
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _updateUser() async {
-    if (!_formKey.currentState!.validate()) return;
+  String _translate(String key) => SimpleTranslations.get(_langCode, key);
 
-    setState(() => _isLoading = true);
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
-      
-      final phone = widget.userData['phone'];
-      final url = AppConfig.api('/api/iouser/update/$phone');
-
-      // Add detailed logging
-      print('=== UPDATE USER DEBUG ===');
-      print('Phone: $phone');
-      print('URL: $url');
-      print('Token: Bearer $token');
-
-      final updateData = <String, dynamic>{
-        'name': _nameController.text.trim(),
-        'username': _usernameController.text.trim().isEmpty ? null : _usernameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'role': _selectedRole,
-        'status': _selectedStatus,
-        'branch_id': _selectedBranch?['id'],
-        'company_id': CompanyConfig.getCompanyId(), // Add this line
-        'document_id': _documentIdController.text.trim().isEmpty ? null : _documentIdController.text.trim(),
-        'account_no': _accountNoController.text.trim().isEmpty ? null : _accountNoController.text.trim(),
-        'account_name': _accountNameController.text.trim().isEmpty ? null : _accountNameController.text.trim(),
-        'bio': _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
-        'language': langCode,
-      };
-
-      // Add photos only if new ones were selected
-      if (_photoBase64 != null) {
-        updateData['photo'] = _photoBase64;
-      }
-      if (_photoIdBase64 != null) {
-        updateData['photo_id'] = _photoIdBase64;
-      }
-
-      print('Request Body: ${jsonEncode(updateData)}');
-      print('========================');
-
-      final response = await http.put(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(updateData),
-      );
-
-      print('=== UPDATE RESPONSE DEBUG ===');
-      print('Status Code: ${response.statusCode}');
-      print('Response Headers: ${response.headers}');
-      print('Response Body: ${response.body}');
-      print('==============================');
-
-      if (!mounted) return;
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('User updated successfully'),
-              backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
-            ),
-          );
-          Navigator.pop(context, true);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['message'] ?? 'Update failed'),
-              backgroundColor: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
-            ),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Server error: ${response.statusCode}'),
-            backgroundColor: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      print('=== UPDATE ERROR DEBUG ===');
-      print('Error: $e');
-      print('Error Type: ${e.runtimeType}');
-      print('==========================');
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update user: $e'),
-          backgroundColor: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    TextInputType? keyboardType,
-    bool required = false,
-    int maxLines = 1,
-    IconData? icon,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: keyboardType,
-        maxLines: maxLines,
-        decoration: InputDecoration(
-          labelText: required ? '$label *' : label,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: ThemeConfig.getPrimaryColor(currentTheme),
-              width: 2,
-            ),
-          ),
-          prefixIcon: icon != null ? Icon(
-            icon,
-            color: ThemeConfig.getPrimaryColor(currentTheme),
-          ) : null,
-          filled: true,
-          fillColor: Colors.grey[50],
-        ),
-        validator: required
-            ? (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'This field is required';
-                }
-                if (label.toLowerCase().contains('email')) {
-                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
-                    return 'Please enter a valid email address';
-                  }
-                }
-                return null;
-              }
-            : null,
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: ThemeConfig.getThemeColors(_currentTheme)['success'] ?? Colors.green,
+        duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: ThemeConfig.getThemeColors(_currentTheme)['error'] ?? Colors.red,
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controllers.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(SimpleTranslations.get(langCode, 'edit_user')),
-        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+        title: Text(_translate('edit_user')),
+        backgroundColor: ThemeConfig.getPrimaryColor(_currentTheme),
+        foregroundColor: ThemeConfig.getButtonTextColor(_currentTheme),
+        elevation: 0,
         actions: [
           IconButton(
             onPressed: _deleteUser,
@@ -795,255 +775,265 @@ class _UserEditPageState extends State<UserEditPage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  ThemeConfig.getPrimaryColor(currentTheme),
-                ),
-              ),
-            )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: SingleChildScrollView(
+        child: _buildResponsiveContainer(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Image Selection Section
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // Image Selection Section
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildImagePicker(
-                          title: 'Profile Photo',
-                          subtitle: 'Tap to change profile image',
-                          selectedImage: _selectedImage,
-                          existingImageUrl: widget.userData['photo'],
-                          onTap: () => _pickImage(isIdImage: false),
-                          icon: Icons.person,
-                        ),
-                        _buildImagePicker(
-                          title: 'ID Document',
-                          subtitle: 'Tap to change ID photo',
-                          selectedImage: _selectedIdImage,
-                          existingImageUrl: widget.userData['photo_id'],
-                          onTap: () => _pickImage(isIdImage: true),
-                          icon: Icons.badge,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Basic Information Section
-                    const Text(
-                      'Basic Information',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildTextField(
-                      controller: _nameController,
-                      label: 'Full Name',
-                      required: true,
+                    _buildImagePicker(
+                      title: 'Profile Photo',
+                      subtitle: 'Tap to change profile image',
+                      selectedImage: _selectedImage,
+                      base64Image: _base64Image,
+                      existingImageUrl: widget.userData['photo'],
+                      onTap: () => _pickImage(isIdImage: false),
                       icon: Icons.person,
                     ),
-
-                    _buildTextField(
-                      controller: _usernameController,
-                      label: 'Username',
-                      icon: Icons.account_circle,
-                    ),
-
-                    _buildTextField(
-                      controller: _emailController,
-                      label: 'Email',
-                      keyboardType: TextInputType.emailAddress,
-                      required: true,
-                      icon: Icons.email,
-                    ),
-
-                    _buildTextField(
-                      controller: _phoneController,
-                      label: 'Phone Number',
-                      keyboardType: TextInputType.phone,
-                      required: true,
-                      icon: Icons.phone,
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Organization Section
-                    const Text(
-                      'Organization Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Branch Dropdown
-                    _buildBranchDropdown(),
-                    const SizedBox(height: 16),
-
-                    // Role Dropdown
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedRole,
-                      decoration: InputDecoration(
-                        labelText: 'Role *',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                            width: 2,
-                          ),
-                        ),
-                        prefixIcon: Icon(
-                          Icons.work,
-                          color: ThemeConfig.getPrimaryColor(currentTheme),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                      items: _roles.map((String role) {
-                        return DropdownMenuItem<String>(
-                          value: role,
-                          child: Text(role.toUpperCase()),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setState(() {
-                            _selectedRole = newValue;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Status Dropdown
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedStatus,
-                      decoration: InputDecoration(
-                        labelText: 'Status *',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                            width: 2,
-                          ),
-                        ),
-                        prefixIcon: Icon(
-                          Icons.info,
-                          color: ThemeConfig.getPrimaryColor(currentTheme),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                      items: _statuses.map((String status) {
-                        return DropdownMenuItem<String>(
-                          value: status,
-                          child: Text(status.toUpperCase()),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setState(() {
-                            _selectedStatus = newValue;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Additional Information Section
-                    const Text(
-                      'Additional Information',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildTextField(
-                      controller: _documentIdController,
-                      label: 'Document ID',
+                    _buildImagePicker(
+                      title: 'ID Document',
+                      subtitle: 'Tap to change ID photo',
+                      selectedImage: _selectedIdImage,
+                      base64Image: _base64IdImage,
+                      existingImageUrl: widget.userData['photo_id'],
+                      onTap: () => _pickImage(isIdImage: true),
                       icon: Icons.badge,
-                    ),
-
-                    _buildTextField(
-                      controller: _accountNameController,
-                      label: 'Account Name',
-                      icon: Icons.account_balance,
-                    ),
-
-                    _buildTextField(
-                      controller: _accountNoController,
-                      label: 'Account Number',
-                      icon: Icons.credit_card,
-                    ),
-
-                    _buildTextField(
-                      controller: _bioController,
-                      label: 'Bio',
-                      maxLines: 3,
-                      icon: Icons.description,
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // Update Button
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _updateUser,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
-                      ),
-                      child: _isLoading
-                          ? SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  ThemeConfig.getButtonTextColor(currentTheme),
-                                ),
-                              ),
-                            )
-                          : Text(
-                              'UPDATE USER',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Cancel Button
-                    TextButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () {
-                              Navigator.pop(context, false);
-                            },
-                      child: Text(
-                        'CANCEL',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 1,
-                        ),
-                      ),
                     ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 32),
+
+                // Form Fields
+                if (_isWebWideScreen) ...[
+                  // Web Layout - Two columns
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTextField(
+                          controller: _controllers.name,
+                          label: 'Full Name',
+                          required: true,
+                          icon: Icons.person,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildTextField(
+                          controller: _controllers.username,
+                          label: 'Username',
+                          hint: 'Auto-filled from phone',
+                          icon: Icons.account_circle,
+                          readOnly: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTextField(
+                          controller: _controllers.phone,
+                          label: 'Phone Number',
+                          keyboardType: TextInputType.phone,
+                          required: true,
+                          icon: Icons.phone,
+                          onChanged: (value) => _controllers.username.text = value.trim(),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildTextField(
+                          controller: _controllers.email,
+                          label: 'Email',
+                          keyboardType: TextInputType.emailAddress,
+                          required: true,
+                          icon: Icons.email,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDropdownField(
+                          label: 'Role',
+                          value: _selectedRole,
+                          items: _roles,
+                          onChanged: (value) => setState(() => _selectedRole = value!),
+                          icon: Icons.work,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildDropdownField(
+                          label: 'Status',
+                          value: _selectedStatus,
+                          items: _statuses,
+                          onChanged: (value) => setState(() => _selectedStatus = value!),
+                          icon: Icons.info,
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  // Mobile Layout - Single column
+                  _buildTextField(
+                    controller: _controllers.name,
+                    label: 'Full Name',
+                    required: true,
+                    icon: Icons.person,
+                  ),
+                  _buildTextField(
+                    controller: _controllers.username,
+                    label: 'Username',
+                    hint: 'Auto-filled from phone',
+                    icon: Icons.account_circle,
+                    readOnly: true,
+                  ),
+                  _buildTextField(
+                    controller: _controllers.phone,
+                    label: 'Phone Number',
+                    keyboardType: TextInputType.phone,
+                    required: true,
+                    icon: Icons.phone,
+                    onChanged: (value) => _controllers.username.text = value.trim(),
+                  ),
+                  _buildTextField(
+                    controller: _controllers.email,
+                    label: 'Email',
+                    keyboardType: TextInputType.emailAddress,
+                    required: true,
+                    icon: Icons.email,
+                  ),
+                  _buildDropdownField(
+                    label: 'Role',
+                    value: _selectedRole,
+                    items: _roles,
+                    onChanged: (value) => setState(() => _selectedRole = value!),
+                    icon: Icons.work,
+                  ),
+                  _buildDropdownField(
+                    label: 'Status',
+                    value: _selectedStatus,
+                    items: _statuses,
+                    onChanged: (value) => setState(() => _selectedStatus = value!),
+                    icon: Icons.info,
+                  ),
+                ],
+
+                // Branch Selection
+                const SizedBox(height: 8),
+                _buildBranchDropdown(),
+
+                // Additional Fields
+                const SizedBox(height: 8),
+                _buildTextField(
+                  controller: _controllers.documentId,
+                  label: 'Document ID',
+                  icon: Icons.badge,
+                ),
+                _buildTextField(
+                  controller: _controllers.accountName,
+                  label: 'Account Name',
+                  icon: Icons.account_balance,
+                ),
+                _buildTextField(
+                  controller: _controllers.accountNo,
+                  label: 'Account Number',
+                  icon: Icons.credit_card,
+                ),
+                _buildTextField(
+                  controller: _controllers.bio,
+                  label: 'Bio',
+                  maxLines: 3,
+                  icon: Icons.description,
+                ),
+
+                const SizedBox(height: 32),
+
+                // Action Buttons
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _updateUser,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ThemeConfig.getPrimaryColor(_currentTheme),
+                      foregroundColor: ThemeConfig.getButtonTextColor(_currentTheme),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: _isLoading
+                        ? SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                ThemeConfig.getButtonTextColor(_currentTheme),
+                              ),
+                            ),
+                          )
+                        : Text(
+                            'UPDATE USER',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Cancel Button
+                TextButton(
+                  onPressed: _isLoading ? null : () => Navigator.pop(context, false),
+                  child: Text(
+                    'CANCEL',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ],
             ),
+          ),
+        ),
+      ),
     );
+  }
+}
+
+// Controllers class for managing text editing controllers
+class _Controllers {
+  final phone = TextEditingController();
+  final name = TextEditingController();
+  final email = TextEditingController();
+  final documentId = TextEditingController();
+  final accountNo = TextEditingController();
+  final accountName = TextEditingController();
+  final username = TextEditingController();
+  final bio = TextEditingController();
+
+  void dispose() {
+    phone.dispose();
+    name.dispose();
+    email.dispose();
+    documentId.dispose();
+    accountNo.dispose();
+    accountName.dispose();
+    username.dispose();
+    bio.dispose();
   }
 }

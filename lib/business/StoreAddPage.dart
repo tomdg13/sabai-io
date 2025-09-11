@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
@@ -8,6 +9,8 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+// For web file handling
+import 'package:universal_html/html.dart' as html;
 
 // Models
 class Group {
@@ -75,17 +78,34 @@ class StoreAddPage extends StatefulWidget {
   State<StoreAddPage> createState() => _StoreAddPageState();
 }
 
-class _StoreAddPageState extends State<StoreAddPage>
-    with TickerProviderStateMixin {
+class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-
+  
   // Controllers
-  late final Map<String, TextEditingController> _controllers;
-  late final Map<String, FocusNode> _focusNodes;
+  final _storeNameController = TextEditingController();
+  final _storeManagerController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _stateController = TextEditingController();
+  final _countryController = TextEditingController();
+  final _postalCodeController = TextEditingController();
+  final _storeTypeController = TextEditingController();
+  final _statusController = TextEditingController();
+  final _openingHoursController = TextEditingController();
+  final _squareFootageController = TextEditingController();
+  final _notesController = TextEditingController();
+  final _upiPercentageController = TextEditingController();
+  final _visaPercentageController = TextEditingController();
+  final _masterPercentageController = TextEditingController();
+  final _accountController = TextEditingController();
 
   // State variables
   String? _base64Image;
-  File? _imageFile;
+  File? _imageFile; // For mobile
+  Uint8List? _webImageBytes; // For web
+  String? _webImageName; // For web
   bool _isLoading = false;
   bool _isLoadingGroups = false;
   bool _isLoadingMerchants = false;
@@ -97,47 +117,21 @@ class _StoreAddPageState extends State<StoreAddPage>
   List<Merchant> _merchants = [];
   Merchant? _selectedMerchant;
 
-  // Animation
+  // Animation controllers
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+  
+  // Focus nodes for better keyboard navigation
+  final _storeNameFocus = FocusNode();
+  final _phoneFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    _initializeControllers();
-    _initializeFocusNodes();
     _loadCurrentTheme();
     _setupAnimations();
+    _loadUserPhone();
     _loadGroups();
-  }
-
-  void _initializeControllers() {
-    _controllers = {
-      'storeName': TextEditingController(),
-      'storeManager': TextEditingController(),
-      'email': TextEditingController(),
-      'phone': TextEditingController(),
-      'address': TextEditingController(),
-      'city': TextEditingController(),
-      'state': TextEditingController(),
-      'country': TextEditingController(),
-      'postalCode': TextEditingController(),
-      'storeType': TextEditingController(),
-      'status': TextEditingController(),
-      'openingHours': TextEditingController(),
-      'squareFootage': TextEditingController(),
-      'notes': TextEditingController(),
-      'upiPercentage': TextEditingController(),
-      'visaPercentage': TextEditingController(),
-      'masterPercentage': TextEditingController(),
-      'account': TextEditingController(),
-    };
-  }
-
-  void _initializeFocusNodes() {
-    _focusNodes = {
-      for (String key in _controllers.keys) key: FocusNode(),
-    };
   }
 
   void _setupAnimations() {
@@ -156,6 +150,17 @@ class _StoreAddPageState extends State<StoreAddPage>
     setState(() {
       currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     });
+  }
+
+  void _loadUserPhone() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userPhone = prefs.getString('user');
+    if (userPhone != null && userPhone.isNotEmpty) {
+      setState(() {
+        _phoneController.text = userPhone;
+      });
+      print('Auto-populated phone field with: $userPhone');
+    }
   }
 
   // API Methods
@@ -179,6 +184,8 @@ class _StoreAddPageState extends State<StoreAddPage>
         },
       );
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         if (responseData['status'] == 'success') {
@@ -187,15 +194,19 @@ class _StoreAddPageState extends State<StoreAddPage>
             _groups = groupsJson.map((json) => Group.fromJson(json)).toList();
           });
         } else {
-          _showErrorSnackBar('Failed to load groups: ${responseData['message']}');
+          _showSnackBar(message: 'Failed to load groups: ${responseData['message']}', isError: true);
         }
       } else {
-        _showErrorSnackBar('Failed to load groups: Server error ${response.statusCode}');
+        _showSnackBar(message: 'Failed to load groups: Server error ${response.statusCode}', isError: true);
       }
     } catch (e) {
-      _showErrorSnackBar('Error loading groups: $e');
+      if (mounted) {
+        _showSnackBar(message: 'Error loading groups: $e', isError: true);
+      }
     } finally {
-      setState(() => _isLoadingGroups = false);
+      if (mounted) {
+        setState(() => _isLoadingGroups = false);
+      }
     }
   }
 
@@ -213,7 +224,6 @@ class _StoreAddPageState extends State<StoreAddPage>
       final token = prefs.getString('access_token');
       final companyId = CompanyConfig.getCompanyId();
       
-      // Using the REST-style endpoint format
       final url = AppConfig.api('/api/iomerchant/company/$companyId/group/${_selectedGroup!.groupId}');
       
       final response = await http.get(
@@ -224,6 +234,8 @@ class _StoreAddPageState extends State<StoreAddPage>
         },
       );
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         if (responseData['status'] == 'success') {
@@ -232,67 +244,125 @@ class _StoreAddPageState extends State<StoreAddPage>
             _merchants = merchantsJson.map((json) => Merchant.fromJson(json)).toList();
           });
         } else {
-          _showErrorSnackBar('Failed to load merchants: ${responseData['message']}');
+          _showSnackBar(message: 'Failed to load merchants: ${responseData['message']}', isError: true);
         }
       } else {
-        _showErrorSnackBar('Failed to load merchants: Server error ${response.statusCode}');
+        _showSnackBar(message: 'Failed to load merchants: Server error ${response.statusCode}', isError: true);
       }
     } catch (e) {
-      _showErrorSnackBar('Error loading merchants: $e');
+      if (mounted) {
+        _showSnackBar(message: 'Error loading merchants: $e', isError: true);
+      }
     } finally {
-      setState(() => _isLoadingMerchants = false);
+      if (mounted) {
+        setState(() => _isLoadingMerchants = false);
+      }
     }
   }
 
   @override
   void dispose() {
-    _controllers.values.forEach((controller) => controller.dispose());
-    _focusNodes.values.forEach((focusNode) => focusNode.dispose());
+    _storeNameController.dispose();
+    _storeManagerController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _countryController.dispose();
+    _postalCodeController.dispose();
+    _storeTypeController.dispose();
+    _statusController.dispose();
+    _openingHoursController.dispose();
+    _squareFootageController.dispose();
+    _notesController.dispose();
+    _upiPercentageController.dispose();
+    _visaPercentageController.dispose();
+    _masterPercentageController.dispose();
+    _accountController.dispose();
+    _storeNameFocus.dispose();
+    _phoneFocus.dispose();
     _fadeController.dispose();
     super.dispose();
   }
 
-  // Image Picker Methods
   Future<void> _pickImage() async {
     try {
-      final ImageSource? source = await _showImageSourceDialog();
-      if (source == null) return;
-
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: source,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
-      );
-
-      if (image != null) {
-        await _processSelectedImage(image);
-        _showSuccessSnackBar('Image selected successfully');
+      if (kIsWeb) {
+        // Web-specific image picking
+        await _pickImageWeb();
+      } else {
+        // Mobile-specific image picking
+        await _pickImageMobile();
       }
     } catch (e) {
-      _showErrorSnackBar('Error selecting image: $e');
+      print('Error picking image: $e');
+      _showSnackBar(
+        message: 'Error selecting image: $e',
+        isError: true,
+      );
     }
   }
 
-  Future<ImageSource?> _showImageSourceDialog() {
-    return showModalBottomSheet<ImageSource>(
+  Future<void> _pickImageWeb() async {
+    final html.FileUploadInputElement input = html.FileUploadInputElement();
+    input.accept = 'image/*';
+    input.click();
+
+    input.onChange.listen((e) async {
+      final files = input.files;
+      if (files!.isEmpty) return;
+
+      final file = files[0];
+      final reader = html.FileReader();
+
+      reader.onLoadEnd.listen((e) async {
+        final Uint8List bytes = reader.result as Uint8List;
+        final String base64String = base64Encode(bytes);
+        
+        setState(() {
+          _webImageBytes = bytes;
+          _webImageName = file.name;
+          _base64Image = 'data:${file.type};base64,$base64String';
+        });
+
+        print('Web image selected and converted to base64');
+        _showSnackBar(
+          message: 'Image selected successfully',
+          isError: false,
+        );
+      });
+
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  Future<void> _pickImageMobile() async {
+    // Show image source selection dialog for mobile
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildBottomSheetHandle(),
-            const SizedBox(height: 20),
-            const Text(
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            SizedBox(height: 20),
+            Text(
               'Select Image Source',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -308,20 +378,55 @@ class _StoreAddPageState extends State<StoreAddPage>
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
           ],
         ),
       ),
     );
+
+    if (source == null) return;
+
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: source,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+
+    if (image != null) {
+      final File imageFile = File(image.path);
+      final Uint8List imageBytes = await imageFile.readAsBytes();
+      final String base64String = base64Encode(imageBytes);
+      
+      setState(() {
+        _imageFile = imageFile;
+        _base64Image = 'data:image/jpeg;base64,$base64String';
+      });
+
+      print('Mobile image selected and converted to base64');
+      _showSnackBar(
+        message: 'Image selected successfully',
+        isError: false,
+      );
+    }
   }
 
-  Widget _buildBottomSheetHandle() {
-    return Container(
-      width: 40,
-      height: 4,
-      decoration: BoxDecoration(
-        color: Colors.grey[300],
-        borderRadius: BorderRadius.circular(2),
+  void _showSnackBar({required String message, required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error : Icons.check_circle,
+              color: Colors.white,
+            ),
+            SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -334,7 +439,7 @@ class _StoreAddPageState extends State<StoreAddPage>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
@@ -344,8 +449,12 @@ class _StoreAddPageState extends State<StoreAddPage>
         ),
         child: Column(
           children: [
-            Icon(icon, size: 32, color: ThemeConfig.getPrimaryColor(currentTheme)),
-            const SizedBox(height: 8),
+            Icon(
+              icon,
+              size: 32,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+            SizedBox(height: 8),
             Text(
               label,
               style: TextStyle(
@@ -359,283 +468,212 @@ class _StoreAddPageState extends State<StoreAddPage>
     );
   }
 
-  Future<void> _processSelectedImage(XFile image) async {
-    final File imageFile = File(image.path);
-    final Uint8List imageBytes = await imageFile.readAsBytes();
-    final String base64String = base64Encode(imageBytes);
-
-    setState(() {
-      _imageFile = imageFile;
-      _base64Image = 'data:image/jpeg;base64,$base64String';
-    });
+  Widget _buildImageDisplay() {
+    if (kIsWeb && _webImageBytes != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            Image.memory(
+              _webImageBytes!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (!kIsWeb && _imageFile != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            Image.file(
+              _imageFile!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.add_a_photo,
+            size: 48,
+            color: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
+          SizedBox(height: 12),
+          Text(
+            'Tap to add image',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'Recommended: 800x800px',
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 12,
+            ),
+          ),
+          if (kIsWeb) ...[
+            SizedBox(height: 8),
+            Text(
+              'Click to browse files',
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
+      );
+    }
   }
 
-  // Form Submission
   Future<void> _createStore() async {
+    // Dismiss keyboard
     FocusScope.of(context).unfocus();
-
+    
     if (!_formKey.currentState!.validate()) {
-      _showErrorSnackBar('Please fill in all required fields');
+      _showSnackBar(
+        message: 'Please fill in all required fields',
+        isError: true,
+      );
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      final response = await _submitStoreData();
-      await _handleApiResponse(response);
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final companyId = CompanyConfig.getCompanyId();
+
+      final url = AppConfig.api('/api/iostore');
+      print('Creating Store at: $url');
+
+      final storeData = {
+        'company_id': companyId?.toString(),
+        'group_id': _selectedGroup?.groupId,
+        'merchant_id': _selectedMerchant?.merchantId,
+        'store_name': _storeNameController.text.trim(),
+        'store_manager': _getTextOrNull(_storeManagerController),
+        'email': _getTextOrNull(_emailController),
+        'phone': _getTextOrNull(_phoneController),
+        'address': _getTextOrNull(_addressController),
+        'city': _getTextOrNull(_cityController),
+        'state': _getTextOrNull(_stateController),
+        'country': _getTextOrNull(_countryController),
+        'postal_code': _getTextOrNull(_postalCodeController),
+        'store_type': _getTextOrNull(_storeTypeController),
+        'status': _getTextOrNull(_statusController),
+        'opening_hours': _getTextOrNull(_openingHoursController),
+        'square_footage': _parseIntOrNull(_squareFootageController),
+        'notes': _getTextOrNull(_notesController),
+        'upi_percentage': _parseDoubleOrNull(_upiPercentageController),
+        'visa_percentage': _parseDoubleOrNull(_visaPercentageController),
+        'master_percentage': _parseDoubleOrNull(_masterPercentageController),
+        'account': _getTextOrNull(_accountController),
+      };
+
+      // Only add image if one was selected
+      if (_base64Image != null) {
+        storeData['image'] = _base64Image!;
+      }
+
+      print('Store data: ${storeData.toString()}');
+
+      final response = await http.post(
+        Uri.parse(url.toString()),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(storeData),
+      );
+
+      print('Response Status: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['status'] == 'success') {
+          _showSuccessDialog();
+        } else {
+          throw Exception(responseData['message'] ?? 'Unknown error');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
+      }
     } catch (e) {
+      print('Error creating Store: $e');
       _showErrorDialog(e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
-  Future<http.Response> _submitStoreData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
-    final companyId = CompanyConfig.getCompanyId();
-    final url = AppConfig.api('/api/iostore');
-
-    final storeData = _buildStoreDataMap(companyId);
-
-    return await http.post(
-      Uri.parse(url.toString()),
-      headers: {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(storeData),
-    );
-  }
-
-  Map<String, dynamic> _buildStoreDataMap(int? companyId) {
-    return {
-      'company_id': companyId?.toString(),
-      'group_id': _selectedGroup?.groupId,
-      'merchant_id': _selectedMerchant?.merchantId,
-      'store_name': _controllers['storeName']!.text.trim(),
-      'store_manager': _getTextOrNull('storeManager'),
-      'email': _getTextOrNull('email'),
-      'phone': _getTextOrNull('phone'),
-      'address': _getTextOrNull('address'),
-      'city': _getTextOrNull('city'),
-      'state': _getTextOrNull('state'),
-      'country': _getTextOrNull('country'),
-      'postal_code': _getTextOrNull('postalCode'),
-      'store_type': _getTextOrNull('storeType'),
-      'status': _getTextOrNull('status'),
-      'opening_hours': _getTextOrNull('openingHours'),
-      'square_footage': _parseIntOrNull(_controllers['squareFootage']!.text),
-      'notes': _getTextOrNull('notes'),
-      'image': _base64Image,
-      'upi_percentage': _parseDoubleOrNull(_controllers['upiPercentage']!.text),
-      'visa_percentage': _parseDoubleOrNull(_controllers['visaPercentage']!.text),
-      'master_percentage': _parseDoubleOrNull(_controllers['masterPercentage']!.text),
-      'account': _getTextOrNull('account'),
-    };
-  }
-
-  String? _getTextOrNull(String key) {
-    final text = _controllers[key]!.text.trim();
+  String? _getTextOrNull(TextEditingController controller) {
+    final text = controller.text.trim();
     return text.isEmpty ? null : text;
   }
 
-  int? _parseIntOrNull(String text) {
-    return text.trim().isEmpty ? null : int.tryParse(text.trim());
+  int? _parseIntOrNull(TextEditingController controller) {
+    final text = controller.text.trim();
+    return text.isEmpty ? null : int.tryParse(text);
   }
 
-  double? _parseDoubleOrNull(String text) {
-    return text.trim().isEmpty ? null : double.tryParse(text.trim());
+  double? _parseDoubleOrNull(TextEditingController controller) {
+    final text = controller.text.trim();
+    return text.isEmpty ? null : double.tryParse(text);
   }
 
-  Future<void> _handleApiResponse(http.Response response) async {
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final responseData = jsonDecode(response.body);
-      if (responseData['status'] == 'success') {
-        _showSuccessDialog();
-      } else {
-        throw Exception(responseData['message'] ?? 'Unknown error');
-      }
-    } else {
-      final errorData = jsonDecode(response.body);
-      throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
-    }
-  }
-
-  // Dropdown Builders - Fixed Layout for Images
-Widget _buildGroupDropdown() {
-  return Container(
-    margin: const EdgeInsets.only(bottom: 16),
-    height: 60,
-    child: DropdownButtonFormField<Group>(
-      value: _selectedGroup,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: 'Group',
-        hintText: _isLoadingGroups ? 'Loading groups...' : 'Select a group (optional)',
-        prefixIcon: Icon(Icons.group, color: ThemeConfig.getPrimaryColor(currentTheme)),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        filled: true,
-        fillColor: Colors.grey[50],
-        suffixIcon: _isLoadingGroups
-            ? Container(
-                width: 20,
-                height: 20,
-                padding: const EdgeInsets.all(12),
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getPrimaryColor(currentTheme)),
-                ),
-              )
-            : null,
-      ),
-      items: _groups.map((Group group) {
-        return DropdownMenuItem<Group>(
-          value: group,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            leading: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.grey[200],
-              ),
-              child: group.imageUrl != null &&
-                      group.imageUrl!.isNotEmpty &&
-                      !group.imageUrl!.contains('undefined')
-                  ? ClipOval(
-                      child: Image.network(
-                        group.imageUrl!,
-                        width: 36,
-                        height: 36,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(Icons.group, color: Colors.grey[600], size: 18);
-                        },
-                      ),
-                    )
-                  : Icon(Icons.group, color: Colors.grey[600], size: 18),
-            ),
-            title: Text(
-              group.groupName,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
-        );
-      }).toList(),
-      onChanged: _isLoadingGroups ? null : (Group? newGroup) {
-        setState(() {
-          _selectedGroup = newGroup;
-          _selectedMerchant = null;
-          _merchants.clear();
-        });
-        if (newGroup != null) {
-          _loadMerchants();
-        }
-      },
-    ),
-  );
-}
-
-
-  Widget _buildMerchantDropdown() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: DropdownButtonFormField<Merchant>(
-        value: _selectedMerchant,
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: 'Merchant',
-          hintText: _selectedGroup == null
-              ? 'Select a group first'
-              : _isLoadingMerchants
-                  ? 'Loading merchants...'
-                  : 'Select a merchant (optional)',
-          prefixIcon: Icon(Icons.business, color: ThemeConfig.getPrimaryColor(currentTheme)),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey[300]!),
-          ),
-          filled: true,
-          fillColor: Colors.grey[50],
-          suffixIcon: _isLoadingMerchants
-              ? Container(
-                  width: 20,
-                  height: 20,
-                  padding: const EdgeInsets.all(12),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getPrimaryColor(currentTheme)),
-                  ),
-                )
-              : null,
-        ),
-        items: _merchants.map((Merchant merchant) {
-          return DropdownMenuItem<Merchant>(
-            value: merchant,
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              leading: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.grey[200],
-                ),
-                child: merchant.imageUrl != null && 
-                       merchant.imageUrl!.isNotEmpty && 
-                       !merchant.imageUrl!.contains('undefined')
-                    ? ClipOval(
-                        child: Image.network(
-                          merchant.imageUrl!,
-                          width: 36,
-                          height: 36,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(Icons.business, color: Colors.grey[600], size: 18);
-                          },
-                        ),
-                      )
-                    : Icon(Icons.business, color: Colors.grey[600], size: 18),
-              ),
-              title: Text(
-                merchant.merchantName,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: const TextStyle(fontSize: 14),
-              ),
-            ),
-          );
-        }).toList(),
-        onChanged: (_selectedGroup == null || _isLoadingMerchants) ? null : (Merchant? newMerchant) {
-          setState(() {
-            _selectedMerchant = newMerchant;
-          });
-        },
-      ),
-    );
-  }
-
-  // UI Helper Methods
   void _showSuccessDialog() {
     showDialog(
       context: context,
@@ -644,17 +682,32 @@ Widget _buildGroupDropdown() {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 28),
-            const SizedBox(width: 12),
-            const Text('Success!'),
+            Icon(Icons.check_circle, color: Colors.green, size: 28),
+            SizedBox(width: 12),
+            Text('Success!'),
           ],
         ),
-        content: Text('Store "${_controllers['storeName']!.text}" has been created successfully.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Store "${_storeNameController.text}" has been created successfully!'),
+            SizedBox(height: 8),
+            if (_selectedGroup != null) ...[
+              Text('Group: ${_selectedGroup!.groupName}'),
+              SizedBox(height: 4),
+            ],
+            if (_selectedMerchant != null) ...[
+              Text('Merchant: ${_selectedMerchant!.merchantName}'),
+              SizedBox(height: 4),
+            ],
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop(true);
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(true); // Return to Store list
             },
             child: Text(
               'OK',
@@ -676,12 +729,12 @@ Widget _buildGroupDropdown() {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.error, color: Colors.red, size: 28),
-            const SizedBox(width: 12),
-            const Text('Error'),
+            Icon(Icons.error, color: Colors.red, size: 28),
+            SizedBox(width: 12),
+            Text('Error'),
           ],
         ),
-        content: Text('Failed to create store:\n$error'),
+        content: Text('Failed to create Store:\n$error'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -698,61 +751,40 @@ Widget _buildGroupDropdown() {
     );
   }
 
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(message),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.red,
-      ),
-    );
-  }
-
-  // Form Field Builders
-  Widget _buildTextField({
-    required String controllerKey,
+  Widget _buildEnhancedTextField({
+    required TextEditingController controller,
     required String label,
     required IconData icon,
+    FocusNode? focusNode,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     int maxLines = 1,
     String? hint,
+    TextInputAction? textInputAction,
+    VoidCallback? onFieldSubmitted,
+    bool obscureText = false,
   }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: EdgeInsets.only(bottom: 16),
       child: TextFormField(
-        controller: _controllers[controllerKey],
-        focusNode: _focusNodes[controllerKey],
+        controller: controller,
+        focusNode: focusNode,
         keyboardType: keyboardType,
         maxLines: maxLines,
         validator: validator,
-        textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
+        textInputAction: textInputAction ?? TextInputAction.next,
+        onFieldSubmitted: onFieldSubmitted != null ? (_) => onFieldSubmitted() : null,
+        obscureText: obscureText,
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          prefixIcon: Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          prefixIcon: Icon(
+            icon,
+            color: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(
@@ -780,17 +812,23 @@ Widget _buildGroupDropdown() {
       opacity: _fadeAnimation,
       child: Card(
         elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   if (icon != null) ...[
-                    Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme), size: 24),
-                    const SizedBox(width: 12),
+                    Icon(
+                      icon,
+                      color: ThemeConfig.getPrimaryColor(currentTheme),
+                      size: 24,
+                    ),
+                    SizedBox(width: 12),
                   ],
                   Text(
                     title,
@@ -802,7 +840,7 @@ Widget _buildGroupDropdown() {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               ...children,
             ],
           ),
@@ -811,450 +849,446 @@ Widget _buildGroupDropdown() {
     );
   }
 
-  // Validation Methods
-  String? _validateRequired(String? value, String fieldName) {
-    if (value == null || value.trim().isEmpty) {
-      return '$fieldName is required';
-    }
-    return null;
+  Widget _buildDropdownField<T>({
+    required String label,
+    required IconData icon,
+    required T? value,
+    required List<T> items,
+    required String Function(T) getDisplayText,
+    required void Function(T?)? onChanged,
+    bool isLoading = false,
+    String? hint,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<T>(
+        value: value,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+          filled: true,
+          fillColor: Colors.grey[50],
+          suffixIcon: isLoading
+              ? Container(
+                  width: 20,
+                  height: 20,
+                  padding: const EdgeInsets.all(12),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getPrimaryColor(currentTheme)),
+                  ),
+                )
+              : null,
+        ),
+        items: items.map((item) => DropdownMenuItem<T>(
+          value: item,
+          child: Text(getDisplayText(item)),
+        )).toList(),
+        onChanged: isLoading ? null : onChanged,
+      ),
+    );
   }
 
-  String? _validateEmail(String? value) {
-    if (value != null && value.trim().isNotEmpty) {
-      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-        return 'Please enter a valid email address';
-      }
+  Widget _buildResponsiveRow(List<Widget> children) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+    
+    if (isWideScreen && children.length == 2) {
+      return Row(
+        children: [
+          Expanded(child: children[0]),
+          SizedBox(width: 16),
+          Expanded(child: children[1]),
+        ],
+      );
+    } else {
+      return Column(children: children);
     }
-    return null;
-  }
-
-  String? _validatePositiveNumber(String? value, String fieldName) {
-    if (value != null && value.trim().isNotEmpty) {
-      final num = int.tryParse(value.trim());
-      if (num == null || num <= 0) {
-        return 'Please enter a valid $fieldName';
-      }
-    }
-    return null;
-  }
-
-  String? _validatePercentage(String? value) {
-    if (value != null && value.trim().isNotEmpty) {
-      final num = double.tryParse(value.trim());
-      if (num == null || num < 0 || num > 100) {
-        return 'Enter a valid percentage (0-100)';
-      }
-    }
-    return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    // Get responsive dimensions
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+    final imageSize = isWideScreen ? 200.0 : 180.0;
+    final horizontalPadding = isWideScreen ? 32.0 : 16.0;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: _buildAppBar(),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildImageSection(),
-              const SizedBox(height: 20),
-              _buildStoreInformationSection(),
-              const SizedBox(height: 20),
-              _buildContactInformationSection(),
-              const SizedBox(height: 20),
-              _buildAddressInformationSection(),
-              const SizedBox(height: 20),
-              _buildPaymentInformationSection(),
-              const SizedBox(height: 20),
-              _buildStoreDetailsSection(),
-              const SizedBox(height: 30),
-              _buildCreateButton(),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: const Text('Add New Store'),
-      backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-      foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-      elevation: 0,
-      actions: [
-        if (_isLoading)
-          Container(
-            margin: const EdgeInsets.all(16),
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                ThemeConfig.getButtonTextColor(currentTheme),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildImageSection() {
-    return _buildSectionCard(
-      title: 'Store Image',
-      icon: Icons.image,
-      children: [
-        Center(
-          child: GestureDetector(
-            onTap: _pickImage,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: _imageFile != null
-                      ? ThemeConfig.getPrimaryColor(currentTheme)
-                      : Colors.grey[300]!,
-                  width: 2,
+      appBar: AppBar(
+        title: Text('Add New Store'),
+        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+        elevation: 0,
+        actions: [
+          if (_isLoading)
+            Container(
+              margin: EdgeInsets.all(16),
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  ThemeConfig.getButtonTextColor(currentTheme),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
-              child: _imageFile != null ? _buildSelectedImage() : _buildImagePlaceholder(),
             ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSelectedImage() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: Stack(
-        children: [
-          Image.file(
-            _imageFile!,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-          ),
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(Icons.edit, color: Colors.white, size: 16),
-            ),
-          ),
         ],
       ),
-    );
-  }
+      body: Form(
+        key: _formKey,
+        child: Center(
+          child: Container(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: 16.0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Store Image Section
+                  _buildSectionCard(
+                    title: 'Store Image (Optional)',
+                    icon: Icons.image,
+                    children: [
+                      Center(
+                        child: GestureDetector(
+                          onTap: _pickImage,
+                          child: Container(
+                            width: imageSize,
+                            height: imageSize,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: (kIsWeb ? _webImageBytes != null : _imageFile != null)
+                                    ? ThemeConfig.getPrimaryColor(currentTheme)
+                                    : Colors.grey[300]!,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: _buildImageDisplay(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  SizedBox(height: 20),
 
-  Widget _buildImagePlaceholder() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          Icons.add_a_photo,
-          size: 48,
-          color: ThemeConfig.getPrimaryColor(currentTheme),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Tap to add image',
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
+                  // Basic Information
+                  _buildSectionCard(
+                    title: 'Store Information',
+                    icon: Icons.store,
+                    children: [
+                      _buildEnhancedTextField(
+                        controller: _storeNameController,
+                        label: 'Store Name *',
+                        icon: Icons.store,
+                        focusNode: _storeNameFocus,
+                        keyboardType: TextInputType.text,
+                        hint: 'Enter store name',
+                        textInputAction: TextInputAction.next,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Store name is required';
+                          }
+                          if (value.trim().length < 2) {
+                            return 'Store name must be at least 2 characters';
+                          }
+                          return null;
+                        },
+                      ),
+                      _buildDropdownField<Group>(
+                        label: 'Group (Optional)',
+                        icon: Icons.group,
+                        value: _selectedGroup,
+                        items: _groups,
+                        getDisplayText: (group) => group.groupName,
+                        isLoading: _isLoadingGroups,
+                        hint: _isLoadingGroups ? 'Loading groups...' : 'Select a group',
+                        onChanged: (group) {
+                          setState(() {
+                            _selectedGroup = group;
+                            _selectedMerchant = null;
+                            _merchants.clear();
+                          });
+                          if (group != null) _loadMerchants();
+                        },
+                      ),
+                      _buildDropdownField<Merchant>(
+                        label: 'Merchant (Optional)',
+                        icon: Icons.business,
+                        value: _selectedMerchant,
+                        items: _merchants,
+                        getDisplayText: (merchant) => merchant.merchantName,
+                        isLoading: _isLoadingMerchants,
+                        hint: _selectedGroup == null
+                            ? 'Select a group first'
+                            : _isLoadingMerchants
+                                ? 'Loading merchants...'
+                                : 'Select a merchant',
+                        onChanged: (_selectedGroup == null || _isLoadingMerchants) 
+                            ? null 
+                            : (merchant) => setState(() => _selectedMerchant = merchant),
+                      ),
+                      _buildEnhancedTextField(
+                        controller: _storeManagerController,
+                        label: 'Store Manager',
+                        icon: Icons.person,
+                        hint: 'Enter manager name',
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 20),
+
+                  // Contact Information
+                  _buildSectionCard(
+                    title: 'Contact Information',
+                    icon: Icons.contact_phone,
+                    children: [
+                      _buildResponsiveRow([
+                        _buildEnhancedTextField(
+                          controller: _emailController,
+                          label: 'Email',
+                          icon: Icons.email,
+                          keyboardType: TextInputType.emailAddress,
+                          hint: 'Enter email address',
+                          validator: (value) {
+                            if (value != null && value.trim().isNotEmpty) {
+                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$'
+            ).hasMatch(value)) {
+                                return 'Please enter a valid email address';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                       
+                      ]),
+                    ],
+                  ),
+
+                  SizedBox(height: 20),
+
+                  // Address Information
+                  _buildSectionCard(
+                    title: 'Address Information',
+                    icon: Icons.location_on,
+                    children: [
+                      _buildEnhancedTextField(
+                        controller: _addressController,
+                        label: 'Address',
+                        icon: Icons.home,
+                        hint: 'Enter full address',
+                        maxLines: 2,
+                      ),
+                      _buildResponsiveRow([
+                        _buildEnhancedTextField(
+                          controller: _cityController,
+                          label: 'City',
+                          icon: Icons.location_city,
+                          hint: 'Enter city',
+                        ),
+                        _buildEnhancedTextField(
+                          controller: _stateController,
+                          label: 'State',
+                          icon: Icons.map,
+                          hint: 'Enter state/province',
+                        ),
+                      ]),
+                      _buildResponsiveRow([
+                        _buildEnhancedTextField(
+                          controller: _countryController,
+                          label: 'Country',
+                          icon: Icons.public,
+                          hint: 'Enter country',
+                        ),
+                        _buildEnhancedTextField(
+                          controller: _postalCodeController,
+                          label: 'Postal Code',
+                          icon: Icons.local_post_office,
+                          hint: 'Enter ZIP/postal code',
+                        ),
+                      ]),
+                    ],
+                  ),
+
+                  SizedBox(height: 20),
+
+                  // Store Details
+                  _buildSectionCard(
+                    title: 'Store Details',
+                    icon: Icons.business,
+                    children: [
+                      _buildResponsiveRow([
+                    _buildEnhancedTextField(
+                        controller: _notesController,
+                        label: 'Notes',
+                        icon: Icons.note,
+                        hint: 'Additional notes',
+                        maxLines: 3,
+                      ),
+                    ],
+                  ),
+                    ],
+                  ),
+
+                  SizedBox(height: 20),
+
+                  // Payment Information
+                  _buildSectionCard(
+                    title: 'Payment Information',
+                    icon: Icons.payment,
+                    children: [
+                      _buildEnhancedTextField(
+                          controller: _masterPercentageController,
+                          label: 'MDR Master %',
+                          icon: Icons.style,
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          hint: '3.0 MAX',
+                          validator: (value) {
+                            if (value != null && value.trim().isNotEmpty) {
+                              final num = double.tryParse(value.trim());
+                              if (num == null || num < 0 || num > 100) {
+                                return 'Enter a valid percentage (0-100)';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                      _buildEnhancedTextField(
+                        controller: _upiPercentageController,
+                        label: 'MDR UPI %',
+                        icon: Icons.style,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        hint: '3.0 MAX',
+                        validator: (value) {
+                          if (value != null && value.trim().isNotEmpty) {
+                            final num = double.tryParse(value.trim());
+                            if (num == null || num < 0 || num > 100) {
+                              return 'Enter a valid percentage (0-100)';
+                            }
+                          }
+                          return null;
+                        },
+                      ),
+                      _buildResponsiveRow([
+                        _buildEnhancedTextField(
+                          controller: _visaPercentageController,
+                          label: 'MDR Visa %',
+                          icon: Icons.style,
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          hint: '3.0 MAX',
+                          validator: (value) {
+                            if (value != null && value.trim().isNotEmpty) {
+                              final num = double.tryParse(value.trim());
+                              if (num == null || num < 0 || num > 100) {
+                                return 'Enter a valid percentage (0-100)';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                        
+                      ]),
+                      _buildEnhancedTextField(
+                          controller: _storeTypeController,
+                          label: 'Account Name',
+                          icon: Icons.auto_stories,
+                          hint: 'e.g., Abc DEF...',
+                        ),
+                      _buildEnhancedTextField(
+                        controller: _accountController,
+                        label: 'Account Number',
+                        icon: Icons.account_balance,
+                        hint: 'e.g., 03XXX0041XXXXXXX',
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 30),
+
+                  // Create Button
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Container(
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _createStore,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                          foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 4,
+                          shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+                        ),
+                        child: _isLoading
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        ThemeConfig.getButtonTextColor(currentTheme),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: 16),
+                                  Text(
+                                    'Creating Store...',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_circle, size: 24),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'Create Store',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: 20),
+                ],
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Recommended: 800x800px',
-          style: TextStyle(color: Colors.grey[400], fontSize: 12),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStoreInformationSection() {
-    return _buildSectionCard(
-      title: 'Store Information',
-      icon: Icons.store,
-      children: [
-        _buildTextField(
-          controllerKey: 'storeName',
-          label: 'Store Name *',
-          icon: Icons.store,
-          hint: 'Enter store name',
-          validator: (value) => _validateRequired(value, 'Store name'),
-        ),
-        _buildGroupDropdown(),
-        _buildMerchantDropdown(),
-        _buildTextField(
-          controllerKey: 'storeManager',
-          label: 'Store Manager',
-          icon: Icons.person,
-          hint: 'Enter manager name (optional)',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildContactInformationSection() {
-    return _buildSectionCard(
-      title: 'Contact Information',
-      icon: Icons.contact_phone,
-      children: [
-        _buildTextField(
-          controllerKey: 'email',
-          label: 'Email',
-          icon: Icons.email,
-          hint: 'Enter email address (optional)',
-          keyboardType: TextInputType.emailAddress,
-          validator: _validateEmail,
-        ),
-        _buildTextField(
-          controllerKey: 'phone',
-          label: 'Phone',
-          icon: Icons.phone,
-          hint: 'Enter phone number (optional)',
-          keyboardType: TextInputType.phone,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAddressInformationSection() {
-    return _buildSectionCard(
-      title: 'Address Information',
-      icon: Icons.location_on,
-      children: [
-        _buildTextField(
-          controllerKey: 'address',
-          label: 'Address',
-          icon: Icons.home,
-          hint: 'Enter full address (optional)',
-          maxLines: 2,
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: _buildTextField(
-                controllerKey: 'city',
-                label: 'City',
-                icon: Icons.location_city,
-                hint: 'City',
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildTextField(
-                controllerKey: 'state',
-                label: 'State',
-                icon: Icons.map,
-                hint: 'State/Province',
-              ),
-            ),
-          ],
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: _buildTextField(
-                controllerKey: 'country',
-                label: 'Country',
-                icon: Icons.public,
-                hint: 'Country',
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildTextField(
-                controllerKey: 'postalCode',
-                label: 'Postal Code',
-                icon: Icons.local_post_office,
-                hint: 'ZIP/Postal',
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPaymentInformationSection() {
-    return _buildSectionCard(
-      title: 'Payment Information',
-      icon: Icons.payment,
-      children: [
-        _buildTextField(
-          controllerKey: 'upiPercentage',
-          label: 'UPI Percentage',
-          icon: Icons.percent,
-          hint: 'e.g., 1.5',
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          validator: _validatePercentage,
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: _buildTextField(
-                controllerKey: 'visaPercentage',
-                label: 'Visa Percentage',
-                icon: Icons.percent,
-                hint: 'e.g., 2.0',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                validator: _validatePercentage,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildTextField(
-                controllerKey: 'masterPercentage',
-                label: 'Master Percentage',
-                icon: Icons.percent,
-                hint: 'e.g., 1.8',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                validator: _validatePercentage,
-              ),
-            ),
-          ],
-        ),
-        _buildTextField(
-          controllerKey: 'account',
-          label: 'Account Number',
-          icon: Icons.account_balance,
-          hint: 'Enter account number',
-          keyboardType: TextInputType.number,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStoreDetailsSection() {
-    return _buildSectionCard(
-      title: 'Store Details',
-      icon: Icons.business,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildTextField(
-                controllerKey: 'storeType',
-                label: 'Store Type',
-                icon: Icons.category,
-                hint: 'e.g., retail, warehouse',
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildTextField(
-                controllerKey: 'status',
-                label: 'Status',
-                icon: Icons.info,
-                hint: 'e.g., active, inactive',
-              ),
-            ),
-          ],
-        ),
-        _buildTextField(
-          controllerKey: 'openingHours',
-          label: 'Opening Hours',
-          icon: Icons.access_time,
-          hint: 'e.g., Mon-Fri: 9AM-6PM (optional)',
-        ),
-        _buildTextField(
-          controllerKey: 'squareFootage',
-          label: 'Square Footage',
-          icon: Icons.square_foot,
-          hint: 'Store size in sq ft (optional)',
-          keyboardType: TextInputType.number,
-          validator: (value) => _validatePositiveNumber(value, 'square footage'),
-        ),
-        _buildTextField(
-          controllerKey: 'notes',
-          label: 'Notes',
-          icon: Icons.note,
-          hint: 'Additional notes (optional)',
-          maxLines: 3,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCreateButton() {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: SizedBox(
-        height: 56,
-        child: ElevatedButton(
-          onPressed: _isLoading ? null : _createStore,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-            foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 4,
-            shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
-          ),
-          child: _isLoading ? _buildLoadingButton() : _buildCreateButtonContent(),
         ),
       ),
-    );
-  }
-
-  Widget _buildLoadingButton() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              ThemeConfig.getButtonTextColor(currentTheme),
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        const Text(
-          'Creating Store...',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCreateButtonContent() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Icon(Icons.add_circle, size: 24),
-        const SizedBox(width: 12),
-        const Text(
-          'Create Store',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-      ],
     );
   }
 }
