@@ -12,119 +12,35 @@ import 'dart:typed_data';
 // For web file handling
 import 'package:universal_html/html.dart' as html;
 
-// Models
-class Group {
-  final int groupId;
-  final String groupName;
-  final String? imageUrl;
-
-  const Group({
-    required this.groupId,
-    required this.groupName,
-    this.imageUrl,
-  });
-
-  factory Group.fromJson(Map<String, dynamic> json) {
-    return Group(
-      groupId: json['group_id'] as int,
-      groupName: json['group_name'] as String,
-      imageUrl: json['image_url'] as String?,
-    );
-  }
+class GroupAddPage extends StatefulWidget {
+  const GroupAddPage({Key? key}) : super(key: key);
 
   @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is Group && other.groupId == groupId;
-  }
-
-  @override
-  int get hashCode => groupId.hashCode;
+  State<GroupAddPage> createState() => _GroupAddPageState();
 }
 
-class Merchant {
-  final int merchantId;
-  final String merchantName;
-  final String? imageUrl;
-
-  const Merchant({
-    required this.merchantId,
-    required this.merchantName,
-    this.imageUrl,
-  });
-
-  factory Merchant.fromJson(Map<String, dynamic> json) {
-    return Merchant(
-      merchantId: json['merchant_id'] as int,
-      merchantName: json['merchant_name'] as String,
-      imageUrl: json['image_url'] as String?,
-    );
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is Merchant && other.merchantId == merchantId;
-  }
-
-  @override
-  int get hashCode => merchantId.hashCode;
-}
-
-class StoreAddPage extends StatefulWidget {
-  const StoreAddPage({Key? key}) : super(key: key);
-
-  @override
-  State<StoreAddPage> createState() => _StoreAddPageState();
-}
-
-class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMixin {
+class _GroupAddPageState extends State<GroupAddPage> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  
-  // Controllers
-  final _storeNameController = TextEditingController();
-  final _storeManagerController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _groupNameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _cityController = TextEditingController();
-  final _stateController = TextEditingController();
-  final _countryController = TextEditingController();
-  final _postalCodeController = TextEditingController();
-  final _storeTypeController = TextEditingController();
-  final _statusController = TextEditingController();
-  final _openingHoursController = TextEditingController();
-  final _squareFootageController = TextEditingController();
-  final _notesController = TextEditingController();
-  final _upiPercentageController = TextEditingController();
-  final _visaPercentageController = TextEditingController();
-  final _masterPercentageController = TextEditingController();
-  final _accountController = TextEditingController();
+  final _mobileController = TextEditingController();
 
-  // State variables
   String? _base64Image;
   File? _imageFile; // For mobile
   Uint8List? _webImageBytes; // For web
   // ignore: unused_field
   String? _webImageName; // For web
   bool _isLoading = false;
-  bool _isLoadingGroups = false;
-  bool _isLoadingMerchants = false;
   String currentTheme = ThemeConfig.defaultTheme;
-
-  // Dropdown data
-  List<Group> _groups = [];
-  Group? _selectedGroup;
-  List<Merchant> _merchants = [];
-  Merchant? _selectedMerchant;
 
   // Animation controllers
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   
   // Focus nodes for better keyboard navigation
-  final _storeNameFocus = FocusNode();
+  final _groupNameFocus = FocusNode();
   final _phoneFocus = FocusNode();
+  final _mobileFocus = FocusNode();
 
   @override
   void initState() {
@@ -132,7 +48,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     _loadCurrentTheme();
     _setupAnimations();
     _loadUserPhone();
-    _loadGroups();
+    // _loadUserMobile();
   }
 
   void _setupAnimations() {
@@ -164,125 +80,25 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     }
   }
 
-  // API Methods
-  Future<void> _loadGroups() async {
-    if (_isLoadingGroups) return;
-    
-    setState(() => _isLoadingGroups = true);
-    
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
-      final companyId = CompanyConfig.getCompanyId();
-      
-      final url = AppConfig.api('/api/iogroup?company_id=$companyId');
-      
-      final response = await http.get(
-        Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        if (responseData['status'] == 'success') {
-          final List<dynamic> groupsJson = responseData['data'];
-          setState(() {
-            _groups = groupsJson.map((json) => Group.fromJson(json)).toList();
-          });
-        } else {
-          _showSnackBar(message: 'Failed to load groups: ${responseData['message']}', isError: true);
-        }
-      } else {
-        _showSnackBar(message: 'Failed to load groups: Server error ${response.statusCode}', isError: true);
-      }
-    } catch (e) {
-      if (mounted) {
-        _showSnackBar(message: 'Error loading groups: $e', isError: true);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingGroups = false);
-      }
-    }
-  }
-
-  Future<void> _loadMerchants() async {
-    if (_selectedGroup == null || _isLoadingMerchants) return;
-    
-    setState(() {
-      _isLoadingMerchants = true;
-      _merchants.clear();
-      _selectedMerchant = null;
-    });
-    
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
-      final companyId = CompanyConfig.getCompanyId();
-      
-      final url = AppConfig.api('/api/iomerchant/company/$companyId/group/${_selectedGroup!.groupId}');
-      
-      final response = await http.get(
-        Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        if (responseData['status'] == 'success') {
-          final List<dynamic> merchantsJson = responseData['data'];
-          setState(() {
-            _merchants = merchantsJson.map((json) => Merchant.fromJson(json)).toList();
-          });
-        } else {
-          _showSnackBar(message: 'Failed to load merchants: ${responseData['message']}', isError: true);
-        }
-      } else {
-        _showSnackBar(message: 'Failed to load merchants: Server error ${response.statusCode}', isError: true);
-      }
-    } catch (e) {
-      if (mounted) {
-        _showSnackBar(message: 'Error loading merchants: $e', isError: true);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingMerchants = false);
-      }
-    }
-  }
+  // void _loadUserMobile() async {
+  //   final prefs = await SharedPreferences.getInstance();
+  //   final userMobile = prefs.getString('user');
+  //   if (userMobile != null && userMobile.isNotEmpty) {
+  //     setState(() {
+  //       _mobileController.text = userMobile;
+  //     });
+  //     print('Auto-populated Mobile field with: $userMobile');
+  //   }
+  // }
 
   @override
   void dispose() {
-    _storeNameController.dispose();
-    _storeManagerController.dispose();
-    _emailController.dispose();
+    _groupNameController.dispose();
     _phoneController.dispose();
-    _addressController.dispose();
-    _cityController.dispose();
-    _stateController.dispose();
-    _countryController.dispose();
-    _postalCodeController.dispose();
-    _storeTypeController.dispose();
-    _statusController.dispose();
-    _openingHoursController.dispose();
-    _squareFootageController.dispose();
-    _notesController.dispose();
-    _upiPercentageController.dispose();
-    _visaPercentageController.dispose();
-    _masterPercentageController.dispose();
-    _accountController.dispose();
-    _storeNameFocus.dispose();
+    _mobileController.dispose();
+    _groupNameFocus.dispose();
     _phoneFocus.dispose();
+    _mobileFocus.dispose();
     _fadeController.dispose();
     super.dispose();
   }
@@ -572,7 +388,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     }
   }
 
-  Future<void> _createStore() async {
+  Future<void> _createGroup() async {
     // Dismiss keyboard
     FocusScope.of(context).unfocus();
     
@@ -593,39 +409,24 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
       final token = prefs.getString('access_token');
       final companyId = CompanyConfig.getCompanyId();
 
-      final url = AppConfig.api('/api/iostore');
-      print('Creating Store at: $url');
+      // Use the main endpoint
+      final url = AppConfig.api('/api/iogroup');
+      print('Creating Group at: $url');
 
-      final storeData = {
-        'company_id': companyId.toString(),
-        'group_id': _selectedGroup?.groupId,
-        'merchant_id': _selectedMerchant?.merchantId,
-        'store_name': _storeNameController.text.trim(),
-        'store_manager': _getTextOrNull(_storeManagerController),
-        'email': _getTextOrNull(_emailController),
-        'phone': _getTextOrNull(_phoneController),
-        'address': _getTextOrNull(_addressController),
-        'city': _getTextOrNull(_cityController),
-        'state': _getTextOrNull(_stateController),
-        'country': _getTextOrNull(_countryController),
-        'postal_code': _getTextOrNull(_postalCodeController),
-        'store_type': _getTextOrNull(_storeTypeController),
-        'status': _getTextOrNull(_statusController),
-        'opening_hours': _getTextOrNull(_openingHoursController),
-        'square_footage': _parseIntOrNull(_squareFootageController),
-        'notes': _getTextOrNull(_notesController),
-        'upi_percentage': _parseDoubleOrNull(_upiPercentageController),
-        'visa_percentage': _parseDoubleOrNull(_visaPercentageController),
-        'master_percentage': _parseDoubleOrNull(_masterPercentageController),
-        'account': _getTextOrNull(_accountController),
+      // Simplified body structure - API will auto-lookup user_id from phone
+      final groupData = {
+        'company_id': companyId,
+        'group_name': _groupNameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'mobile': _mobileController.text.trim(),
       };
 
       // Only add image if one was selected
       if (_base64Image != null) {
-        storeData['image'] = _base64Image!;
+        groupData['image'] = _base64Image!;
       }
 
-      print('Store data: ${storeData.toString()}');
+      print('Group data: ${groupData.toString()}');
 
       final response = await http.post(
         Uri.parse(url.toString()),
@@ -633,7 +434,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
           'Content-Type': 'application/json',
           if (token != null) 'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(storeData),
+        body: jsonEncode(groupData),
       );
 
       print('Response Status: ${response.statusCode}');
@@ -642,16 +443,36 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
         if (responseData['status'] == 'success') {
-          _showSuccessDialog();
+          // Extract the auto-generated group_code from response
+          String groupCode = 'N/A';
+          if (responseData['data'] != null && responseData['data']['group_code'] != null) {
+            groupCode = responseData['data']['group_code'];
+          } else if (responseData['message']?.toString().contains('G') == true) {
+            groupCode = responseData['message'].toString().split('code: ').last;
+          }
+          _showSuccessDialog(groupCode);
         } else {
           throw Exception(responseData['message'] ?? 'Unknown error');
+        }
+      } else if (response.statusCode == 409) {
+        // Handle duplicate group name conflict
+        final errorData = jsonDecode(response.body);
+        throw Exception('Group already exists: ${errorData['details'] ?? errorData['message']}');
+      } else if (response.statusCode == 400) {
+        // Handle validation errors
+        final errorData = jsonDecode(response.body);
+        if (errorData['message'] is List) {
+          final errors = (errorData['message'] as List).join(', ');
+          throw Exception('Validation error: $errors');
+        } else {
+          throw Exception('Validation error: ${errorData['message']}');
         }
       } else {
         final errorData = jsonDecode(response.body);
         throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error creating Store: $e');
+      print('Error creating Group: $e');
       _showErrorDialog(e.toString());
     } finally {
       setState(() {
@@ -660,22 +481,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     }
   }
 
-  String? _getTextOrNull(TextEditingController controller) {
-    final text = controller.text.trim();
-    return text.isEmpty ? null : text;
-  }
-
-  int? _parseIntOrNull(TextEditingController controller) {
-    final text = controller.text.trim();
-    return text.isEmpty ? null : int.tryParse(text);
-  }
-
-  double? _parseDoubleOrNull(TextEditingController controller) {
-    final text = controller.text.trim();
-    return text.isEmpty ? null : double.tryParse(text);
-  }
-
-  void _showSuccessDialog() {
+  void _showSuccessDialog(String groupCode) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -692,23 +498,22 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Store "${_storeNameController.text}" has been created successfully!'),
+            Text('Group "${_groupNameController.text}" has been created successfully!'),
             SizedBox(height: 8),
-            if (_selectedGroup != null) ...[
-              Text('Group: ${_selectedGroup!.groupName}'),
-              SizedBox(height: 4),
+            if (groupCode != 'N/A') ...[
+              Text('Group Code: $groupCode', 
+                   style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 8),
             ],
-            if (_selectedMerchant != null) ...[
-              Text('Merchant: ${_selectedMerchant!.merchantName}'),
-              SizedBox(height: 4),
-            ],
+            Text('Phone: ${_phoneController.text}'),
+            Text('Mobile: ${_mobileController.text}'),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pop(true); // Return to Store list
+              Navigator.of(context).pop(true); // Return to Group list
             },
             child: Text(
               'OK',
@@ -735,7 +540,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
             Text('Error'),
           ],
         ),
-        content: Text('Failed to create Store:\n$error'),
+        content: Text('Failed to create Group:\n$error'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -850,74 +655,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildDropdownField<T>({
-    required String label,
-    required IconData icon,
-    required T? value,
-    required List<T> items,
-    required String Function(T) getDisplayText,
-    required void Function(T?)? onChanged,
-    bool isLoading = false,
-    String? hint,
-  }) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      child: DropdownButtonFormField<T>(
-        value: value,
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          prefixIcon: Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey[300]!),
-          ),
-          filled: true,
-          fillColor: Colors.grey[50],
-          suffixIcon: isLoading
-              ? Container(
-                  width: 20,
-                  height: 20,
-                  padding: const EdgeInsets.all(12),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getPrimaryColor(currentTheme)),
-                  ),
-                )
-              : null,
-        ),
-        items: items.map((item) => DropdownMenuItem<T>(
-          value: item,
-          child: Text(getDisplayText(item)),
-        )).toList(),
-        onChanged: isLoading ? null : onChanged,
-      ),
-    );
-  }
-
-  Widget _buildResponsiveRow(List<Widget> children) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = screenWidth > 600;
-    
-    if (isWideScreen && children.length == 2) {
-      return Row(
-        children: [
-          Expanded(child: children[0]),
-          SizedBox(width: 16),
-          Expanded(child: children[1]),
-        ],
-      );
-    } else {
-      return Column(children: children);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     // Get responsive dimensions
@@ -929,7 +666,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text('Add New Store'),
+        title: Text('Add New Group'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         elevation: 0,
@@ -952,6 +689,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
         key: _formKey,
         child: Center(
           child: Container(
+            constraints: BoxConstraints(maxWidth: isWideScreen ? 800 : double.infinity),
             child: SingleChildScrollView(
               padding: EdgeInsets.symmetric(
                 horizontal: horizontalPadding,
@@ -960,9 +698,9 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Store Image Section
+                  // Group Image Section
                   _buildSectionCard(
-                    title: 'Store Image (Optional)',
+                    title: 'Group Image (Optional)',
                     icon: Icons.image,
                     children: [
                       Center(
@@ -999,233 +737,51 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
 
                   // Basic Information
                   _buildSectionCard(
-                    title: 'Store Information',
-                    icon: Icons.store,
+                    title: 'Group Information',
+                    icon: Icons.group_sharp,
                     children: [
-                      _buildEnhancedTextField(
-                        controller: _storeNameController,
-                        label: 'Store Name *',
-                        icon: Icons.store,
-                        focusNode: _storeNameFocus,
-                        keyboardType: TextInputType.text,
-                        hint: 'Enter store name',
-                        textInputAction: TextInputAction.next,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Store name is required';
-                          }
-                          if (value.trim().length < 2) {
-                            return 'Store name must be at least 2 characters';
-                          }
-                          return null;
-                        },
-                      ),
-                      _buildDropdownField<Group>(
-                        label: 'Group (Optional)',
-                        icon: Icons.group,
-                        value: _selectedGroup,
-                        items: _groups,
-                        getDisplayText: (group) => group.groupName,
-                        isLoading: _isLoadingGroups,
-                        hint: _isLoadingGroups ? 'Loading groups...' : 'Select a group',
-                        onChanged: (group) {
-                          setState(() {
-                            _selectedGroup = group;
-                            _selectedMerchant = null;
-                            _merchants.clear();
-                          });
-                          if (group != null) _loadMerchants();
-                        },
-                      ),
-                      _buildDropdownField<Merchant>(
-                        label: 'Merchant (Optional)',
-                        icon: Icons.business,
-                        value: _selectedMerchant,
-                        items: _merchants,
-                        getDisplayText: (merchant) => merchant.merchantName,
-                        isLoading: _isLoadingMerchants,
-                        hint: _selectedGroup == null
-                            ? 'Select a group first'
-                            : _isLoadingMerchants
-                                ? 'Loading merchants...'
-                                : 'Select a merchant',
-                        onChanged: (_selectedGroup == null || _isLoadingMerchants) 
-                            ? null 
-                            : (merchant) => setState(() => _selectedMerchant = merchant),
-                      ),
-                      _buildEnhancedTextField(
-                        controller: _storeManagerController,
-                        label: 'Store Manager',
-                        icon: Icons.person,
-                        hint: 'Enter manager name',
-                      ),
-                    ],
-                  ),
+                     // Group Name field
+_buildEnhancedTextField(
+  controller: _groupNameController,
+  label: 'Group Name *',
+  icon: Icons.group,
+  focusNode: _groupNameFocus,
+  keyboardType: TextInputType.text,
+  hint: 'Enter group name',
+  textInputAction: TextInputAction.next,
+  onFieldSubmitted: () => FocusScope.of(context).requestFocus(_mobileFocus),
+  validator: (value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Group name is required';
+    }
+    if (value.trim().length < 2) {
+      return 'Group name must be at least 2 characters';
+    }
+    return null;
+  },
+),
 
-                  SizedBox(height: 20),
+// Mobile field
+_buildEnhancedTextField(
+  controller: _mobileController,
+  label: 'Mobile Number *',
+  icon: Icons.mobile_screen_share,
+  focusNode: _mobileFocus,
+  keyboardType: TextInputType.phone,
+  hint: 'Enter mobile number',
+  textInputAction: TextInputAction.next,
+  onFieldSubmitted: () => FocusScope.of(context).requestFocus(_phoneFocus),
+  validator: (value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Mobile number is required';
+    }
+    if (value.trim().length < 8) {
+      return 'Mobile number must be at least 8 digits';
+    }
+    return null;
+  },
+),
 
-                  // Contact Information
-                  _buildSectionCard(
-                    title: 'Contact Information',
-                    icon: Icons.contact_phone,
-                    children: [
-                      _buildResponsiveRow([
-                        _buildEnhancedTextField(
-                          controller: _emailController,
-                          label: 'Email',
-                          icon: Icons.email,
-                          keyboardType: TextInputType.emailAddress,
-                          hint: 'Enter email address',
-                          validator: (value) {
-                            if (value != null && value.trim().isNotEmpty) {
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$'
-            ).hasMatch(value)) {
-                                return 'Please enter a valid email address';
-                              }
-                            }
-                            return null;
-                          },
-                        ),
-                       
-                      ]),
-                    ],
-                  ),
-
-                  SizedBox(height: 20),
-
-                  // Address Information
-                  _buildSectionCard(
-                    title: 'Address Information',
-                    icon: Icons.location_on,
-                    children: [
-                      _buildEnhancedTextField(
-                        controller: _addressController,
-                        label: 'Address',
-                        icon: Icons.home,
-                        hint: 'Enter full address',
-                        maxLines: 2,
-                      ),
-                      _buildResponsiveRow([
-                        _buildEnhancedTextField(
-                          controller: _cityController,
-                          label: 'City',
-                          icon: Icons.location_city,
-                          hint: 'Enter city',
-                        ),
-                        _buildEnhancedTextField(
-                          controller: _stateController,
-                          label: 'State',
-                          icon: Icons.map,
-                          hint: 'Enter state/province',
-                        ),
-                      ]),
-                      _buildResponsiveRow([
-                        _buildEnhancedTextField(
-                          controller: _countryController,
-                          label: 'Country',
-                          icon: Icons.public,
-                          hint: 'Enter country',
-                        ),
-                        _buildEnhancedTextField(
-                          controller: _postalCodeController,
-                          label: 'Postal Code',
-                          icon: Icons.local_post_office,
-                          hint: 'Enter ZIP/postal code',
-                        ),
-                      ]),
-                    ],
-                  ),
-
-                  SizedBox(height: 20),
-
-                  // Store Details
-                  _buildSectionCard(
-                    title: 'Store Details',
-                    icon: Icons.business,
-                    children: [
-                      _buildResponsiveRow([
-                    _buildEnhancedTextField(
-                        controller: _notesController,
-                        label: 'Notes',
-                        icon: Icons.note,
-                        hint: 'Additional notes',
-                        maxLines: 3,
-                      ),
-                    ],
-                  ),
-                    ],
-                  ),
-
-                  SizedBox(height: 20),
-
-                  // Payment Information
-                  _buildSectionCard(
-                    title: 'Payment Information',
-                    icon: Icons.payment,
-                    children: [
-                      _buildEnhancedTextField(
-                          controller: _masterPercentageController,
-                          label: 'MDR Master %',
-                          icon: Icons.style,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          hint: '3.0 MAX',
-                          validator: (value) {
-                            if (value != null && value.trim().isNotEmpty) {
-                              final num = double.tryParse(value.trim());
-                              if (num == null || num < 0 || num > 100) {
-                                return 'Enter a valid percentage (0-100)';
-                              }
-                            }
-                            return null;
-                          },
-                        ),
-                      _buildEnhancedTextField(
-                        controller: _upiPercentageController,
-                        label: 'MDR UPI %',
-                        icon: Icons.style,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        hint: '3.0 MAX',
-                        validator: (value) {
-                          if (value != null && value.trim().isNotEmpty) {
-                            final num = double.tryParse(value.trim());
-                            if (num == null || num < 0 || num > 100) {
-                              return 'Enter a valid percentage (0-100)';
-                            }
-                          }
-                          return null;
-                        },
-                      ),
-                      _buildResponsiveRow([
-                        _buildEnhancedTextField(
-                          controller: _visaPercentageController,
-                          label: 'MDR Visa %',
-                          icon: Icons.style,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          hint: '3.0 MAX',
-                          validator: (value) {
-                            if (value != null && value.trim().isNotEmpty) {
-                              final num = double.tryParse(value.trim());
-                              if (num == null || num < 0 || num > 100) {
-                                return 'Enter a valid percentage (0-100)';
-                              }
-                            }
-                            return null;
-                          },
-                        ),
-                        
-                      ]),
-                      _buildEnhancedTextField(
-                          controller: _storeTypeController,
-                          label: 'Account Name',
-                          icon: Icons.auto_stories,
-                          hint: 'e.g., Abc DEF...',
-                        ),
-                      _buildEnhancedTextField(
-                        controller: _accountController,
-                        label: 'Account Number',
-                        icon: Icons.account_balance,
-                        hint: 'e.g., 03XXX0041XXXXXXX',
-                      ),
                     ],
                   ),
 
@@ -1237,7 +793,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                     child: Container(
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _createStore,
+                        onPressed: _isLoading ? null : _createGroup,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
                           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
@@ -1263,7 +819,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                                   ),
                                   SizedBox(width: 16),
                                   Text(
-                                    'Creating Store...',
+                                    'Creating Group...',
                                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                                   ),
                                 ],
@@ -1274,7 +830,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                                   Icon(Icons.add_circle, size: 24),
                                   SizedBox(width: 12),
                                   Text(
-                                    'Create Store',
+                                    'Create Group',
                                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                                   ),
                                 ],

@@ -32,6 +32,7 @@ class _branchAddPageState extends State<branchAddPage> with TickerProviderStateM
   String? _base64Image;
   File? _imageFile; // For mobile
   Uint8List? _webImageBytes; // For web
+  // ignore: unused_field
   String? _webImageName; // For web
   bool _isLoading = false;
   String currentTheme = ThemeConfig.defaultTheme;

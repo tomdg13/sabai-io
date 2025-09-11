@@ -1,28 +1,28 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'package:inventory/menu/menu_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'dart:io';
 import '../utils/simple_translations.dart';
-import 'dart:convert';
 
-class AddStockPage extends StatefulWidget {
+class DeductStockPage extends StatefulWidget {
   final String? currentTheme;
 
-  const AddStockPage({super.key, this.currentTheme});
+  const DeductStockPage({super.key, this.currentTheme});
 
   @override
-  State<AddStockPage> createState() => _AddStockPageState();
+  State<DeductStockPage> createState() => _DeductStockPageState();
 }
 
-class _AddStockPageState extends State<AddStockPage> {
-  // Core data
+class _DeductStockPageState extends State<DeductStockPage> {
+  // Core Authentication & Config
   String? _accessToken;
   String _langCode = 'en';
   late final int _companyId;
@@ -30,9 +30,9 @@ class _AddStockPageState extends State<AddStockPage> {
   String? _branchId;
   late Color _primaryColor;
 
-  // Form state
+  // Form State
   final _formKey = GlobalKey<FormState>();
-  final Map<String, TextEditingController> _controllers = {
+  final _controllers = <String, TextEditingController>{
     'productId': TextEditingController(),
     'productName': TextEditingController(),
     'barcode': TextEditingController(),
@@ -42,22 +42,23 @@ class _AddStockPageState extends State<AddStockPage> {
     'supplierId': TextEditingController(),
   };
 
-  // Data collections
+  // Data Collections
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _locations = [];
   List<Map<String, dynamic>> _stores = [];
 
-  // Selected items
+  // Selected Items
   Map<String, dynamic>? _selectedProduct;
   Map<String, dynamic>? _selectedLocation;
   Map<String, dynamic>? _selectedStore;
+  Map<String, dynamic>? _scannedProduct;
   DateTime? _selectedExpireDate;
 
-  // Form selections
+  // Form Values
   String _selectedCurrency = 'LAK';
   String _selectedStatus = 'active';
 
-  // Loading states
+  // Loading States
   bool _isLoading = false;
   bool _isSubmitting = false;
   bool _isLoadingProducts = false;
@@ -155,7 +156,7 @@ class _AddStockPageState extends State<AddStockPage> {
     setState(() => _isLoadingStores = true);
     
     try {
-      final response = await _apiRequest('GET', '/api/iovendor', queryParams: {
+      final response = await _apiRequest('GET', '/api/iostore', queryParams: {
         'status': 'admin',
         'company_id': _companyId.toString(),
       });
@@ -186,11 +187,6 @@ class _AddStockPageState extends State<AddStockPage> {
   }
 
   Future<void> _scanBarcode() async {
-    if (kIsWeb) {
-      _showBarcodeInputDialog();
-      return;
-    }
-
     final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(
@@ -206,44 +202,6 @@ class _AddStockPageState extends State<AddStockPage> {
     }
   }
 
-  void _showBarcodeInputDialog() {
-    final controller = TextEditingController();
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Enter Barcode'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'Enter product barcode',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final barcode = controller.text.trim();
-              if (barcode.isNotEmpty) {
-                Navigator.pop(context);
-                _lookupProductByBarcode(barcode);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Search'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _lookupProductByBarcode(String barcode) async {
     setState(() => _isLoading = true);
 
@@ -256,6 +214,7 @@ class _AddStockPageState extends State<AddStockPage> {
       if (response.statusCode == 200 && data['status'] == 'success') {
         final product = data['data'];
         setState(() {
+          _scannedProduct = product;
           _controllers['barcode']!.text = product['barcode'] ?? '';
           _controllers['productId']!.text = product['product_id'].toString();
           _controllers['productName']!.text = product['product_name'] ?? '';
@@ -272,7 +231,7 @@ class _AddStockPageState extends State<AddStockPage> {
   }
 
   // FORM OPERATIONS
-  Future<void> _createInventory() async {
+  Future<void> _deductInventory() async {
     if (!_validateForm()) return;
 
     setState(() => _isSubmitting = true);
@@ -284,14 +243,14 @@ class _AddStockPageState extends State<AddStockPage> {
         'location_id': _selectedLocation!['location_id'],
         'location': _selectedLocation!['location'] ?? _selectedLocation!['location_name'],
         'currency_primary': _selectedCurrency,
-        'amount': int.parse(_controllers['amount']!.text),
+        'amount': -int.parse(_controllers['amount']!.text), // Negative for deduction
         'price': double.parse(_controllers['price']!.text),
         'status': _selectedStatus,
         'store_id': _selectedStore!['store_id'],
         'store_name': _selectedStore!['store_name'] ?? _selectedStore!['name'],
         'user_id': _userId,
         'branch_id': _branchId != null ? int.tryParse(_branchId!) : null,
-        'txntype': 'STOCK_IN',
+        'txntype': 'STOCK_OUT',
         'company_id': _companyId,
         if (_controllers['barcode']!.text.trim().isNotEmpty)
           'barcode': _controllers['barcode']!.text.trim(),
@@ -306,7 +265,7 @@ class _AddStockPageState extends State<AddStockPage> {
       final response = await _apiRequest('POST', '/api/inventory', body: body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _showSuccess('Inventory created successfully');
+        _showSuccess('Stock deducted successfully');
         _clearForm();
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -315,10 +274,10 @@ class _AddStockPageState extends State<AddStockPage> {
         );
       } else {
         final data = jsonDecode(response.body);
-        _showError(data['message'] ?? 'Failed to create inventory');
+        _showError(data['message'] ?? 'Failed to deduct stock');
       }
     } catch (e) {
-      _showError('Error creating inventory: $e');
+      _showError('Error deducting stock: $e');
     } finally {
       setState(() => _isSubmitting = false);
     }
@@ -347,6 +306,7 @@ class _AddStockPageState extends State<AddStockPage> {
       _selectedLocation = null;
       _selectedStore = null;
       _selectedProduct = null;
+      _scannedProduct = null;
       _selectedCurrency = 'LAK';
       _selectedStatus = 'active';
     });
@@ -413,8 +373,8 @@ class _AddStockPageState extends State<AddStockPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add New Inventory', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: _primaryColor,
+        title: const Text('Deduct Stock', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -423,7 +383,7 @@ class _AddStockPageState extends State<AddStockPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircularProgressIndicator(color: _primaryColor),
+                CircularProgressIndicator(color: Colors.orange),
                 const SizedBox(height: 16),
                 Text('Loading data...', style: TextStyle(color: Colors.grey[600])),
               ],
@@ -432,6 +392,7 @@ class _AddStockPageState extends State<AddStockPage> {
         : Column(
             children: [
               if (kIsWeb) _buildWebProductSelector(),
+              if (_scannedProduct != null) _buildScannedProductInfo(),
               Expanded(child: _buildForm()),
             ],
           ),
@@ -451,14 +412,14 @@ class _AddStockPageState extends State<AddStockPage> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.search, color: _primaryColor, size: 24),
+                  Icon(Icons.remove_circle, color: Colors.orange, size: 24),
                   const SizedBox(width: 8),
                   Text(
-                    'Select Product',
+                    'Select Product to Deduct',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: _primaryColor,
+                      color: Colors.orange,
                     ),
                   ),
                 ],
@@ -487,14 +448,14 @@ class _AddStockPageState extends State<AddStockPage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _primaryColor.withOpacity(0.1),
+                      color: Colors.orange.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       '${_products.length} products available',
                       style: TextStyle(
                         fontSize: 12,
-                        color: _primaryColor,
+                        color: Colors.orange,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -516,7 +477,7 @@ class _AddStockPageState extends State<AddStockPage> {
           SizedBox(
             width: 16,
             height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(_primaryColor)),
+            child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.orange)),
           ),
           const SizedBox(width: 12),
           Text(text),
@@ -535,7 +496,7 @@ class _AddStockPageState extends State<AddStockPage> {
           ElevatedButton(
             onPressed: _loadProducts,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryColor,
+              backgroundColor: Colors.orange,
               foregroundColor: Colors.white,
             ),
             child: const Text('Load Products'),
@@ -593,7 +554,7 @@ class _AddStockPageState extends State<AddStockPage> {
                     // if (product['price'] != null)
                     //   Text(
                     //     '\$${product['price']}',
-                    //     style: TextStyle(fontWeight: FontWeight.bold, color: _primaryColor, fontSize: 14),
+                    //     style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14),
                     //   ),
                     if (product['stock_quantity'] != null)
                       Container(
@@ -642,14 +603,86 @@ class _AddStockPageState extends State<AddStockPage> {
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(
                 color: Colors.grey[100],
-                child: Icon(Icons.inventory, color: Colors.grey[400], size: 20),
+                child: Icon(Icons.remove_shopping_cart, color: Colors.grey[400], size: 20),
               ),
             ),
           )
         : Container(
             color: Colors.grey[100],
-            child: Icon(Icons.inventory, color: Colors.grey[400], size: 20),
+            child: Icon(Icons.remove_shopping_cart, color: Colors.grey[400], size: 20),
           ),
+    );
+  }
+
+  Widget _buildScannedProductInfo() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange[200]!),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange[300]!),
+              color: Colors.orange[100],
+            ),
+            child: Icon(Icons.remove_shopping_cart, color: Colors.orange[600], size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.remove_circle, color: Colors.orange[600], size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Scanned Product',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[700],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Product: ${_scannedProduct!['product_name'] ?? 'N/A'}',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+                Text(
+                  'ID: ${_scannedProduct!['product_id']}',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+                if (_scannedProduct!['barcode'] != null)
+                  Text(
+                    'Barcode: ${_scannedProduct!['barcode']}',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.close, color: Colors.grey[600]),
+            onPressed: () {
+              setState(() {
+                _scannedProduct = null;
+                _controllers['productId']!.clear();
+                _controllers['productName']!.clear();
+              });
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -661,7 +694,7 @@ class _AddStockPageState extends State<AddStockPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Create New Inventory Item', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text('Deduct Stock Item', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
             
             // Barcode section
@@ -680,7 +713,7 @@ class _AddStockPageState extends State<AddStockPage> {
                   height: 56,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: _primaryColor,
+                      color: Colors.orange,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: IconButton(
@@ -694,7 +727,6 @@ class _AddStockPageState extends State<AddStockPage> {
             ),
             const SizedBox(height: 16),
 
-            // Form fields with consistent spacing
             _buildTextField(
               controller: _controllers['productId']!, 
               label: 'Product ID', 
@@ -740,7 +772,7 @@ class _AddStockPageState extends State<AddStockPage> {
             
             _buildTextField(
               controller: _controllers['amount']!, 
-              label: 'Amount', 
+              label: 'Deduct Amount', 
               keyboardType: TextInputType.number, 
               required: true
             ),
@@ -774,7 +806,7 @@ class _AddStockPageState extends State<AddStockPage> {
             const SizedBox(height: 32),
             
             _buildSubmitButton(),
-            const SizedBox(height: 16), // Extra bottom padding
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -805,52 +837,53 @@ class _AddStockPageState extends State<AddStockPage> {
   }
 
   Widget _buildDropdownField<T>({
-  required T? value,
-  required String label,
-  required List<T> items,
-  required bool isLoading,
-  required ValueChanged<T?> onChanged,
-  required Widget Function(T) itemBuilder,
-}) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text('$label *', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      const SizedBox(height: 4),
-      Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey[300]!),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: isLoading
-          ? _buildLoadingIndicator('Loading $label...')
-          : DropdownButtonHideUnderline(
-              child: DropdownButton<T>(
-                value: value,
-                hint: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16), // Increased vertical padding
-                  child: Text('Select $label')
-                ),
-                isExpanded: true,
-                items: items.map((item) => DropdownMenuItem<T>(
-                  value: item,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16), // Increased vertical padding
-                    child: itemBuilder(item),
+    required T? value,
+    required String label,
+    required List<T> items,
+    required bool isLoading,
+    required ValueChanged<T?> onChanged,
+    required Widget Function(T) itemBuilder,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('$label *', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: isLoading
+            ? _buildLoadingIndicator('Loading $label...')
+            : DropdownButtonHideUnderline(
+                child: DropdownButton<T>(
+                  value: value,
+                  hint: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    child: Text('Select $label')
                   ),
-                )).toList(),
-                onChanged: onChanged,
+                  isExpanded: true,
+                  items: items.map((item) => DropdownMenuItem<T>(
+                    value: item,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      child: itemBuilder(item),
+                    ),
+                  )).toList(),
+                  onChanged: onChanged,
+                ),
               ),
-            ),
-      ),
-      if (value == null)
-        Padding(
-          padding: const EdgeInsets.only(top: 8, left: 8, bottom: 4), // Added bottom padding
-          child: Text('$label is required', style: TextStyle(color: Colors.red[700], fontSize: 12)),
         ),
-    ],
-  );
-}
+        if (value == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, left: 8, bottom: 4),
+            child: Text('$label is required', style: TextStyle(color: Colors.red[700], fontSize: 12)),
+          ),
+      ],
+    );
+  }
+
   Widget _buildDatePicker() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -892,26 +925,59 @@ class _AddStockPageState extends State<AddStockPage> {
   }
 
   Widget _buildStatusDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        const Text('Status', style: TextStyle(fontSize: 12, color: Colors.grey)),
-        const SizedBox(height: 4),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Currency', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 4),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedCurrency,
+                    isExpanded: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    items: ['LAK', 'THB', 'USD']
+                        .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                        .toList(),
+                    onChanged: (value) => setState(() => _selectedCurrency = value!),
+                  ),
+                ),
+              ),
+            ],
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedStatus,
-              isExpanded: true,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              items: ['active', 'inactive', 'reserved']
-                  .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                  .toList(),
-              onChanged: (value) => setState(() => _selectedStatus = value!),
-            ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Status', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 4),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedStatus,
+                    isExpanded: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    items: ['active', 'inactive']
+                        .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                        .toList(),
+                    onChanged: (value) => setState(() => _selectedStatus = value!),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -922,9 +988,9 @@ class _AddStockPageState extends State<AddStockPage> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _isSubmitting ? null : _createInventory,
+        onPressed: _isSubmitting ? null : _deductInventory,
         style: ElevatedButton.styleFrom(
-          backgroundColor: _isSubmitting ? Colors.grey : _primaryColor,
+          backgroundColor: _isSubmitting ? Colors.grey : Colors.orange,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           elevation: _isSubmitting ? 0 : 2,
@@ -942,15 +1008,15 @@ class _AddStockPageState extends State<AddStockPage> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text('Creating inventory...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text('Deducting stock...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             )
           : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.add_box, size: 24),
+                const Icon(Icons.remove_shopping_cart, size: 24),
                 const SizedBox(width: 8),
-                const Text('Create Inventory Item', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text('Deduct Stock', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
       ),
@@ -958,7 +1024,7 @@ class _AddStockPageState extends State<AddStockPage> {
   }
 }
 
-// Simplified Barcode Scanner Page
+// Barcode Scanner Page
 class BarcodeScannerPage extends StatefulWidget {
   final String langCode;
   final Color primaryColor;

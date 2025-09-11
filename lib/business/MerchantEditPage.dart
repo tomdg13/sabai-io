@@ -1,38 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Add this for kIsWeb
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
-import 'dart:typed_data';
-// Conditional import for File
-import 'package:inventory/utils/file_utils.dart' if (dart.library.html) 'package:inventory/utils/file_utils_web.dart';
+import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
 
-class BranchEditPage extends StatefulWidget {
-  final Map<String, dynamic> branchData;
+class MerchantEditPage extends StatefulWidget {
+  final Map<String, dynamic> MerchantData;
 
-  const BranchEditPage({Key? key, required this.branchData}) : super(key: key);
+  const MerchantEditPage({Key? key, required this.MerchantData}) : super(key: key);
 
   @override
-  State<BranchEditPage> createState() => _BranchEditPageState();
+  State<MerchantEditPage> createState() => _MerchantEditPageState();
 }
 
-class _BranchEditPageState extends State<BranchEditPage> {
+class _MerchantEditPageState extends State<MerchantEditPage> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _branchNameController;
-  late final TextEditingController _branchCodeController;
-  late final TextEditingController _provinceNameController;
-  late final TextEditingController _addressController;
-  late final TextEditingController _phoneController;
-  late final TextEditingController _emailController;
-  late final TextEditingController _managerNameController;
+  late final TextEditingController _merchantNameController;
 
   String? _base64Image;
   String? _currentImageUrl;
-  Uint8List? _imageBytes; // For web compatibility
+  File? _imageFile;
   bool _isLoading = false;
   bool _isDeleting = false;
   String currentTheme = ThemeConfig.defaultTheme;
@@ -52,42 +44,67 @@ class _BranchEditPageState extends State<BranchEditPage> {
   }
 
   void _initializeControllers() {
-    _branchNameController = TextEditingController(text: widget.branchData['branch_name'] ?? '');
-    _branchCodeController = TextEditingController(text: widget.branchData['branch_code'] ?? '');
-    _provinceNameController = TextEditingController(text: widget.branchData['province_name'] ?? '');
-    _addressController = TextEditingController(text: widget.branchData['address'] ?? '');
-    _phoneController = TextEditingController(text: widget.branchData['phone'] ?? '');
-    _emailController = TextEditingController(text: widget.branchData['email'] ?? '');
-    _managerNameController = TextEditingController(text: widget.branchData['manager_name'] ?? '');
-    _currentImageUrl = widget.branchData['image_url'];
+    _merchantNameController = TextEditingController(text: widget.MerchantData['merchant'] ?? '');
+    _currentImageUrl = widget.MerchantData['image_url'];
     
-    print('🔧 DEBUG: Initialized edit form with branch: ${widget.branchData['branch_name']}');
-    print('🔧 DEBUG: Branch ID: ${widget.branchData['branch_id']}');
-    print('🔧 DEBUG: Branch Code: ${widget.branchData['branch_code']}');
+    print('🔧 DEBUG: Initialized edit form with Merchant: ${widget.MerchantData['merchant']}');
+    print('🔧 DEBUG: Merchant ID: ${widget.MerchantData['merchant_id']}');
+    print('🔧 DEBUG: Company ID: ${widget.MerchantData['company_id']}');
   }
 
   @override
   void dispose() {
-    _branchNameController.dispose();
-    _branchCodeController.dispose();
-    _provinceNameController.dispose();
-    _addressController.dispose();
-    _phoneController.dispose();
-    _emailController.dispose();
-    _managerNameController.dispose();
+    _merchantNameController.dispose();
     super.dispose();
   }
 
   Future<void> _pickImage() async {
     try {
-      ImageSource? source;
-      
-      // On web, camera might not be available, so adjust the UI accordingly
-      if (kIsWeb) {
-        source = await _showWebImageSourceDialog();
-      } else {
-        source = await _showMobileImageSourceDialog();
-      }
+      // Show image source selection dialog
+      final ImageSource? source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) => Container(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              SizedBox(height: 20),
+              Text(
+                'Select Image Source',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildImageSourceOption(
+                    icon: Icons.photo_library,
+                    label: 'Gallery',
+                    onTap: () => Navigator.pop(context, ImageSource.gallery),
+                  ),
+                  _buildImageSourceOption(
+                    icon: Icons.photo_camera,
+                    label: 'Camera',
+                    onTap: () => Navigator.pop(context, ImageSource.camera),
+                  ),
+                ],
+              ),
+              SizedBox(height: 20),
+            ],
+          ),
+        ),
+      );
 
       if (source == null) return;
 
@@ -100,15 +117,16 @@ class _BranchEditPageState extends State<BranchEditPage> {
       );
 
       if (image != null) {
-        final Uint8List imageBytes = await image.readAsBytes();
+        final File imageFile = File(image.path);
+        final Uint8List imageBytes = await imageFile.readAsBytes();
         final String base64String = base64Encode(imageBytes);
         
         setState(() {
-          _imageBytes = imageBytes;
+          _imageFile = imageFile;
           _base64Image = 'data:image/jpeg;base64,$base64String';
         });
 
-        print('📷 DEBUG: New image selected for branch update (${kIsWeb ? 'Web' : 'Mobile'})');
+        print('📷 DEBUG: New image selected for Merchant update');
       }
     } catch (e) {
       print('❌ DEBUG: Error picking image: $e');
@@ -125,93 +143,6 @@ class _BranchEditPageState extends State<BranchEditPage> {
         ),
       );
     }
-  }
-
-  // Web-specific image source dialog
-  Future<ImageSource?> _showWebImageSourceDialog() async {
-    return await showModalBottomSheet<ImageSource>(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            SizedBox(height: 20),
-            Text(
-              'Select Image Source',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 20),
-            // On web, prioritize gallery since camera access can be limited
-            _buildImageSourceOption(
-              icon: Icons.photo_library,
-              label: 'Select File',
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-            SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Mobile-specific image source dialog
-  Future<ImageSource?> _showMobileImageSourceDialog() async {
-    return await showModalBottomSheet<ImageSource>(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            SizedBox(height: 20),
-            Text(
-              'Select Image Source',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildImageSourceOption(
-                  icon: Icons.photo_library,
-                  label: 'Gallery',
-                  onTap: () => Navigator.pop(context, ImageSource.gallery),
-                ),
-                _buildImageSourceOption(
-                  icon: Icons.photo_camera,
-                  label: 'Camera',
-                  onTap: () => Navigator.pop(context, ImageSource.camera),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildImageSourceOption({
@@ -251,7 +182,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
     );
   }
 
-  Future<void> _updatebranch() async {
+  Future<void> _updateMerchant() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -263,49 +194,25 @@ class _BranchEditPageState extends State<BranchEditPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
-      final branchId = widget.branchData['branch_id'];
+      final merchantId = widget.MerchantData['merchant_id'];
 
-      final url = AppConfig.api('/api/iobranch/$branchId');
-      print('🌐 DEBUG: Updating branch at: $url (Platform: ${kIsWeb ? 'Web' : 'Mobile'})');
+      final url = AppConfig.api('/api/iomerchant/$merchantId');
+      print('🌐 DEBUG: Updating Merchant at: $url');
 
-      final branchData = <String, dynamic>{
-        'company_id': CompanyConfig.getCompanyId(), // Keep original company_id
-      };
+      final merchantData = <String, dynamic>{
+  'company_id': CompanyConfig.getCompanyId(), // Add this line
+};;
       
-      // Only include fields that have values or have been changed
-      if (_branchNameController.text.trim().isNotEmpty) {
-        branchData['branch_name'] = _branchNameController.text.trim();
-      }
-      
-      if (_branchCodeController.text.trim().isNotEmpty) {
-        branchData['branch_code'] = _branchCodeController.text.trim();
-      }
-      
-      if (_provinceNameController.text.trim().isNotEmpty) {
-        branchData['province_name'] = _provinceNameController.text.trim();
-      }
-      
-      if (_addressController.text.trim().isNotEmpty) {
-        branchData['address'] = _addressController.text.trim();
-      }
-      
-      if (_phoneController.text.trim().isNotEmpty) {
-        branchData['phone'] = _phoneController.text.trim();
-      }
-      
-      if (_emailController.text.trim().isNotEmpty) {
-        branchData['email'] = _emailController.text.trim();
-      }
-      
-      if (_managerNameController.text.trim().isNotEmpty) {
-        branchData['manager_name'] = _managerNameController.text.trim();
+      // Only include fields that have values
+      if (_merchantNameController.text.trim().isNotEmpty) {
+        merchantData['merchant'] = _merchantNameController.text.trim();
       }
       
       if (_base64Image != null) {
-        branchData['image'] = _base64Image;
+        merchantData['image'] = _base64Image;
       }
 
-      print('📝 DEBUG: Update data: ${branchData.toString()}');
+      print('📝 DEBUG: Update data: ${merchantData.toString()}');
 
       final response = await http.put(
         Uri.parse(url.toString()),
@@ -313,7 +220,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
           'Content-Type': 'application/json',
           if (token != null) 'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(branchData),
+        body: jsonEncode(merchantData),
       );
 
       print('📡 DEBUG: Update Response Status: ${response.statusCode}');
@@ -328,7 +235,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
                 children: [
                   Icon(Icons.check_circle, color: Colors.white),
                   SizedBox(width: 8),
-                  Text('Branch updated successfully!'),
+                  Text('Merchant updated successfully!'),
                 ],
               ),
               backgroundColor: Colors.green,
@@ -343,14 +250,14 @@ class _BranchEditPageState extends State<BranchEditPage> {
         throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ DEBUG: Error updating branch: $e');
+      print('❌ DEBUG: Error updating Merchant: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
               Icon(Icons.error, color: Colors.white),
               SizedBox(width: 8),
-              Expanded(child: Text('Error updating branch: $e')),
+              Expanded(child: Text('Error updating Merchant: $e')),
             ],
           ),
           backgroundColor: Colors.red,
@@ -363,7 +270,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
     }
   }
 
-  Future<void> _deletebranch() async {
+  Future<void> _deleteMerchant() async {
     // Show confirmation dialog
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -374,10 +281,10 @@ class _BranchEditPageState extends State<BranchEditPage> {
             children: [
               Icon(Icons.warning, color: Colors.red, size: 28),
               SizedBox(width: 12),
-              Text('Delete Branch'),
+              Text('Delete Merchant'),
             ],
           ),
-          content: Text('Are you sure you want to delete "${_branchNameController.text}" (${_branchCodeController.text})? This action cannot be undone.'),
+          content: Text('Are you sure you want to delete "${_merchantNameController.text}"? This action cannot be undone.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -408,10 +315,10 @@ class _BranchEditPageState extends State<BranchEditPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
-      final branchId = widget.branchData['branch_id'];
+      final merchantId = widget.MerchantData['merchant_id'];
 
-      final url = AppConfig.api('/api/iobranch/$branchId');
-      print('🗑️ DEBUG: Deleting branch at: $url');
+      final url = AppConfig.api('/api/iomerchant/$merchantId');
+      print('🗑️ DEBUG: Deleting Merchant at: $url');
 
       final response = await http.delete(
         Uri.parse(url.toString()),
@@ -433,7 +340,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
                 children: [
                   Icon(Icons.check_circle, color: Colors.white),
                   SizedBox(width: 8),
-                  Text('Branch deleted successfully!'),
+                  Text('Merchant deleted successfully!'),
                 ],
               ),
               backgroundColor: Colors.red,
@@ -448,14 +355,14 @@ class _BranchEditPageState extends State<BranchEditPage> {
         throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ DEBUG: Error deleting branch: $e');
+      print('❌ DEBUG: Error deleting Merchant: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
               Icon(Icons.error, color: Colors.white),
               SizedBox(width: 8),
-              Expanded(child: Text('Error deleting branch: $e')),
+              Expanded(child: Text('Error deleting Merchant: $e')),
             ],
           ),
           backgroundColor: Colors.red,
@@ -487,7 +394,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
                 ),
                 SizedBox(width: 12),
                 Text(
-                  'Branch Image',
+                  'Merchant Image',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -507,7 +414,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: _imageBytes != null 
+                      color: _imageFile != null 
                           ? ThemeConfig.getPrimaryColor(currentTheme)
                           : Colors.grey[300]!,
                       width: 2,
@@ -520,13 +427,13 @@ class _BranchEditPageState extends State<BranchEditPage> {
                       ),
                     ],
                   ),
-                  child: _imageBytes != null
+                  child: _imageFile != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(14),
                           child: Stack(
                             children: [
-                              Image.memory(
-                                _imageBytes!,
+                              Image.file(
+                                _imageFile!,
                                 fit: BoxFit.cover,
                                 width: double.infinity,
                                 height: double.infinity,
@@ -589,7 +496,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
             ),
             SizedBox(height: 12),
             Text(
-              kIsWeb ? 'Click to change image' : 'Tap to change image',
+              'Tap to change image',
               style: TextStyle(
                 color: Colors.grey[600],
                 fontSize: 14,
@@ -613,7 +520,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
         ),
         SizedBox(height: 12),
         Text(
-          kIsWeb ? 'Click to add image' : 'Tap to add image',
+          'Tap to add image',
           style: TextStyle(
             color: Colors.grey[600],
             fontSize: 16,
@@ -624,61 +531,18 @@ class _BranchEditPageState extends State<BranchEditPage> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    String? hint,
-    bool required = false,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-  }) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 16),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-          labelText: required ? '$label *' : label,
-          hintText: hint,
-          prefixIcon: Icon(
-            icon,
-            color: ThemeConfig.getPrimaryColor(currentTheme),
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: ThemeConfig.getPrimaryColor(currentTheme),
-              width: 2,
-            ),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey[300]!),
-          ),
-          filled: true,
-          fillColor: Colors.grey[50],
-        ),
-        validator: validator,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text('Edit Branch'),
+        title: Text('Edit Merchant'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         elevation: 0,
         actions: [
           IconButton(
-            onPressed: _isLoading || _isDeleting ? null : _deletebranch,
+            onPressed: _isLoading || _isDeleting ? null : _deleteMerchant,
             icon: _isDeleting
                 ? SizedBox(
                     width: 20,
@@ -691,7 +555,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
                     ),
                   )
                 : Icon(Icons.delete, color: Colors.red),
-            tooltip: 'Delete Branch',
+            tooltip: 'Delete Merchant',
           ),
           if (_isLoading)
             Container(
@@ -714,12 +578,12 @@ class _BranchEditPageState extends State<BranchEditPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Branch Image Section
+              // Merchant Image Section
               _buildImageSection(),
               
               SizedBox(height: 20),
 
-              // Branch Information
+              // Merchant Information
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -733,13 +597,13 @@ class _BranchEditPageState extends State<BranchEditPage> {
                       Row(
                         children: [
                           Icon(
-                            Icons.business,
+                            Icons.domain_add,
                             color: ThemeConfig.getPrimaryColor(currentTheme),
                             size: 24,
                           ),
                           SizedBox(width: 12),
                           Text(
-                            'Branch Information',
+                            'Merchant Information',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -750,78 +614,41 @@ class _BranchEditPageState extends State<BranchEditPage> {
                       ),
                       SizedBox(height: 20),
                       
-                      _buildTextField(
-                        controller: _branchNameController,
-                        label: 'Branch Name',
-                        icon: Icons.business,
-                        hint: 'Enter branch name',
-                        required: true,
+                      TextFormField(
+                        controller: _merchantNameController,
+                        decoration: InputDecoration(
+                          labelText: 'Merchant Name *',
+                          hintText: 'Enter merchant name',
+                          prefixIcon: Icon(
+                            Icons.domain_add,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                              width: 2,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Branch name is required';
+                            return 'Merchant name is required';
                           }
                           return null;
                         },
                       ),
-
-                      _buildTextField(
-                        controller: _branchCodeController,
-                        label: 'Branch Code',
-                        icon: Icons.qr_code,
-                        hint: 'Enter branch code',
-                        required: true,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Branch code is required';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      _buildTextField(
-                        controller: _provinceNameController,
-                        label: 'Province',
-                        icon: Icons.location_city,
-                        hint: 'Enter province name',
-                      ),
-
-                      _buildTextField(
-                        controller: _addressController,
-                        label: 'Address',
-                        icon: Icons.location_on,
-                        hint: 'Enter full address',
-                      ),
-
-                      _buildTextField(
-                        controller: _phoneController,
-                        label: 'Phone',
-                        icon: Icons.phone,
-                        hint: 'Enter phone number',
-                        keyboardType: TextInputType.phone,
-                      ),
-
-                      _buildTextField(
-                        controller: _emailController,
-                        label: 'Email',
-                        icon: Icons.email,
-                        hint: 'Enter email address',
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          if (value != null && value.isNotEmpty) {
-                            if (!value.contains('@') || !value.contains('.')) {
-                              return 'Please enter a valid email address';
-                            }
-                          }
-                          return null;
-                        },
-                      ),
-
-                      _buildTextField(
-                        controller: _managerNameController,
-                        label: 'Manager Name',
-                        icon: Icons.person,
-                        hint: 'Enter manager name',
-                      ),
+                      
+                      SizedBox(height: 16),
                       
                       // Display read-only company ID
                       Container(
@@ -834,12 +661,12 @@ class _BranchEditPageState extends State<BranchEditPage> {
                         child: Row(
                           children: [
                             Icon(
-                              Icons.business_center,
+                              Icons.business,
                               color: Colors.grey[600],
                             ),
                             SizedBox(width: 12),
                             Text(
-                              'Company ID: ${CompanyConfig.getCompanyId()}',
+                              'Company ID: ${widget.MerchantData['company_id']}',
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.grey[700],
@@ -860,7 +687,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
               Container(
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _isLoading || _isDeleting ? null : _updatebranch,
+                  onPressed: _isLoading || _isDeleting ? null : _updateMerchant,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
                     foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
@@ -886,7 +713,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
                             ),
                             SizedBox(width: 16),
                             Text(
-                              'Updating Branch...',
+                              'Updating Merchant...',
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                             ),
                           ],
@@ -897,7 +724,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
                             Icon(Icons.save, size: 24),
                             SizedBox(width: 12),
                             Text(
-                              'Update Branch',
+                              'Update Merchant',
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                             ),
                           ],

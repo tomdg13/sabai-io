@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:http/http.dart' as http;
-import 'package:inventory/business/BranchAddPage.dart';
-import 'package:inventory/business/BranchEditPage.dart';
 import 'package:inventory/config/company_config.dart';
+import 'MerchantAddPage.dart';
+import 'MerchantEditPage.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class branchPage extends StatefulWidget {
-  const branchPage({Key? key}) : super(key: key);
+class MerchantPage extends StatefulWidget {
+  const MerchantPage({Key? key}) : super(key: key);
 
   @override
-  State<branchPage> createState() => _branchPageState();
+  State<MerchantPage> createState() => _MerchantPageState();
 }
 
 String langCode = 'en';
 
-class _branchPageState extends State<branchPage> {
-  List<Iobranch> branchs = [];
-  List<Iobranch> filteredbranchs = [];
+class _MerchantPageState extends State<MerchantPage> {
+  List<IoMerchant> merchants = [];
+  List<IoMerchant> filteredMerchants = [];
   bool loading = true;
   String? error;
   String currentTheme = ThemeConfig.defaultTheme;
@@ -31,73 +31,66 @@ class _branchPageState extends State<branchPage> {
   @override
   void initState() {
     super.initState();
-    print('BranchPage initState() called');
+    print('MerchantPage initState() called');
     debugPrint('Language code: $langCode');
 
     _loadLangCode();
     _loadCurrentTheme();
-    fetchbranchs();
+    fetchMerchants();
     
     _searchController.addListener(() {
       print('Search query: ${_searchController.text}');
-      filterbranchs(_searchController.text);
+      filterMerchants(_searchController.text);
     });
   }
 
   void _loadLangCode() async {
     print('Loading language code...');
     final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        langCode = prefs.getString('languageCode') ?? 'en';
-        print('Language code loaded: $langCode');
-      });
-    }
+    setState(() {
+      langCode = prefs.getString('languageCode') ?? 'en';
+      print('Language code loaded: $langCode');
+    });
   }
 
   void _loadCurrentTheme() async {
     print('Loading current theme...');
     final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
-        print('Theme loaded: $currentTheme');
-      });
-    }
+    setState(() {
+      currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      print('Theme loaded: $currentTheme');
+    });
   }
 
   @override
   void dispose() {
-    print('BranchPage dispose() called');
+    print('MerchantPage dispose() called');
     _searchController.dispose();
     super.dispose();
   }
 
-  void filterbranchs(String query) {
-    print('Filtering branches with query: "$query"');
+  void filterMerchants(String query) {
+    print('Filtering merchants with query: "$query"');
     final lowerQuery = query.toLowerCase();
-    if (mounted) {
-      setState(() {
-        filteredbranchs = branchs.where((branch) {
-          final nameLower = branch.branchName.toLowerCase();
-          final codeLower = branch.branchCode.toLowerCase();
-          final provinceLower = (branch.provinceName ?? '').toLowerCase();
-          
-          bool matches = nameLower.contains(lowerQuery) || 
-                        codeLower.contains(lowerQuery) ||
-                        provinceLower.contains(lowerQuery);
-          return matches;
-        }).toList();
-        print('Filtered branches count: ${filteredbranchs.length}');
-      });
-    }
+    setState(() {
+      filteredMerchants = merchants.where((merchant) {
+        final nameLower = merchant.merchantName.toLowerCase();
+        final codeLower = merchant.merchantCode?.toLowerCase() ?? '';
+        final phoneLower = merchant.phone?.toLowerCase() ?? '';
+        bool matches = nameLower.contains(lowerQuery) || 
+                      codeLower.contains(lowerQuery) || 
+                      phoneLower.contains(lowerQuery);
+        return matches;
+      }).toList();
+      print('Filtered merchants count: ${filteredMerchants.length}');
+    });
   }
 
-  Future<void> fetchbranchs() async {
-    print('Starting fetchbranchs()');
+  Future<void> fetchMerchants() async {
+    print('Starting fetchMerchants()');
     
     if (!mounted) {
-      print('Widget not mounted, aborting fetchbranchs()');
+      print('Widget not mounted, aborting fetchMerchants()');
       return;
     }
     
@@ -106,7 +99,7 @@ class _branchPageState extends State<branchPage> {
       error = null;
     });
 
-    final url = AppConfig.api('/api/iobranch');
+    final url = AppConfig.api('/api/iomerchant');
     print('API URL: $url');
     
     try {
@@ -119,7 +112,6 @@ class _branchPageState extends State<branchPage> {
       
       // Build query parameters
       final queryParams = {
-        'status': 'admin', // Use admin to see all branches
         'company_id': companyId.toString(),
       };
       
@@ -150,95 +142,85 @@ class _branchPageState extends State<branchPage> {
           print('API Response structure: ${data.keys.toList()}');
           
           if (data['status'] == 'success') {
-            final List<dynamic> rawbranchs = data['data'] ?? [];
-            print('Raw branches count: ${rawbranchs.length}');
+            final List<dynamic> rawMerchants = data['data'] ?? [];
+            print('Raw merchants count: ${rawMerchants.length}');
             
-            // Print first branch for debugging
-            if (rawbranchs.isNotEmpty) {
-              print('First branch data: ${rawbranchs[0]}');
+            // Print first merchant for debugging
+            if (rawMerchants.isNotEmpty) {
+              print('First merchant data: ${rawMerchants[0]}');
             }
             
-            branchs = rawbranchs.map((e) {
+            merchants = rawMerchants.map((e) {
               try {
-                return Iobranch.fromJson(e);
+                return IoMerchant.fromJson(e);
               } catch (parseError) {
-                print('Error parsing branch: $parseError');
-                print('Problem branch data: $e');
+                print('Error parsing merchant: $parseError');
+                print('Problem merchant data: $e');
                 rethrow;
               }
             }).toList();
             
-            filteredbranchs = List.from(branchs);
+            filteredMerchants = List.from(merchants);
             
-            print('Total branches loaded: ${branchs.length}');
-            print('Filtered branches: ${filteredbranchs.length}');
+            print('Total merchants loaded: ${merchants.length}');
+            print('Filtered merchants: ${filteredMerchants.length}');
             
-            if (mounted) {
-              setState(() => loading = false);
-            }
+            setState(() => loading = false);
           } else {
             print('API returned error status: ${data['status']}');
             print('API error message: ${data['message']}');
-            if (mounted) {
-              setState(() {
-                loading = false;
-                error = data['message'] ?? 'Unknown error from API';
-              });
-            }
+            setState(() {
+              loading = false;
+              error = data['message'] ?? 'Unknown error from API';
+            });
           }
         } catch (jsonError) {
           print('JSON parsing error: $jsonError');
           print('Raw response that failed to parse: ${response.body}');
-          if (mounted) {
-            setState(() {
-              loading = false;
-              error = 'Failed to parse server response: $jsonError';
-            });
-          }
+          setState(() {
+            loading = false;
+            error = 'Failed to parse server response: $jsonError';
+          });
         }
       } else {
         print('HTTP Error ${response.statusCode}');
         print('Error response body: ${response.body}');
-        if (mounted) {
-          setState(() {
-            loading = false;
-            error = 'Server error: ${response.statusCode}\n${response.body}';
-          });
-        }
+        setState(() {
+          loading = false;
+          error = 'Server error: ${response.statusCode}\n${response.body}';
+        });
       }
     } catch (e, stackTrace) {
       print('Exception caught: $e');
       print('Stack trace: $stackTrace');
-      if (mounted) {
-        setState(() {
-          loading = false;
-          error = 'Failed to load data: $e';
-        });
-      }
+      setState(() {
+        loading = false;
+        error = 'Failed to load data: $e';
+      });
     }
   }
 
-  void _onAddbranch() async {
-    print('Add branch button pressed');
+  void _onAddMerchant() async {
+    print('Add Merchant button pressed');
     
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => branchAddPage()),
+      MaterialPageRoute(builder: (context) => MerchantAddPage()),
     );
 
-    print('Add branch result: $result');
-    if (result == true && mounted) {
-      print('Refreshing branches after add');
-      fetchbranchs();
+    print('Add Merchant result: $result');
+    if (result == true) {
+      print('Refreshing merchants after add');
+      fetchMerchants();
     }
   }
 
-  Widget _buildbranchImage(Iobranch branch) {
-    print('Building image for branch: ${branch.branchName}');
-    print('Image URL: ${branch.imageUrl}');
+  Widget _buildMerchantImage(IoMerchant merchant) {
+    print('Building image for merchant: ${merchant.merchantName}');
+    print('Image URL: ${merchant.imageUrl}');
     
     // Check if we have a valid image URL
-    if (branch.imageUrl == null || branch.imageUrl!.isEmpty) {
+    if (merchant.imageUrl == null || merchant.imageUrl!.isEmpty) {
       print('No image URL, showing placeholder');
       return CircleAvatar(
         radius: 25,
@@ -252,7 +234,7 @@ class _branchPageState extends State<branchPage> {
     }
 
     // Handle different image URL formats
-    String imageUrl = branch.imageUrl!;
+    String imageUrl = merchant.imageUrl!;
     
     // If it's a relative URL, make it absolute
     if (!imageUrl.startsWith('http')) {
@@ -280,10 +262,10 @@ class _branchPageState extends State<branchPage> {
           fit: BoxFit.cover,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) {
-              print('Image loaded successfully for ${branch.branchName}');
+              print('Image loaded successfully for ${merchant.merchantName}');
               return child;
             }
-            print('Loading image for ${branch.branchName}...');
+            print('Loading image for ${merchant.merchantName}...');
             return Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
@@ -294,7 +276,7 @@ class _branchPageState extends State<branchPage> {
             );
           },
           errorBuilder: (context, error, stackTrace) {
-            print('Error loading image for ${branch.branchName}: $error');
+            print('Error loading image for ${merchant.merchantName}: $error');
             print('Failed URL: $imageUrl');
             return Icon(
               Icons.business,
@@ -309,8 +291,8 @@ class _branchPageState extends State<branchPage> {
 
   @override
   Widget build(BuildContext context) {
-    print('Building BranchPage widget');
-    print('Current state - loading: $loading, error: $error, branches: ${branchs.length}');
+    print('Building MerchantPage widget');
+    print('Current state - loading: $loading, error: $error, merchants: ${merchants.length}');
     
     // Get responsive dimensions
     final screenWidth = MediaQuery.of(context).size.width;
@@ -324,7 +306,7 @@ class _branchPageState extends State<branchPage> {
       print('Showing loading indicator');
       return Scaffold(
         appBar: AppBar(
-          title: Text('Branches'),
+          title: Text('Merchants'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         ),
@@ -338,7 +320,7 @@ class _branchPageState extends State<branchPage> {
                 ),
               ),
               SizedBox(height: 16),
-              Text('Loading Branches...'),
+              Text('Loading Merchants...'),
             ],
           ),
         ),
@@ -349,7 +331,7 @@ class _branchPageState extends State<branchPage> {
       print('Showing error state: $error');
       return Scaffold(
         appBar: AppBar(
-          title: Text('Branches'),
+          title: Text('Merchants'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         ),
@@ -364,7 +346,7 @@ class _branchPageState extends State<branchPage> {
                   Icon(Icons.error_outline, size: 64, color: Colors.red),
                   SizedBox(height: 16),
                   Text(
-                    'Error Loading Branches',
+                    'Error Loading Merchants',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
@@ -379,7 +361,7 @@ class _branchPageState extends State<branchPage> {
                   ElevatedButton.icon(
                     onPressed: () {
                       print('Retry button pressed');
-                      fetchbranchs();
+                      fetchMerchants();
                     },
                     icon: Icon(Icons.refresh),
                     label: Text('Retry'),
@@ -396,18 +378,18 @@ class _branchPageState extends State<branchPage> {
       );
     }
 
-    if (branchs.isEmpty) {
+    if (merchants.isEmpty) {
       print('Showing empty state');
       return Scaffold(
         appBar: AppBar(
-          title: Text('Branches (0)'),
+          title: Text('Merchants (0)'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
           actions: [
             IconButton(
               onPressed: () {
                 print('Refresh button pressed from empty state');
-                fetchbranchs();
+                fetchMerchants();
               },
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh',
@@ -420,17 +402,17 @@ class _branchPageState extends State<branchPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.business_outlined, size: 80, color: Colors.grey),
+                Icon(Icons.domain_add, size: 80, color: Colors.grey),
                 SizedBox(height: 16),
                 Text(
-                  'No Branches found',
+                  'No Merchants found',
                   style: TextStyle(fontSize: 18, color: Colors.grey),
                 ),
                 SizedBox(height: 16),
                 ElevatedButton.icon(
-                  onPressed: _onAddbranch,
+                  onPressed: _onAddMerchant,
                   icon: Icon(Icons.add),
-                  label: Text('Add First Branch'),
+                  label: Text('Add First Merchant'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
                     foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
@@ -441,35 +423,35 @@ class _branchPageState extends State<branchPage> {
           ),
         ),
         floatingActionButton: isWideScreen ? null : FloatingActionButton(
-          onPressed: _onAddbranch,
+          onPressed: _onAddMerchant,
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-          tooltip: SimpleTranslations.get(langCode, 'add_branch'),
+          tooltip: SimpleTranslations.get(langCode, 'add_Merchant'),
           child: const Icon(Icons.add),
         ),
       );
     }
 
-    print('Rendering main branch list with ${filteredbranchs.length} branches');
+    print('Rendering main merchant list with ${filteredMerchants.length} merchants');
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('${SimpleTranslations.get(langCode, 'branches')} (${filteredbranchs.length})'),
+        title: Text('${SimpleTranslations.get(langCode, 'Merchants')} (${filteredMerchants.length})'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         actions: [
           if (isWideScreen) ...[
             // Add button in app bar for wide screens
             IconButton(
-              onPressed: _onAddbranch,
+              onPressed: _onAddMerchant,
               icon: const Icon(Icons.add),
-              tooltip: SimpleTranslations.get(langCode, 'add_branch'),
+              tooltip: SimpleTranslations.get(langCode, 'add_Merchant'),
             ),
           ],
           IconButton(
             onPressed: () {
               print('Refresh button pressed from app bar');
-              fetchbranchs();
+              fetchMerchants();
             },
             icon: const Icon(Icons.refresh),
             tooltip: SimpleTranslations.get(langCode, 'refresh'),
@@ -487,7 +469,6 @@ class _branchPageState extends State<branchPage> {
                   controller: _searchController,
                   decoration: InputDecoration(
                     labelText: SimpleTranslations.get(langCode, 'search'),
-                    hintText: 'Search by name, code, or province...',
                     prefixIcon: Icon(
                       Icons.search,
                       color: ThemeConfig.getPrimaryColor(currentTheme),
@@ -515,7 +496,7 @@ class _branchPageState extends State<branchPage> {
                 ),
               ),
               Expanded(
-                child: filteredbranchs.isEmpty
+                child: filteredMerchants.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -524,8 +505,8 @@ class _branchPageState extends State<branchPage> {
                             const SizedBox(height: 16),
                             Text(
                               _searchController.text.isNotEmpty
-                                  ? 'No Branches match your search'
-                                  : 'No Branches found',
+                                  ? 'No Merchants match your search'
+                                  : 'No Merchants found',
                               style: const TextStyle(fontSize: 18, color: Colors.grey),
                             ),
                             if (_searchController.text.isNotEmpty) ...[
@@ -539,7 +520,7 @@ class _branchPageState extends State<branchPage> {
                         ),
                       )
                     : RefreshIndicator(
-                        onRefresh: fetchbranchs,
+                        onRefresh: fetchMerchants,
                         child: isWideScreen
                             ? _buildGridView(cardMargin)
                             : _buildListView(cardMargin),
@@ -550,10 +531,10 @@ class _branchPageState extends State<branchPage> {
         ),
       ),
       floatingActionButton: isWideScreen ? null : FloatingActionButton(
-        onPressed: _onAddbranch,
+        onPressed: _onAddMerchant,
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-        tooltip: SimpleTranslations.get(langCode, 'add_branch'),
+        tooltip: SimpleTranslations.get(langCode, 'add_Merchant'),
         child: const Icon(Icons.add),
       ),
     );
@@ -561,30 +542,29 @@ class _branchPageState extends State<branchPage> {
 
   Widget _buildListView(EdgeInsets cardMargin) {
     return ListView.builder(
-      itemCount: filteredbranchs.length,
+      itemCount: filteredMerchants.length,
       itemBuilder: (ctx, i) {
-        final branch = filteredbranchs[i];
-        print('Building list item for branch: ${branch.branchName}');
+        final merchant = filteredMerchants[i];
+        print('Building list item for merchant: ${merchant.merchantName}');
 
         return Card(
           margin: cardMargin,
           elevation: 2,
           child: ListTile(
-            leading: _buildbranchImage(branch),
+            leading: _buildMerchantImage(merchant),
             title: Text(
-              branch.branchName,
+              merchant.merchantName,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
             ),
-            subtitle: _buildBranchSubtitle(branch),
+            subtitle: _buildMerchantSubtitle(merchant),
             trailing: Icon(
               Icons.edit,
               color: ThemeConfig.getPrimaryColor(currentTheme),
             ),
-            isThreeLine: true,
-            onTap: () => _navigateToEdit(branch),
+            onTap: () => _navigateToEdit(merchant),
           ),
         );
       },
@@ -596,25 +576,25 @@ class _branchPageState extends State<branchPage> {
       padding: EdgeInsets.symmetric(horizontal: cardMargin.horizontal / 2),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: MediaQuery.of(context).size.width > 900 ? 3 : 2,
-        childAspectRatio: 2.8,
+        childAspectRatio: 3.5,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
-      itemCount: filteredbranchs.length,
+      itemCount: filteredMerchants.length,
       itemBuilder: (ctx, i) {
-        final branch = filteredbranchs[i];
-        print('Building grid item for branch: ${branch.branchName}');
+        final merchant = filteredMerchants[i];
+        print('Building grid item for merchant: ${merchant.merchantName}');
 
         return Card(
           elevation: 2,
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
-            onTap: () => _navigateToEdit(branch),
+            onTap: () => _navigateToEdit(merchant),
             child: Padding(
               padding: EdgeInsets.all(12),
               child: Row(
                 children: [
-                  _buildbranchImage(branch),
+                  _buildMerchantImage(merchant),
                   SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -622,7 +602,7 @@ class _branchPageState extends State<branchPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          branch.branchName,
+                          merchant.merchantName,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -631,7 +611,7 @@ class _branchPageState extends State<branchPage> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         SizedBox(height: 4),
-                        _buildBranchSubtitle(branch, compact: true),
+                        _buildMerchantSubtitle(merchant, compact: true),
                       ],
                     ),
                   ),
@@ -649,30 +629,31 @@ class _branchPageState extends State<branchPage> {
     );
   }
 
-  Widget _buildBranchSubtitle(Iobranch branch, {bool compact = false}) {
+  Widget _buildMerchantSubtitle(IoMerchant merchant, {bool compact = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Code: ${branch.branchCode}',
-          style: TextStyle(
-            fontSize: compact ? 11 : 13,
-            fontWeight: FontWeight.w500,
-            color: ThemeConfig.getPrimaryColor(currentTheme),
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        if (!compact && branch.provinceName != null && branch.provinceName!.isNotEmpty)
+        if (merchant.merchantCode != null && merchant.merchantCode!.isNotEmpty)
           Text(
-            'Province: ${branch.provinceName}',
+            'Code: ${merchant.merchantCode}',
+            style: TextStyle(
+              fontSize: compact ? 11 : 13,
+              fontWeight: FontWeight.w500,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        if (!compact && merchant.phone != null && merchant.phone!.isNotEmpty)
+          Text(
+            'Phone: ${merchant.phone}',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-        if (!compact && branch.managerName != null && branch.managerName!.isNotEmpty)
+        if (!compact)
           Text(
-            'Manager: ${branch.managerName}',
+            'Company ID: ${merchant.companyId}',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -681,27 +662,27 @@ class _branchPageState extends State<branchPage> {
     );
   }
 
-  void _navigateToEdit(Iobranch branch) async {
-    print('Branch tapped: ${branch.branchName}');
+  void _navigateToEdit(IoMerchant merchant) async {
+    print('Merchant tapped: ${merchant.merchantName}');
     
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => BranchEditPage(
-          branchData: branch.toJson(),
+        builder: (_) => MerchantEditPage(
+          MerchantData: merchant.toJson(),
         ),
       ),
     );
 
-    print('Edit Branch result: $result');
+    print('Edit Merchant result: $result');
     if (result == true || result == 'deleted') {
-      print('Branch operation completed, refreshing list...');
-      fetchbranchs();
+      print('Merchant operation completed, refreshing list...');
+      fetchMerchants();
       
       if (result == 'deleted') {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Branch removed from list'),
+            content: Text('Merchant removed from list'),
             backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
             duration: Duration(seconds: 2),
           ),
@@ -711,63 +692,62 @@ class _branchPageState extends State<branchPage> {
   }
 }
 
-// Updated Iobranch model to match your io_branch table structure
-class Iobranch {
-  final int branchId;
+// Fixed IoMerchant model with proper create_by handling
+class IoMerchant {
+  final int merchantId;
   final int companyId;
-  final String branchName;
-  final String branchCode;
-  final String? provinceName;
-  final String? address;
+  final String merchantName;
+  final String? merchantCode;
   final String? phone;
-  final String? email;
-  final String? managerName;
-  final String? branchImage;
   final String? imageUrl;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
+  final int? createBy;
+  final String? createdDate;
+  final String? updatedDate;
   
-  Iobranch({
-    required this.branchId,
+  IoMerchant({
+    required this.merchantId,
     required this.companyId,
-    required this.branchName,
-    required this.branchCode,
-    this.provinceName,
-    this.address,
+    required this.merchantName,
+    this.merchantCode,
     this.phone,
-    this.email,
-    this.managerName,
-    this.branchImage,
     this.imageUrl,
-    this.createdAt,
-    this.updatedAt,
+    this.createBy,
+    this.createdDate,
+    this.updatedDate,
   });
   
-  factory Iobranch.fromJson(Map<String, dynamic> json) {
-    print('Converting JSON to Iobranch');
+  factory IoMerchant.fromJson(Map<String, dynamic> json) {
+    print('Converting JSON to IoMerchant');
     print('JSON keys: ${json.keys.toList()}');
     print('JSON data: $json');
     
     try {
-      final branch = Iobranch(
-        branchId: json['branch_id'] ?? 0,
-        companyId: CompanyConfig.getCompanyId(), // Use centralized config instead
-        branchName: json['branch_name'] ?? '',
-        branchCode: json['branch_code'] ?? '',
-        provinceName: json['province_name'],
-        address: json['address'],
+      // Helper function to safely parse create_by field
+      int? parseCreateBy(dynamic value) {
+        if (value == null) return null;
+        if (value is int) return value;
+        if (value is String) {
+          if (value.isEmpty || value.toLowerCase() == 'null') return null;
+          return int.tryParse(value);
+        }
+        return null;
+      }
+
+      final merchant = IoMerchant(
+        merchantId: json['merchant_id'] ?? 0,
+        companyId: json['company_id'] ?? CompanyConfig.getCompanyId(),
+        merchantName: json['merchant_name'] ?? '',
+        merchantCode: json['merchant_code'],
         phone: json['phone'],
-        email: json['email'],
-        managerName: json['manager_name'],
-        branchImage: json['branch_image'],
         imageUrl: json['image_url'],
-        createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
-        updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at']) : null,
+        createBy: parseCreateBy(json['create_by']), // Safe parsing for string/int conversion
+        createdDate: json['created_date'],
+        updatedDate: json['updated_date'],
       );
-      print('Successfully created Iobranch: ${branch.branchName} (${branch.branchCode})');
-      return branch;
+      print('Successfully created IoMerchant: ${merchant.merchantName}');
+      return merchant;
     } catch (e, stackTrace) {
-      print('Error parsing Iobranch JSON: $e');
+      print('Error parsing IoMerchant JSON: $e');
       print('Stack trace: $stackTrace');
       print('Problem JSON: $json');
       rethrow;
@@ -776,19 +756,15 @@ class Iobranch {
   
   Map<String, dynamic> toJson() {
     return {
-      'branch_id': branchId,
+      'merchant_id': merchantId,
       'company_id': companyId,
-      'branch_name': branchName,
-      'branch_code': branchCode,
-      'province_name': provinceName,
-      'address': address,
+      'merchant_name': merchantName,
+      'merchant_code': merchantCode,
       'phone': phone,
-      'email': email,
-      'manager_name': managerName,
-      'branch_image': branchImage,
       'image_url': imageUrl,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
+      'create_by': createBy,
+      'created_date': createdDate,
+      'updated_date': updatedDate,
     };
   }
 }
