@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:inventory/business/BranchPage.dart';
+import 'package:inventory/business/CompanyPage.dart';
 import 'package:inventory/business/GroupPage.dart' show GroupPage;
 import 'package:inventory/business/LocationPage.dart';
 import 'package:inventory/business/MerchantPage.dart';
@@ -297,6 +298,13 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
 
   List<Widget> _buildBusinessGridItems() {
     return [
+      _buildGridItem(
+        icon: Icons.grass,
+        title: SimpleTranslations.get(_langCode, 'Company'),
+        color: Colors.lightGreenAccent.shade700,
+        onTap: _navigateToCompanyPage,
+      ),
+      
       _buildGridItem(
         icon: Icons.group,
         title: SimpleTranslations.get(_langCode, 'group'),
@@ -694,6 +702,13 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const TerminalPage()),
+    );
+  }
+
+  void _navigateToCompanyPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CompanyPage()),
     );
   }
 
