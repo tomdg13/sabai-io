@@ -679,7 +679,7 @@ class _VendorPageState extends State<VendorPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => vendorEditPage(
+        builder: (_) => VendorEditPage(
           vendorData: vendor.toJson(),
         ),
       ),

@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import '../config/config.dart';
 import '../config/theme.dart';
+// ignore: unused_import
 import '../utils/simple_translations.dart';
 
 class UserAddPage extends StatefulWidget {
@@ -18,27 +20,50 @@ class UserAddPage extends StatefulWidget {
   State<UserAddPage> createState() => _UserAddPageState();
 }
 
-class _UserAddPageState extends State<UserAddPage> {
+class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _controllers = _Controllers();
   
   String _selectedRole = 'office';
   File? _selectedImage;
+  Uint8List? _webImageBytes;
   String _base64Image = '';
   bool _isLoading = false;
   String _langCode = 'en';
   String _currentTheme = ThemeConfig.defaultTheme;
 
   _CompanyData? _companyData;
-  _BranchData _branchData = _BranchData();
+  _BranchData _branchData = const _BranchData();
 
   final List<String> _roles = ['office', 'admin', 'user'];
   final ImagePicker _picker = ImagePicker();
 
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+
+  final _nameFocus = FocusNode();
+  final _phoneFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _documentIdFocus = FocusNode();
+  final _accountNameFocus = FocusNode();
+  final _accountNoFocus = FocusNode();
+
   @override
   void initState() {
     super.initState();
+    _setupAnimations();
     _initialize();
+  }
+
+  void _setupAnimations() {
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
+    );
+    _fadeController.forward();
   }
 
   Future<void> _initialize() async {
@@ -65,11 +90,11 @@ class _UserAddPageState extends State<UserAddPage> {
       });
 
       await _loadBranches();
-        } catch (e) {
+    } catch (e) {
       setState(() {
-        _companyData = _CompanyData(id: null, name: '');
+        _companyData = const _CompanyData(id: null, name: '');
       });
-      _showErrorSnackBar(_translate('error_loading_company_info'));
+      _showErrorSnackBar('Error loading company information');
     }
   }
 
@@ -94,7 +119,7 @@ class _UserAddPageState extends State<UserAddPage> {
         uri,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
+          if (token != null) 'Authorization': 'Bearer $token',
         },
       );
 
@@ -118,7 +143,7 @@ class _UserAddPageState extends State<UserAddPage> {
           setState(() {
             _branchData = _branchData.copyWith(isLoading: false);
           });
-          _showErrorSnackBar(_translate('no_branches_found'));
+          _showErrorSnackBar('No branches found');
         }
       } else {
         setState(() {
@@ -135,42 +160,19 @@ class _UserAddPageState extends State<UserAddPage> {
   }
 
   Future<void> _pickImage() async {
-    if (kIsWeb) {
-      await _pickImageFromSource(ImageSource.gallery);
-    } else {
-      _showImageSourceBottomSheet();
-    }
-  }
-
-  void _showImageSourceBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            _buildImageSourceTile(Icons.photo_library, _translate('gallery'), ImageSource.gallery),
-            _buildImageSourceTile(Icons.camera_alt, _translate('camera'), ImageSource.camera),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageSourceTile(IconData icon, String title, ImageSource source) {
-    return ListTile(
-      leading: Icon(icon, color: ThemeConfig.getPrimaryColor(_currentTheme)),
-      title: Text(title),
-      onTap: () {
-        Navigator.pop(context);
-        _pickImageFromSource(source);
-      },
-    );
-  }
-
-  Future<void> _pickImageFromSource(ImageSource source) async {
     try {
+      ImageSource? source;
+      
+      if (kIsWeb) {
+        source = ImageSource.gallery;
+      } else {
+        source = await _showImageSourceBottomSheet();
+      }
+
+      if (source == null && !kIsWeb) return;
+
       final XFile? image = await _picker.pickImage(
-        source: source,
+        source: source!,
         maxWidth: 800,
         maxHeight: 800,
         imageQuality: 85,
@@ -181,7 +183,7 @@ class _UserAddPageState extends State<UserAddPage> {
       final imageBytes = await image.readAsBytes();
       
       if (imageBytes.length > 500000) {
-        _showErrorSnackBar(_translate('image_too_large'));
+        _showErrorSnackBar('Image too large. Please select a smaller image.');
         return;
       }
 
@@ -189,23 +191,114 @@ class _UserAddPageState extends State<UserAddPage> {
       final dataUrl = 'data:image/jpeg;base64,$base64String';
 
       setState(() {
-        _selectedImage = kIsWeb ? null : File(image.path);
+        _webImageBytes = imageBytes;
+        if (!kIsWeb) {
+          _selectedImage = File(image.path);
+        }
         _base64Image = dataUrl;
       });
 
-      _showSuccessSnackBar(_translate('image_selected_successfully'));
+      _showSuccessSnackBar('Image selected successfully');
     } catch (e) {
-      _showErrorSnackBar(_translate('error_selecting_image'));
+      _showErrorSnackBar('Error selecting image');
     }
   }
 
+  Future<ImageSource?> _showImageSourceBottomSheet() async {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Select Image Source',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildImageSourceOption(
+                  icon: Icons.photo_library,
+                  label: 'Gallery',
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+                _buildImageSourceOption(
+                  icon: Icons.photo_camera,
+                  label: 'Camera',
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageSourceOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: ThemeConfig.getPrimaryColor(_currentTheme).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: ThemeConfig.getPrimaryColor(_currentTheme).withOpacity(0.3),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 32,
+              color: ThemeConfig.getPrimaryColor(_currentTheme),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: ThemeConfig.getPrimaryColor(_currentTheme),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _addUser() async {
+    FocusScope.of(context).unfocus();
+    
     if (!_formKey.currentState!.validate() || _branchData.selectedBranch == null) {
       if (_branchData.selectedBranch == null) {
         _showErrorSnackBar('Please select a branch');
       }
       return;
     }
+
+    _controllers.username.text = _controllers.phone.text.trim();
 
     setState(() => _isLoading = true);
 
@@ -214,146 +307,198 @@ class _UserAddPageState extends State<UserAddPage> {
       final token = prefs.getString('access_token');
       final url = AppConfig.api('/api/iouser/add');
 
-      final requestBody = _buildRequestBody();
+      final requestBody = {
+        'phone': _controllers.phone.text.trim(),
+        'name': _controllers.name.text.trim(),
+        'email': _controllers.email.text.trim(),
+        'role': _selectedRole,
+        'company_id': _companyData?.id,
+        'branch_id': _branchData.selectedBranch!.id,
+        'photo': _base64Image,
+        'status': 'resetpassword',
+        'document_id': _controllers.documentId.text.trim().nullIfEmpty,
+        'username': _controllers.phone.text.trim(),
+        'account_no': _controllers.accountNo.text.trim().nullIfEmpty,
+        'account_name': _controllers.accountName.text.trim().nullIfEmpty,
+        'language': _langCode,
+      };
 
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
+          if (token != null) 'Authorization': 'Bearer $token',
         },
         body: jsonEncode(requestBody),
       );
 
-      _handleAddUserResponse(response);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'success') {
+          _showSuccessDialog();
+        } else {
+          _showErrorSnackBar(data['message'] ?? 'Unknown error occurred');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        final errorMessage = errorData['message'] ?? 
+            errorData['error'] ?? 
+            'Server error';
+        _showErrorSnackBar('Error (${response.statusCode}): $errorMessage');
+      }
     } catch (e) {
-      _showErrorSnackBar(_translate('network_error_occurred'));
+      _showErrorSnackBar('Network error occurred');
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  Map<String, dynamic> _buildRequestBody() {
-    return {
-      'phone': _controllers.phone.text.trim(),
-      'name': _controllers.name.text.trim(),
-      'email': _controllers.email.text.trim(),
-      'role': _selectedRole,
-      'company_id': _companyData?.id,
-      'branch_id': _branchData.selectedBranch!.id,
-      'photo': _base64Image,
-      'status': 'resetpassword',
-      'document_id': _controllers.documentId.text.trim().nullIfEmpty,
-      'username': _controllers.phone.text.trim(),
-      'account_no': _controllers.accountNo.text.trim().nullIfEmpty,
-      'account_name': _controllers.accountName.text.trim().nullIfEmpty,
-      'language': _langCode,
-    };
-  }
-
-  void _handleAddUserResponse(http.Response response) {
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final data = jsonDecode(response.body);
-      if (data['status'] == 'success') {
-        _showSuccessSnackBar('${_translate('user_added_successfully')} ${_companyData?.name}!');
-        Navigator.pop(context, true);
-      } else {
-        _showErrorSnackBar(data['message'] ?? _translate('unknown_error_occurred'));
-      }
-    } else {
-      _handleErrorResponse(response);
-    }
-  }
-
-  void _handleErrorResponse(http.Response response) {
-    try {
-      final errorData = jsonDecode(response.body);
-      final errorMessage = errorData['message'] ?? 
-          errorData['error'] ?? 
-          _translate('unknown_server_error');
-      _showErrorSnackBar('${_translate('server_error')} (${response.statusCode}): $errorMessage');
-    } catch (e) {
-      _showErrorSnackBar('${_translate('error')} ${response.statusCode}: ${response.body}');
-    }
-  }
-
-  Widget _buildProfileImageSection() {
-    return Center(
-      child: Column(
-        children: [
-          GestureDetector(
-            onTap: _pickImage,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: ThemeConfig.getPrimaryColor(_currentTheme),
-                  width: 3,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
-                    spreadRadius: 2,
-                    blurRadius: 5,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 28),
+            const SizedBox(width: 12),
+            const Text('Success!'),
+          ],
+        ),
+        content: Text('User "${_controllers.name.text}" has been created successfully for ${_companyData?.name}.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop(true);
+            },
+            child: Text(
+              'OK',
+              style: TextStyle(
+                color: ThemeConfig.getPrimaryColor(_currentTheme),
+                fontWeight: FontWeight.bold,
               ),
-              child: _buildImageContent(),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _translate('tap_to_select_profile_image'),
-            style: TextStyle(color: Colors.grey[600], fontSize: 12),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildImageContent() {
-    if (_selectedImage != null || _base64Image.isNotEmpty) {
-      return ClipOval(
-        child: kIsWeb && _base64Image.isNotEmpty
-            ? Image.memory(
-                base64Decode(_base64Image.split(',')[1]),
-                width: 120,
-                height: 120,
-                fit: BoxFit.cover,
-              )
-            : _selectedImage != null
-                ? Image.file(
-                    _selectedImage!,
-                    width: 120,
-                    height: 120,
-                    fit: BoxFit.cover,
-                  )
-                : const SizedBox(),
+  Widget _buildProfileImageSection() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+    final imageSize = isWideScreen ? 140.0 : 120.0;
+
+    return Center(
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              width: imageSize,
+              height: imageSize,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: (_selectedImage != null || _webImageBytes != null)
+                      ? ThemeConfig.getPrimaryColor(_currentTheme)
+                      : Colors.grey[300]!,
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: (_selectedImage != null || _webImageBytes != null)
+                  ? ClipOval(
+                      child: Stack(
+                        children: [
+                          _buildImageDisplay(imageSize),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(
+                                Icons.edit,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_a_photo,
+                          size: isWideScreen ? 48 : 40,
+                          color: ThemeConfig.getPrimaryColor(_currentTheme),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Add Photo',
+                          style: TextStyle(
+                            fontSize: isWideScreen ? 14 : 12,
+                            color: ThemeConfig.getPrimaryColor(_currentTheme),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Tap to select profile image',
+            style: TextStyle(
+              color: Colors.grey[600], 
+              fontSize: isWideScreen ? 14 : 12
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageDisplay(double size) {
+    if (kIsWeb && _webImageBytes != null) {
+      return Image.memory(
+        _webImageBytes!,
+        fit: BoxFit.cover,
+        width: size,
+        height: size,
+      );
+    } else if (!kIsWeb && _selectedImage != null) {
+      return Image.file(
+        _selectedImage!,
+        fit: BoxFit.cover,
+        width: size,
+        height: size,
       );
     }
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          Icons.add_a_photo,
-          size: 40,
-          color: ThemeConfig.getPrimaryColor(_currentTheme),
+    return Container(
+      color: Colors.grey[100],
+      child: Center(
+        child: Icon(
+          Icons.person,
+          color: Colors.grey[400],
+          size: size * 0.4,
         ),
-        const SizedBox(height: 4),
-        Text(
-          _translate('add_photo'),
-          style: TextStyle(
-            fontSize: 10,
-            color: ThemeConfig.getPrimaryColor(_currentTheme),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -362,14 +507,23 @@ class _UserAddPageState extends State<UserAddPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${_translate('branch')} *',
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+          'Branch *',
+          style: TextStyle(
+            fontSize: 12, 
+            color: Colors.grey[700],
+            fontWeight: FontWeight.w500,
+          ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: _branchData.selectedBranch == null 
+                  ? Colors.red[300]!
+                  : Colors.grey[300]!
+            ),
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.grey[50],
           ),
           child: _branchData.isLoading
               ? _buildLoadingIndicator()
@@ -377,7 +531,7 @@ class _UserAddPageState extends State<UserAddPage> {
         ),
         if (_branchData.selectedBranch == null)
           Padding(
-            padding: const EdgeInsets.only(top: 4, left: 8),
+            padding: const EdgeInsets.only(top: 8, left: 12),
             child: Text(
               'Branch is required',
               style: TextStyle(color: Colors.red[700], fontSize: 12),
@@ -393,8 +547,8 @@ class _UserAddPageState extends State<UserAddPage> {
       child: Row(
         children: [
           SizedBox(
-            width: 16,
-            height: 16,
+            width: 20,
+            height: 20,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               valueColor: AlwaysStoppedAnimation<Color>(
@@ -413,9 +567,15 @@ class _UserAddPageState extends State<UserAddPage> {
     return DropdownButtonHideUnderline(
       child: DropdownButton<_Branch>(
         value: _branchData.selectedBranch,
-        hint: const Padding(
-          padding: EdgeInsets.all(12),
-          child: Text('Select branch'),
+        hint: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(Icons.location_on, color: Colors.grey[600]),
+              const SizedBox(width: 12),
+              const Text('Select branch'),
+            ],
+          ),
         ),
         isExpanded: true,
         items: _branchData.branches.map(_buildBranchMenuItem).toList(),
@@ -430,16 +590,26 @@ class _UserAddPageState extends State<UserAddPage> {
     return DropdownMenuItem<_Branch>(
       value: branch,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
             _buildBranchImage(branch),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                branch.name,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    branch.name,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (branch.code.isNotEmpty)
+                    Text(
+                      branch.code,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                ],
               ),
             ),
           ],
@@ -450,15 +620,15 @@ class _UserAddPageState extends State<UserAddPage> {
 
   Widget _buildBranchImage(_Branch branch) {
     return Container(
-      width: 32,
-      height: 32,
+      width: 40,
+      height: 40,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey[300]!),
       ),
       child: branch.imageUrl.isNotEmpty
           ? ClipRRect(
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(7),
               child: Image.network(
                 branch.imageUrl,
                 fit: BoxFit.cover,
@@ -479,7 +649,7 @@ class _UserAddPageState extends State<UserAddPage> {
       child: Icon(
         Icons.location_on,
         color: Colors.grey[400],
-        size: 16,
+        size: 20,
       ),
     );
   }
@@ -489,291 +659,460 @@ class _UserAddPageState extends State<UserAddPage> {
       color: Colors.grey[100],
       child: const Center(
         child: SizedBox(
-          width: 12,
-          height: 12,
-          child: CircularProgressIndicator(strokeWidth: 1.5),
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
       ),
     );
   }
 
-  Widget _buildFormContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildProfileImageSection(),
-        const SizedBox(height: 32),
-        if (_isWebWideScreen) ..._buildWebLayout() else ..._buildMobileLayout(),
-        const SizedBox(height: 16),
-        _buildBranchDropdown(),
-        const SizedBox(height: 32),
-        _buildActionButtons(),
-      ],
-    );
-  }
-
-  bool get _isWebWideScreen => kIsWeb && MediaQuery.of(context).size.width > 600;
-
-  List<Widget> _buildWebLayout() {
-    return [
-      Row(
-        children: [
-          Expanded(child: _buildPhoneField()),
-          const SizedBox(width: 16),
-          Expanded(child: _buildNameField()),
-          
-          
-        ],
-      ),
-      const SizedBox(height: 16),
-      Row(
-        children: [
-          Expanded(child: _buildDocumentIdField()),
-          const SizedBox(width: 16),
-          
-        ],
-      ),
-      const SizedBox(height: 16),
-      Row(
-        children: [
-          Expanded(child: _buildEmailField()),
-          const SizedBox(width: 16),
-          Expanded(child: _buildRoleDropdown()),
-        ],
-      ),
-      const SizedBox(height: 16),
-      Row(
-        children: [
-          Expanded(child: _buildAccountNameField()),
-          const SizedBox(width: 16),
-          Expanded(child: _buildAccountNumberField()),
-        ],
-      ),
-    ];
-  }
-
-  List<Widget> _buildMobileLayout() {
-    return [
-      _buildNameField(),
-      const SizedBox(height: 16),
-      _buildUsernameField(),
-      const SizedBox(height: 16),
-      _buildDocumentIdField(),
-      const SizedBox(height: 16),
-      _buildAccountNameField(),
-      const SizedBox(height: 16),
-      _buildAccountNumberField(),
-      const SizedBox(height: 16),
-      _buildPhoneField(),
-      const SizedBox(height: 16),
-      _buildEmailField(),
-      const SizedBox(height: 16),
-      _buildRoleDropdown(),
-    ];
-  }
-
-  Widget _buildNameField() {
-    return TextFormField(
-      controller: _controllers.name,
-      decoration: _buildInputDecoration(
-        _translate('full_name_required'),
-        _translate('enter_full_name'),
-        Icons.person,
-      ),
-      validator: (value) => _validateName(value),
-    );
-  }
-
-  Widget _buildUsernameField() {
-    return TextFormField(
-      controller: _controllers.username,
-      readOnly: true, // Make username read-only since it auto-fills from phone
-      decoration: _buildInputDecoration(
-        'Username (Auto-filled from phone)',
-        'Username will be same as phone number',
-        Icons.account_circle,
-      ).copyWith(
-        fillColor: Colors.grey[100], // Slightly different color to show it's read-only
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    FocusNode? focusNode,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+    String? hint,
+    bool required = false,
+    bool readOnly = false,
+    TextInputAction? textInputAction,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: controller,
+        focusNode: focusNode,
+        keyboardType: keyboardType,
+        validator: validator,
+        readOnly: readOnly,
+        textInputAction: textInputAction ?? TextInputAction.next,
+        decoration: InputDecoration(
+          labelText: required ? '$label *' : label,
+          hintText: hint,
+          prefixIcon: Icon(
+            icon,
+            color: ThemeConfig.getPrimaryColor(_currentTheme),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(_currentTheme),
+              width: 2,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+          filled: true,
+          fillColor: readOnly ? Colors.grey[100] : Colors.grey[50],
+        ),
       ),
     );
   }
 
-  Widget _buildDocumentIdField() {
-    return TextFormField(
-      controller: _controllers.documentId,
-      decoration: _buildInputDecoration('Document ID (Optional)', 'Enter document/ID number', Icons.badge),
-    );
-  }
-
-  Widget _buildAccountNameField() {
-    return TextFormField(
-      controller: _controllers.accountName,
-      decoration: _buildInputDecoration('Account Name (Optional)', 'Enter bank account name', Icons.account_balance),
-    );
-  }
-
-  Widget _buildAccountNumberField() {
-    return TextFormField(
-      controller: _controllers.accountNo,
-      decoration: _buildInputDecoration('Account Number (Optional)', 'Enter bank account number', Icons.credit_card),
-    );
-  }
-
-  Widget _buildPhoneField() {
-    return TextFormField(
-      controller: _controllers.phone,
-      keyboardType: TextInputType.phone,
-      decoration: _buildInputDecoration(
-        _translate('phone_number_required'),
-        _translate('enter_phone_number'),
-        Icons.phone,
+  Widget _buildSectionCard({
+    required String title,
+    required List<Widget> children,
+    IconData? icon,
+  }) {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (icon != null) ...[
+                    Icon(
+                      icon,
+                      color: ThemeConfig.getPrimaryColor(_currentTheme),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: ThemeConfig.getPrimaryColor(_currentTheme),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              ...children,
+            ],
+          ),
+        ),
       ),
-      validator: (value) => _validatePhone(value),
-    );
-  }
-
-  Widget _buildEmailField() {
-    return TextFormField(
-      controller: _controllers.email,
-      keyboardType: TextInputType.emailAddress,
-      decoration: _buildInputDecoration(
-        _translate('email_required'),
-        _translate('enter_email_address'),
-        Icons.email,
-      ),
-      validator: (value) => _validateEmail(value),
     );
   }
 
   Widget _buildRoleDropdown() {
-    return DropdownButtonFormField<String>(
-      value: _selectedRole,
-      decoration: _buildInputDecoration(_translate('role_required'), '', Icons.work),
-      items: _roles.map((role) => DropdownMenuItem(
-        value: role,
-        child: Text(role.toUpperCase()),
-      )).toList(),
-      onChanged: (newValue) {
-        if (newValue != null) {
-          setState(() => _selectedRole = newValue);
-        }
-      },
-      validator: (value) => value?.isEmpty == true ? _translate('please_select_role') : null,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<String>(
+        value: _selectedRole,
+        decoration: InputDecoration(
+          labelText: 'Role *',
+          prefixIcon: Icon(
+            Icons.work,
+            color: ThemeConfig.getPrimaryColor(_currentTheme),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(_currentTheme),
+              width: 2,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+          filled: true,
+          fillColor: Colors.grey[50],
+        ),
+        items: _roles.map((role) => DropdownMenuItem(
+          value: role,
+          child: Text(role.toUpperCase()),
+        )).toList(),
+        onChanged: (newValue) {
+          if (newValue != null) {
+            setState(() => _selectedRole = newValue);
+          }
+        },
+        validator: (value) => value?.isEmpty == true ? 'Please select role' : null,
+      ),
+    );
+  }
+
+  Widget _buildFormContent() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSectionCard(
+          title: 'Profile Image',
+          icon: Icons.person,
+          children: [_buildProfileImageSection()],
+        ),
+        
+        const SizedBox(height: 20),
+
+        _buildSectionCard(
+          title: 'Personal Information',
+          icon: Icons.person_outline,
+          children: [
+            if (isWideScreen) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _controllers.name,
+                      label: 'Full Name',
+                      icon: Icons.person,
+                      focusNode: _nameFocus,
+                      hint: 'Enter full name',
+                      required: true,
+                      validator: _validateName,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _controllers.phone,
+                      label: 'Phone Number',
+                      icon: Icons.phone,
+                      focusNode: _phoneFocus,
+                      keyboardType: TextInputType.phone,
+                      hint: 'Enter phone number',
+                      required: true,
+                      validator: _validatePhone,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _controllers.email,
+                      label: 'Email',
+                      icon: Icons.email,
+                      focusNode: _emailFocus,
+                      keyboardType: TextInputType.emailAddress,
+                      hint: 'Enter email address',
+                      required: true,
+                     
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildRoleDropdown()),
+                ],
+              ),
+            ] else ...[
+              _buildTextField(
+                controller: _controllers.name,
+                label: 'Full Name',
+                icon: Icons.person,
+                focusNode: _nameFocus,
+                hint: 'Enter full name',
+                required: true,
+                validator: _validateName,
+              ),
+              _buildTextField(
+                controller: _controllers.phone,
+                label: 'Phone Number',
+                icon: Icons.phone,
+                focusNode: _phoneFocus,
+                keyboardType: TextInputType.phone,
+                hint: 'Enter phone number',
+                required: true,
+                validator: _validatePhone,
+              ),
+              _buildTextField(
+                controller: _controllers.email,
+                label: 'Email',
+                icon: Icons.email,
+                focusNode: _emailFocus,
+                keyboardType: TextInputType.emailAddress,
+                hint: 'Enter email address',
+                required: true,
+               
+              ),
+              _buildRoleDropdown(),
+            ],
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        _buildSectionCard(
+          title: 'Additional Information',
+          icon: Icons.info_outline,
+          children: [
+            if (isWideScreen) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _controllers.documentId,
+                      label: 'Document ID',
+                      icon: Icons.badge,
+                      focusNode: _documentIdFocus,
+                      hint: 'Enter document/ID number (optional)',
+                    ),
+                  ),
+                  
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _controllers.accountName,
+                      label: 'Account Name',
+                      icon: Icons.account_balance,
+                      focusNode: _accountNameFocus,
+                      hint: 'Enter bank account name (optional)',
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _controllers.accountNo,
+                      label: 'Account Number',
+                      icon: Icons.credit_card,
+                      focusNode: _accountNoFocus,
+                      hint: 'Enter bank account number (optional)',
+                      textInputAction: TextInputAction.done,
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              _buildTextField(
+                controller: _controllers.documentId,
+                label: 'Document ID',
+                icon: Icons.badge,
+                focusNode: _documentIdFocus,
+                hint: 'Enter document/ID number (optional)',
+              ),
+              _buildTextField(
+                controller: _controllers.username,
+                label: 'Username',
+                icon: Icons.account_circle,
+                hint: 'Auto-filled from phone number',
+                readOnly: true,
+              ),
+              _buildTextField(
+                controller: _controllers.accountName,
+                label: 'Account Name',
+                icon: Icons.account_balance,
+                focusNode: _accountNameFocus,
+                hint: 'Enter bank account name (optional)',
+              ),
+              _buildTextField(
+                controller: _controllers.accountNo,
+                label: 'Account Number',
+                icon: Icons.credit_card,
+                focusNode: _accountNoFocus,
+                hint: 'Enter bank account number (optional)',
+                textInputAction: TextInputAction.done,
+              ),
+            ],
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        _buildSectionCard(
+          title: 'Branch Assignment',
+          icon: Icons.location_on,
+          children: [_buildBranchDropdown()],
+        ),
+
+        const SizedBox(height: 30),
+
+        _buildActionButtons(),
+      ],
     );
   }
 
   Widget _buildActionButtons() {
     final isEnabled = !_isLoading && _companyData?.id != null && _branchData.selectedBranch != null;
     
-    return Column(
-      children: [
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: isEnabled ? _addUser : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isEnabled 
-                  ? ThemeConfig.getPrimaryColor(_currentTheme) 
-                  : Colors.grey,
-              foregroundColor: ThemeConfig.getButtonTextColor(_currentTheme),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 2,
-            ),
-            child: _isLoading
-                ? SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        ThemeConfig.getButtonTextColor(_currentTheme),
-                      ),
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: Column(
+        children: [
+          Container(
+            height: 56,
+            child: ElevatedButton(
+              onPressed: isEnabled ? _addUser : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isEnabled 
+                    ? ThemeConfig.getPrimaryColor(_currentTheme) 
+                    : Colors.grey,
+                foregroundColor: ThemeConfig.getButtonTextColor(_currentTheme),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 4,
+                shadowColor: ThemeConfig.getPrimaryColor(_currentTheme).withOpacity(0.3),
+              ),
+              child: _isLoading
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              ThemeConfig.getButtonTextColor(_currentTheme),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        const Text(
+                          'Creating User...',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.person_add, size: 24),
+                        const SizedBox(width: 12),
+                        Text(
+                          isEnabled 
+                              ? 'ADD USER'
+                              : 'SELECT COMPANY & BRANCH',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ),
-                  )
-                : Text(
-                    isEnabled 
-                        ? _translate('add_user').toUpperCase()
-                        : 'SELECT COMPANY & BRANCH',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context, false),
-          child: Text(
-            _translate('cancel').toUpperCase(),
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-              letterSpacing: 1,
             ),
           ),
-        ),
-      ],
-    );
-  }
-
-  InputDecoration _buildInputDecoration(String label, String hint, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: ThemeConfig.getPrimaryColor(_currentTheme),
-          width: 2,
-        ),
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: _isLoading ? null : () => Navigator.pop(context, false),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+        ],
       ),
-      prefixIcon: Icon(icon, color: ThemeConfig.getPrimaryColor(_currentTheme)),
-      filled: true,
-      fillColor: Colors.grey[50],
     );
   }
 
   String? _validateName(String? value) {
     if (value?.trim().isEmpty == true) {
-      return _translate('please_enter_name');
+      return 'Please enter name';
     }
     if (value!.trim().length < 2) {
-      return _translate('name_must_be_at_least_2_characters');
+      return 'Name must be at least 2 characters';
     }
     return null;
   }
 
   String? _validatePhone(String? value) {
     if (value?.trim().isEmpty == true) {
-      return _translate('please_enter_phone_number');
+      return 'Please enter phone number';
     }
     if (value!.trim().length < 8) {
-      return _translate('phone_number_must_be_at_least_8_digits');
+      return 'Phone number must be at least 8 digits';
     }
+    
+    if (mounted) {
+      _controllers.username.text = value.trim();
+    }
+    
     return null;
   }
 
-  String? _validateEmail(String? value) {
-    if (value?.trim().isEmpty == true) {
-      return _translate('please_enter_email_address');
-    }
-    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value!.trim())) {
-      return _translate('please_enter_valid_email_address');
-    }
-    return null;
-  }
 
-  String _translate(String key) => SimpleTranslations.get(_langCode, key);
 
   void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
         backgroundColor: ThemeConfig.getThemeColors(_currentTheme)['success'] ?? Colors.green,
         duration: const Duration(seconds: 3),
       ),
@@ -781,9 +1120,16 @@ class _UserAddPageState extends State<UserAddPage> {
   }
 
   void _showErrorSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
         backgroundColor: ThemeConfig.getThemeColors(_currentTheme)['error'] ?? Colors.red,
         duration: const Duration(seconds: 5),
       ),
@@ -793,35 +1139,67 @@ class _UserAddPageState extends State<UserAddPage> {
   @override
   void dispose() {
     _controllers.dispose();
+    _nameFocus.dispose();
+    _phoneFocus.dispose();
+    _emailFocus.dispose();
+    _documentIdFocus.dispose();
+    _accountNameFocus.dispose();
+    _accountNoFocus.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+    final horizontalPadding = isWideScreen ? 32.0 : 16.0;
+    final maxWidth = isWideScreen ? 800.0 : double.infinity;
+    
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(_translate('add_user')),
+        title: const Text('Add User'),
         backgroundColor: ThemeConfig.getPrimaryColor(_currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(_currentTheme),
         elevation: 0,
+        actions: [
+          if (_isLoading)
+            Container(
+              margin: const EdgeInsets.all(16),
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  ThemeConfig.getButtonTextColor(_currentTheme),
+                ),
+              ),
+            ),
+        ],
       ),
       body: _companyData == null
           ? Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  ThemeConfig.getPrimaryColor(_currentTheme),
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      ThemeConfig.getPrimaryColor(_currentTheme),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Loading company information...'),
+                ],
               ),
             )
-          : SingleChildScrollView(
-              child: Center(
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxWidth: kIsWeb && MediaQuery.of(context).size.width > 800 ? 800 : double.infinity,
-                  ),
-                  padding: EdgeInsets.all(kIsWeb ? 32 : 16),
-                  child: Form(
-                    key: _formKey,
+          : Center(
+              child: Container(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: Form(
+                  key: _formKey,
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16),
                     child: _buildFormContent(),
                   ),
                 ),

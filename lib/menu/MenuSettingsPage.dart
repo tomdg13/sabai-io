@@ -644,7 +644,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
   void _navigateToUserPage() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => userpage()),
+      MaterialPageRoute(builder: (context) => UserPage()),
     );
   }
 

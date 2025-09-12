@@ -1,6 +1,6 @@
 class CompanyConfig {
   // Default company ID - can be modified based on environment or user selection
-  static const int defaultCompanyId = 2;
+  static const int defaultCompanyId = 5;
   
   // Method to get company ID (can be extended later for dynamic company selection)
   static int getCompanyId() {
@@ -9,7 +9,7 @@ class CompanyConfig {
   
   // Optional: Add company-specific configurations
   static const Map<int, String> companyNames = {
-    2: 'Default Company',
+    5: 'Default Company',
     // Add more companies as needed
   };
   
