@@ -840,25 +840,25 @@ class _MerchantAddPageState extends State<MerchantAddPage> with TickerProviderSt
             return null;
           },
         ),
-        _buildTextField(
-          controller: _phoneController,
-          focusNode: _phoneFocus,
-          label: 'Phone Number *',
-          hint: 'Enter phone number',
-          icon: Icons.phone,
-          keyboardType: TextInputType.phone,
-          textInputAction: TextInputAction.done,
-          onFieldSubmitted: _createMerchant,
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Phone number is required';
-            }
-            if (value.trim().length < 8) {
-              return 'Phone number must be at least 8 digits';
-            }
-            return null;
-          },
-        ),
+        // _buildTextField(
+        //   controller: _phoneController,
+        //   focusNode: _phoneFocus,
+        //   label: 'Phone Number *',
+        //   hint: 'Enter phone number',
+        //   icon: Icons.phone,
+        //   keyboardType: TextInputType.phone,
+        //   textInputAction: TextInputAction.done,
+        //   onFieldSubmitted: _createMerchant,
+        //   validator: (value) {
+        //     if (value == null || value.trim().isEmpty) {
+        //       return 'Phone number is required';
+        //     }
+        //     if (value.trim().length < 8) {
+        //       return 'Phone number must be at least 8 digits';
+        //     }
+        //     return null;
+        //   },
+        // ),
       ],
     );
   }

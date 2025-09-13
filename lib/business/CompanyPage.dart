@@ -755,7 +755,6 @@ class IoCompany {
   Map<String, dynamic> toJson() {
     return {
       'company_id': companyId,
-      'company_id': companyId,
       'company_name': companyName,
       'company_code': companyCode,
       'phone': phone,

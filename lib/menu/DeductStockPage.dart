@@ -117,30 +117,89 @@ class _DeductStockPageState extends State<DeductStockPage> {
     }
   }
 
-  Future<void> _loadProducts() async {
-    if (!mounted) return;
-    setState(() => _isLoadingProducts = true);
-    _logDropdown('PRODUCTS', 'LOAD_START');
+ Future<void> _loadProducts() async {
+  if (!mounted) return;
+  setState(() => _isLoadingProducts = true);
+  _logDropdown('PRODUCTS', 'LOAD_START');
+  
+  try {
+    // Build the URL for debugging
+    final baseUrl = '/api/ioproduct';
+    final queryParams = {'company_id': _companyId.toString()};
+    final fullUrl = '$baseUrl?${queryParams.entries.map((e) => '${e.key}=${e.value}').join('&')}';
     
-    try {
-      final response = await _apiRequest('GET', '/api/ioproduct', 
+    // Log the full URL being called
+    print('🔗 API URL: $fullUrl');
+    print('📤 Request Method: GET');
+    print('📋 Query Params: $queryParams');
+    print('🏢 Company ID: $_companyId');
+    
+    final response = await _apiRequest('GET', '/api/ioproduct',
         queryParams: {'company_id': _companyId.toString()});
-
-      final data = jsonDecode(response.body);
-      if (data['status'] == 'success' && data['data'] != null) {
-        setState(() {
-          _products = (data['data'] as List).map(_mapProduct).toList();
-        });
-        _logDropdown('PRODUCTS', 'LOADED', {'count': _products.length});
-      }
-    } catch (e) {
-      _logDropdown('PRODUCTS', 'ERROR', {'error': e.toString()});
-      _showMessage('Error loading products: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _isLoadingProducts = false);
+    
+    // Enhanced response logging
+    print('📊 Response Status Code: ${response.statusCode}');
+    print('📄 Response Headers: ${response.headers}');
+    print('📦 Response Body: ${response.body}');
+    print('📏 Response Body Length: ${response.body.length} characters');
+    
+    // Check if response body is empty
+    if (response.body.isEmpty) {
+      print('⚠️ WARNING: Response body is empty');
+      _showMessage('Empty response from server', isError: true);
+      return;
     }
+    
+    // Try to parse JSON with better error handling
+    dynamic data;
+    try {
+      data = jsonDecode(response.body);
+      print('✅ JSON Parse Success');
+      print('🔍 Parsed Data Structure: ${data.runtimeType}');
+      print('🔍 Data Keys: ${data is Map ? data.keys.toList() : 'Not a Map'}');
+    } catch (jsonError) {
+      print('❌ JSON Parse Error: $jsonError');
+      print('📄 Raw Response (first 200 chars): ${response.body.substring(0, response.body.length.clamp(0, 200))}');
+      _showMessage('Invalid JSON response from server', isError: true);
+      return;
+    }
+    
+    // Enhanced data validation logging
+    print('🔍 Data Status: ${data['status']}');
+    print('🔍 Data Content: ${data['data']}');
+    print('🔍 Data Type: ${data['data']?.runtimeType}');
+    
+    if (data['status'] == 'success' && data['data'] != null) {
+      final rawProducts = data['data'] as List;
+      print('📦 Raw Products Count: ${rawProducts.length}');
+      
+      // Log first product for structure analysis
+      if (rawProducts.isNotEmpty) {
+        print('🔍 First Product Structure: ${rawProducts[0]}');
+      }
+      
+      setState(() {
+        _products = rawProducts.map(_mapProduct).toList();
+      });
+      
+      print('✅ Products Mapped Successfully: ${_products.length} items');
+      _logDropdown('PRODUCTS', 'LOADED', {'count': _products.length});
+    } else {
+      print('❌ API returned error or null data');
+      print('🔍 Status: ${data['status']}');
+      print('🔍 Data is null: ${data['data'] == null}');
+      _showMessage('No products found or API error', isError: true);
+    }
+    
+  } catch (e, stackTrace) {
+    print('❌ Exception in _loadProducts: $e');
+    print('📍 Stack Trace: $stackTrace');
+    _logDropdown('PRODUCTS', 'ERROR', {'error': e.toString()});
+    _showMessage('Error loading products: $e', isError: true);
+  } finally {
+    if (mounted) setState(() => _isLoadingProducts = false);
   }
-
+}
   Future<void> _loadLocations() async {
     if (!mounted) return;
     setState(() => _isLoadingLocations = true);
