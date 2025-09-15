@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
@@ -8,7 +8,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'dart:typed_data';
+// For web file handling
+import 'package:universal_html/html.dart' as html;
 
 class ProductAddPage extends StatefulWidget {
   const ProductAddPage({Key? key}) : super(key: key);
@@ -17,8 +19,7 @@ class ProductAddPage extends StatefulWidget {
   State<ProductAddPage> createState() => _ProductAddPageState();
 }
 
-class _ProductAddPageState extends State<ProductAddPage>
-    with TickerProviderStateMixin {
+class _ProductAddPageState extends State<ProductAddPage> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _productNameController = TextEditingController();
   final _productCodeController = TextEditingController();
@@ -32,14 +33,17 @@ class _ProductAddPageState extends State<ProductAddPage>
 
   String _selectedStatus = 'active';
   String? _base64Image;
-  File? _imageFile;
+  File? _imageFile; // For mobile
+  Uint8List? _webImageBytes; // For web
+  // ignore: unused_field
+  String? _webImageName; // For web
   bool _isLoading = false;
   String currentTheme = ThemeConfig.defaultTheme;
 
   // Animation controllers
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
-
+  
   // Focus nodes for better keyboard navigation
   final _productNameFocus = FocusNode();
   final _productCodeFocus = FocusNode();
@@ -69,8 +73,7 @@ class _ProductAddPageState extends State<ProductAddPage>
   void _loadCurrentTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      currentTheme =
-          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     });
   }
 
@@ -93,157 +96,149 @@ class _ProductAddPageState extends State<ProductAddPage>
     super.dispose();
   }
 
-  // Barcode Scanner Methods
-  Future<void> _scanBarcode(String fieldType) async {
+  Future<void> _pickImage() async {
     try {
-      final result = await Navigator.push<String>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => BarcodeScannerPage(fieldType: fieldType),
-        ),
-      );
-
-      if (result != null && result.isNotEmpty) {
-        setState(() {
-          if (fieldType == 'product_code') {
-            _productCodeController.text = result;
-          } else if (fieldType == 'barcode') {
-            _barcodeController.text = result;
-          }
-        });
-
-        // Show success feedback
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Barcode scanned: $result'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
+      if (kIsWeb) {
+        // Web-specific image picking
+        await _pickImageWeb();
+      } else {
+        // Mobile-specific image picking
+        await _pickImageMobile();
       }
     } catch (e) {
-      print('DEBUG: Error scanning barcode: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(child: Text('Error scanning barcode: $e')),
-            ],
-          ),
-          backgroundColor: Colors.red,
-        ),
+      print('Error picking image: $e');
+      _showSnackBar(
+        message: 'Error selecting image: $e',
+        isError: true,
       );
     }
   }
 
-  Future<void> _pickImage() async {
-    try {
-      // Show image source selection dialog
-      final ImageSource? source = await showModalBottomSheet<ImageSource>(
-        context: context,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (context) => Container(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              SizedBox(height: 20),
-              Text(
-                'Select Image Source',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildImageSourceOption(
-                    icon: Icons.photo_library,
-                    label: 'Gallery',
-                    onTap: () => Navigator.pop(context, ImageSource.gallery),
-                  ),
-                  _buildImageSourceOption(
-                    icon: Icons.photo_camera,
-                    label: 'Camera',
-                    onTap: () => Navigator.pop(context, ImageSource.camera),
-                  ),
-                ],
-              ),
-              SizedBox(height: 20),
-            ],
-          ),
-        ),
-      );
+  Future<void> _pickImageWeb() async {
+    final html.FileUploadInputElement input = html.FileUploadInputElement();
+    input.accept = 'image/*';
+    input.click();
 
-      if (source == null) return;
+    input.onChange.listen((e) async {
+      final files = input.files;
+      if (files!.isEmpty) return;
 
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: source,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
-      );
+      final file = files[0];
+      final reader = html.FileReader();
 
-      if (image != null) {
-        final File imageFile = File(image.path);
-        final Uint8List imageBytes = await imageFile.readAsBytes();
-        final String base64String = base64Encode(imageBytes);
-
+      reader.onLoadEnd.listen((e) async {
+        final Uint8List bytes = reader.result as Uint8List;
+        final String base64String = base64Encode(bytes);
+        
         setState(() {
-          _imageFile = imageFile;
-          _base64Image = 'data:image/jpeg;base64,$base64String';
+          _webImageBytes = bytes;
+          _webImageName = file.name;
+          _base64Image = 'data:${file.type};base64,$base64String';
         });
 
-        print('DEBUG: Image selected and converted to base64');
+        print('Web image selected and converted to base64');
+        _showSnackBar(
+          message: 'Image selected successfully',
+          isError: false,
+        );
+      });
 
-        // Show success feedback
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  Future<void> _pickImageMobile() async {
+    // Show image source selection dialog for mobile
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Select Image Source',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Image selected successfully'),
+                _buildImageSourceOption(
+                  icon: Icons.photo_library,
+                  label: 'Gallery',
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+                _buildImageSourceOption(
+                  icon: Icons.photo_camera,
+                  label: 'Camera',
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
               ],
             ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      print('DEBUG: Error picking image: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(child: Text('Error selecting image: $e')),
-            ],
-          ),
-          backgroundColor: Colors.red,
+            SizedBox(height: 20),
+          ],
         ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: source,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+
+    if (image != null) {
+      final File imageFile = File(image.path);
+      final Uint8List imageBytes = await imageFile.readAsBytes();
+      final String base64String = base64Encode(imageBytes);
+      
+      setState(() {
+        _imageFile = imageFile;
+        _base64Image = 'data:image/jpeg;base64,$base64String';
+      });
+
+      print('Mobile image selected and converted to base64');
+      _showSnackBar(
+        message: 'Image selected successfully',
+        isError: false,
       );
     }
+  }
+
+  void _showSnackBar({required String message, required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error : Icons.check_circle,
+              color: Colors.white,
+            ),
+            SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   Widget _buildImageSourceOption({
@@ -283,22 +278,117 @@ class _ProductAddPageState extends State<ProductAddPage>
     );
   }
 
+  Widget _buildImageDisplay() {
+    if (kIsWeb && _webImageBytes != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            Image.memory(
+              _webImageBytes!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (!kIsWeb && _imageFile != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            Image.file(
+              _imageFile!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.add_a_photo,
+            size: 48,
+            color: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
+          SizedBox(height: 12),
+          Text(
+            'Tap to add image',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'Recommended: 800x800px',
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 12,
+            ),
+          ),
+          if (kIsWeb) ...[
+            SizedBox(height: 8),
+            Text(
+              'Click to browse files',
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+  }
+
   Future<void> _createProduct() async {
     // Dismiss keyboard
     FocusScope.of(context).unfocus();
-
+    
     if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.warning, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Please fill in all required fields'),
-            ],
-          ),
-          backgroundColor: Colors.orange,
-        ),
+      _showSnackBar(
+        message: 'Please fill in all required fields',
+        isError: true,
       );
       return;
     }
@@ -313,7 +403,7 @@ class _ProductAddPageState extends State<ProductAddPage>
       final companyId = CompanyConfig.getCompanyId();
 
       final url = AppConfig.api('/api/ioproduct');
-      print('DEBUG: Creating product at: $url');
+      print('Creating Product at: $url');
 
       final productData = {
         'company_id': companyId,
@@ -343,9 +433,14 @@ class _ProductAddPageState extends State<ProductAddPage>
             ? int.tryParse(_unitController.text.trim())
             : null,
         'status': _selectedStatus,
-        'image': _base64Image,
       };
-      print('DEBUG: Product data: ${productData.toString()}');
+
+      // Only add image if one was selected
+      if (_base64Image != null) {
+        productData['image'] = _base64Image!;
+      }
+
+      print('Product data: ${productData.toString()}');
 
       final response = await http.post(
         Uri.parse(url.toString()),
@@ -356,8 +451,8 @@ class _ProductAddPageState extends State<ProductAddPage>
         body: jsonEncode(productData),
       );
 
-      print('DEBUG: Response Status: ${response.statusCode}');
-      print('DEBUG: Response Body: ${response.body}');
+      print('Response Status: ${response.statusCode}');
+      print('Response Body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
@@ -366,14 +461,25 @@ class _ProductAddPageState extends State<ProductAddPage>
         } else {
           throw Exception(responseData['message'] ?? 'Unknown error');
         }
+      } else if (response.statusCode == 409) {
+        // Handle duplicate product conflict
+        final errorData = jsonDecode(response.body);
+        throw Exception('Product already exists: ${errorData['details'] ?? errorData['message']}');
+      } else if (response.statusCode == 400) {
+        // Handle validation errors
+        final errorData = jsonDecode(response.body);
+        if (errorData['message'] is List) {
+          final errors = (errorData['message'] as List).join(', ');
+          throw Exception('Validation error: $errors');
+        } else {
+          throw Exception('Validation error: ${errorData['message']}');
+        }
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(
-          errorData['message'] ?? 'Server error: ${response.statusCode}',
-        );
+        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('DEBUG: Error creating product: $e');
+      print('Error creating Product: $e');
       _showErrorDialog(e.toString());
     } finally {
       setState(() {
@@ -395,14 +501,29 @@ class _ProductAddPageState extends State<ProductAddPage>
             Text('Success!'),
           ],
         ),
-        content: Text(
-          'Product "${_productNameController.text}" has been created successfully.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Product "${_productNameController.text}" has been created successfully!'),
+            SizedBox(height: 8),
+            if (_productCodeController.text.isNotEmpty) ...[
+              Text('Product Code: ${_productCodeController.text}', 
+                   style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 8),
+            ],
+            if (_categoryController.text.isNotEmpty)
+              Text('Category: ${_categoryController.text}'),
+            if (_brandController.text.isNotEmpty)
+              Text('Brand: ${_brandController.text}'),
+            Text('Status: ${_selectedStatus.toUpperCase()}'),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pop(true); // Return to product list
+              Navigator.of(context).pop(true); // Return to Product list
             },
             child: Text(
               'OK',
@@ -429,7 +550,7 @@ class _ProductAddPageState extends State<ProductAddPage>
             Text('Error'),
           ],
         ),
-        content: Text('Failed to create product:\n$error'),
+        content: Text('Failed to create Product:\n$error'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -451,13 +572,13 @@ class _ProductAddPageState extends State<ProductAddPage>
     required String label,
     required IconData icon,
     FocusNode? focusNode,
-    FocusNode? nextFocus,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     int maxLines = 1,
     String? hint,
-    bool showScanButton = false,
-    String? scanType,
+    TextInputAction? textInputAction,
+    VoidCallback? onFieldSubmitted,
+    bool obscureText = false,
   }) {
     return Container(
       margin: EdgeInsets.only(bottom: 16),
@@ -467,14 +588,9 @@ class _ProductAddPageState extends State<ProductAddPage>
         keyboardType: keyboardType,
         maxLines: maxLines,
         validator: validator,
-        textInputAction: nextFocus != null
-            ? TextInputAction.next
-            : TextInputAction.done,
-        onFieldSubmitted: (_) {
-          if (nextFocus != null) {
-            FocusScope.of(context).requestFocus(nextFocus);
-          }
-        },
+        textInputAction: textInputAction ?? TextInputAction.next,
+        onFieldSubmitted: onFieldSubmitted != null ? (_) => onFieldSubmitted() : null,
+        obscureText: obscureText,
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
@@ -482,17 +598,9 @@ class _ProductAddPageState extends State<ProductAddPage>
             icon,
             color: ThemeConfig.getPrimaryColor(currentTheme),
           ),
-          suffixIcon: showScanButton
-              ? IconButton(
-                  icon: Icon(
-                    Icons.qr_code_scanner,
-                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                  ),
-                  onPressed: () => _scanBarcode(scanType!),
-                  tooltip: 'Scan barcode',
-                )
-              : null,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(
@@ -520,7 +628,9 @@ class _ProductAddPageState extends State<ProductAddPage>
       opacity: _fadeAnimation,
       child: Card(
         elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Padding(
           padding: EdgeInsets.all(20),
           child: Column(
@@ -557,6 +667,12 @@ class _ProductAddPageState extends State<ProductAddPage>
 
   @override
   Widget build(BuildContext context) {
+    // Get responsive dimensions
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+    final imageSize = isWideScreen ? 200.0 : 180.0;
+    final horizontalPadding = isWideScreen ? 32.0 : 16.0;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -581,325 +697,274 @@ class _ProductAddPageState extends State<ProductAddPage>
       ),
       body: Form(
         key: _formKey,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Product Image Section
-              _buildSectionCard(
-                title: 'Product Image',
-                icon: Icons.image,
+        child: Center(
+          child: Container(
+            constraints: BoxConstraints(maxWidth: isWideScreen ? 800 : double.infinity),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: 16.0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: GestureDetector(
-                      onTap: _pickImage,
-                      child: Container(
-                        width: 180,
-                        height: 180,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: _imageFile != null
-                                ? ThemeConfig.getPrimaryColor(currentTheme)
-                                : Colors.grey[300]!,
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: _imageFile != null
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(14),
-                                child: Stack(
-                                  children: [
-                                    Image.file(
-                                      _imageFile!,
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                    ),
-                                    Positioned(
-                                      top: 8,
-                                      right: 8,
-                                      child: Container(
-                                        padding: EdgeInsets.all(4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.6),
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                        child: Icon(
-                                          Icons.edit,
-                                          color: Colors.white,
-                                          size: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                  // Product Image Section
+                  _buildSectionCard(
+                    title: 'Product Image (Optional)',
+                    icon: Icons.image,
+                    children: [
+                      Center(
+                        child: GestureDetector(
+                          onTap: _pickImage,
+                          child: Container(
+                            width: imageSize,
+                            height: imageSize,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: (kIsWeb ? _webImageBytes != null : _imageFile != null)
+                                    ? ThemeConfig.getPrimaryColor(currentTheme)
+                                    : Colors.grey[300]!,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
                                 ),
-                              )
-                            : Column(
+                              ],
+                            ),
+                            child: _buildImageDisplay(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  SizedBox(height: 20),
+
+                  // Basic Information
+                  _buildSectionCard(
+                    title: 'Product Information',
+                    icon: Icons.inventory,
+                    children: [
+                      _buildEnhancedTextField(
+                        controller: _productNameController,
+                        label: 'Product Name *',
+                        icon: Icons.inventory_2,
+                        focusNode: _productNameFocus,
+                        hint: 'Enter product name',
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: () => FocusScope.of(context).requestFocus(_productCodeFocus),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Product name is required';
+                          }
+                          if (value.trim().length < 2) {
+                            return 'Product name must be at least 2 characters';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      _buildEnhancedTextField(
+                        controller: _productCodeController,
+                        label: 'Product Code',
+                        icon: Icons.qr_code,
+                        focusNode: _productCodeFocus,
+                        hint: 'Enter product code',
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: () => FocusScope.of(context).requestFocus(_categoryFocus),
+                      ),
+
+                      _buildEnhancedTextField(
+                        controller: _categoryController,
+                        label: 'Category',
+                        icon: Icons.category,
+                        focusNode: _categoryFocus,
+                        hint: 'Enter product category',
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: () => FocusScope.of(context).requestFocus(_brandFocus),
+                      ),
+
+                      _buildEnhancedTextField(
+                        controller: _brandController,
+                        label: 'Brand',
+                        icon: Icons.branding_watermark,
+                        focusNode: _brandFocus,
+                        hint: 'Enter brand name',
+                        textInputAction: TextInputAction.next,
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 20),
+
+                  // Additional Information
+                  _buildSectionCard(
+                    title: 'Additional Details',
+                    icon: Icons.more_horiz,
+                    children: [
+                      _buildEnhancedTextField(
+                        controller: _barcodeController,
+                        label: 'Barcode',
+                        icon: Icons.qr_code_scanner,
+                        hint: 'Enter barcode number',
+                      ),
+
+                      _buildEnhancedTextField(
+                        controller: _supplierIdController,
+                        label: 'Supplier ID',
+                        icon: Icons.business,
+                        keyboardType: TextInputType.number,
+                        hint: 'Enter supplier ID',
+                      ),
+
+                      _buildEnhancedTextField(
+                        controller: _unitController,
+                        label: 'Unit Quantity',
+                        icon: Icons.numbers,
+                        keyboardType: TextInputType.number,
+                        hint: 'Enter quantity in stock',
+                      ),
+
+                      Container(
+                        margin: EdgeInsets.only(bottom: 16),
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedStatus,
+                          decoration: InputDecoration(
+                            labelText: 'Status',
+                            prefixIcon: Icon(
+                              Icons.info,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: ThemeConfig.getPrimaryColor(currentTheme),
+                                width: 2,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                          ),
+                          items: _statusOptions.map((String status) {
+                            return DropdownMenuItem<String>(
+                              value: status,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: _getStatusColor(status),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text(status.toUpperCase()),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              _selectedStatus = newValue!;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 20),
+
+                  // Description
+                  _buildSectionCard(
+                    title: 'Description & Notes',
+                    icon: Icons.description,
+                    children: [
+                      _buildEnhancedTextField(
+                        controller: _descriptionController,
+                        label: 'Description',
+                        icon: Icons.description,
+                        maxLines: 3,
+                        hint: 'Enter product description',
+                      ),
+
+                      _buildEnhancedTextField(
+                        controller: _notesController,
+                        label: 'Notes',
+                        icon: Icons.note,
+                        maxLines: 3,
+                        hint: 'Enter additional notes',
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 30),
+
+                  // Create Button
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Container(
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _createProduct,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                          foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 4,
+                          shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+                        ),
+                        child: _isLoading
+                            ? Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(
-                                    Icons.add_a_photo,
-                                    size: 48,
-                                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                                  ),
-                                  SizedBox(height: 12),
-                                  Text(
-                                    'Tap to add image',
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        ThemeConfig.getButtonTextColor(currentTheme),
+                                      ),
                                     ),
                                   ),
-                                  SizedBox(height: 4),
+                                  SizedBox(width: 16),
                                   Text(
-                                    'Recommended: 800x800px',
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 12,
-                                    ),
+                                    'Creating Product...',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_circle, size: 24),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'Create Product',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                                   ),
                                 ],
                               ),
                       ),
                     ),
                   ),
+
+                  SizedBox(height: 20),
                 ],
               ),
-
-              SizedBox(height: 20),
-
-              // Basic Information
-              _buildSectionCard(
-                title: 'Basic Information',
-                icon: Icons.info_outline,
-                children: [
-                  _buildEnhancedTextField(
-                    controller: _productNameController,
-                    label: 'Product Name *',
-                    icon: Icons.inventory,
-                    focusNode: _productNameFocus,
-                    nextFocus: _productCodeFocus,
-                    hint: 'Enter product name',
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Product name is required';
-                      }
-                      return null;
-                    },
-                  ),
-
-                  _buildEnhancedTextField(
-                    controller: _productCodeController,
-                    label: 'Product Code',
-                    icon: Icons.qr_code,
-                    focusNode: _productCodeFocus,
-                    nextFocus: _categoryFocus,
-                    hint: 'Enter product code or scan barcode',
-                    showScanButton: true,
-                    scanType: 'product_code',
-                  ),
-
-                  _buildEnhancedTextField(
-                    controller: _categoryController,
-                    label: 'Category',
-                    icon: Icons.category,
-                    focusNode: _categoryFocus,
-                    nextFocus: _brandFocus,
-                    hint: 'Enter product category',
-                  ),
-
-                  _buildEnhancedTextField(
-                    controller: _brandController,
-                    label: 'Brand',
-                    icon: Icons.branding_watermark,
-                    focusNode: _brandFocus,
-                    hint: 'Enter brand name',
-                  ),
-                ],
-              ),
-
-              SizedBox(height: 20),
-
-              // Additional Information
-              _buildSectionCard(
-                title: 'Additional Details',
-                icon: Icons.more_horiz,
-                children: [
-                  _buildEnhancedTextField(
-                    controller: _barcodeController,
-                    label: 'Barcode',
-                    icon: Icons.qr_code_scanner,
-                    hint: 'Enter barcode number or scan',
-                    showScanButton: true,
-                    scanType: 'barcode',
-                  ),
-
-                  _buildEnhancedTextField(
-                    controller: _supplierIdController,
-                    label: 'Supplier ID',
-                    icon: Icons.business,
-                    keyboardType: TextInputType.number,
-                    hint: 'Enter supplier ID',
-                  ),
-
-                  _buildEnhancedTextField(
-                    controller: _unitController,
-                    label: 'Unit Quantity',
-                    icon: Icons.numbers,
-                    keyboardType: TextInputType.number,
-                    hint: 'Enter quantity in stock',
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(bottom: 16),
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _selectedStatus,
-                      decoration: InputDecoration(
-                        labelText: 'Status',
-                        prefixIcon: Icon(
-                          Icons.info,
-                          color: ThemeConfig.getPrimaryColor(currentTheme),
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                      items: _statusOptions.map((String status) {
-                        return DropdownMenuItem<String>(
-                          value: status,
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(status),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                              ),
-                              SizedBox(width: 12),
-                              Text(status.toUpperCase()),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _selectedStatus = newValue!;
-                        });
-                      },
-                    ),
-                  ),
-                ],
-              ),
-
-              SizedBox(height: 20),
-
-              // Description
-              _buildSectionCard(
-                title: 'Description & Notes',
-                icon: Icons.description,
-                children: [
-                  _buildEnhancedTextField(
-                    controller: _descriptionController,
-                    label: 'Description',
-                    icon: Icons.description,
-                    maxLines: 3,
-                    hint: 'Enter product description',
-                  ),
-
-                  _buildEnhancedTextField(
-                    controller: _notesController,
-                    label: 'Notes',
-                    icon: Icons.note,
-                    maxLines: 3,
-                    hint: 'Enter additional notes',
-                  ),
-                ],
-              ),
-
-              SizedBox(height: 30),
-
-              // Create Button
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Container(
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _createProduct,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                      foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 4,
-                      shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
-                    ),
-                    child: _isLoading
-                        ? Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    ThemeConfig.getButtonTextColor(currentTheme),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Text(
-                                'Creating Product...',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_circle, size: 24),
-                              SizedBox(width: 12),
-                              Text(
-                                'Create Product',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 20),
-            ],
+            ),
           ),
         ),
       ),
@@ -917,635 +982,5 @@ class _ProductAddPageState extends State<ProductAddPage>
       default:
         return Colors.grey;
     }
-  }
-}
-
-// Barcode Scanner Page
-class BarcodeScannerPage extends StatefulWidget {
-  final String fieldType;
-
-  const BarcodeScannerPage({Key? key, required this.fieldType}) : super(key: key);
-
-  @override
-  State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
-}
-
-class _BarcodeScannerPageState extends State<BarcodeScannerPage>
-    with WidgetsBindingObserver {
-  late MobileScannerController _cameraController;
-  bool _isScanned = false;
-  bool _isInitialized = false;
-  bool _isFlashOn = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _initializeCamera();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _cameraController.dispose();
-    super.dispose();
-  }
-
-  void _initializeCamera() {
-    _cameraController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: CameraFacing.back,
-      torchEnabled: false,
-    );
-
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        setState(() => _isInitialized = true);
-      }
-    });
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_isInitialized) return;
-
-    switch (state) {
-      case AppLifecycleState.detached:
-      case AppLifecycleState.hidden:
-      case AppLifecycleState.paused:
-        _cameraController.stop();
-        break;
-      case AppLifecycleState.resumed:
-        _cameraController.start();
-        break;
-      case AppLifecycleState.inactive:
-        break;
-    }
-  }
-
-  void _onBarcodeDetected(BarcodeCapture capture) async {
-    if (_isScanned || !mounted) return;
-
-    final barcodes = capture.barcodes;
-    if (barcodes.isEmpty || barcodes.first.rawValue == null) return;
-
-    final String code = barcodes.first.rawValue!;
-    
-    print('DEBUG: Barcode detected - Type: ${barcodes.first.type}, Value: $code');
-
-    setState(() => _isScanned = true);
-
-    // Add haptic feedback if available
-    try {
-      HapticFeedback.lightImpact();
-    } catch (e) {
-      print('Haptic feedback not available');
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Barcode scanned: $code'),
-        duration: Duration(milliseconds: 1500),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted && Navigator.of(context).canPop()) {
-        Navigator.pop(context, code);
-      }
-    });
-  }
-
-  void _toggleFlash() async {
-    try {
-      await _cameraController.toggleTorch();
-      setState(() {
-        _isFlashOn = !_isFlashOn;
-      });
-    } catch (e) {
-      print('DEBUG: Error toggling flash: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Cannot toggle flash'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
-  }
-
-  void _switchCamera() async {
-    try {
-      await _cameraController.switchCamera();
-    } catch (e) {
-      print('DEBUG: Error switching camera: $e');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: !_isInitialized ? _buildInitializingState() : _buildScannerContent(),
-    );
-  }
-
-  Widget _buildInitializingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: Colors.white),
-          const SizedBox(height: 16),
-          Text(
-            'Initializing camera...',
-            style: const TextStyle(color: Colors.white, fontSize: 16),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScannerContent() {
-    return Stack(
-      children: [
-        MobileScanner(
-          controller: _cameraController,
-          onDetect: _onBarcodeDetected,
-          errorBuilder: _buildErrorState,
-        ),
-        CustomPaint(
-          painter: ScannerOverlay(
-            scanAreaSize: 250,
-            borderColor: _isScanned ? Colors.green : Colors.white,
-            borderWidth: 3,
-          ),
-          child: const SizedBox.expand(),
-        ),
-        if (_isScanned) _buildSuccessIndicator(),
-        _buildAppBar(),
-        _buildBottomInstructions(),
-      ],
-    );
-  }
-
-  Widget _buildAppBar() {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text(
-          widget.fieldType == 'product_code'
-              ? 'Scan Product Code'
-              : 'Scan Barcode',
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(_isFlashOn ? Icons.flash_off : Icons.flash_on),
-            onPressed: _toggleFlash,
-            tooltip: _isFlashOn ? 'Turn off flash' : 'Turn on flash',
-          ),
-          IconButton(
-            icon: Icon(Icons.flip_camera_ios),
-            onPressed: _switchCamera,
-            tooltip: 'Switch camera',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState(BuildContext context, MobileScannerException error) {
-    return Container(
-      color: Colors.black,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.camera_alt_outlined, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'Camera Error',
-              style: TextStyle(color: Colors.grey[400], fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
-              ),
-              child: Text('Go Back'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSuccessIndicator() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(
-              'Barcode detected!',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomInstructions() {
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [Colors.black.withOpacity(0.8), Colors.transparent],
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.qr_code_scanner, size: 48, color: Colors.white),
-            const SizedBox(height: 16),
-            Text(
-              widget.fieldType == 'product_code'
-                  ? 'Position the product code within the frame to scan'
-                  : 'Position the barcode within the frame to scan',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Supports QR codes, EAN, UPC, Code128, and more',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[800],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                ),
-                child: Text(
-                  'Cancel',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Custom Scanner Overlay Painter
-class ScannerOverlay extends CustomPainter {
-  final double scanAreaSize;
-  final Color borderColor;
-  final double borderWidth;
-
-  const ScannerOverlay({
-    required this.scanAreaSize,
-    required this.borderColor,
-    required this.borderWidth,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final backgroundPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    final scanAreaPath = Path()..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: Offset(size.width / 2, size.height / 2),
-            width: scanAreaSize,
-            height: scanAreaSize,
-          ),
-          const Radius.circular(12),
-        ),
-      );
-
-    final overlayPath = Path.combine(PathOperation.difference, backgroundPath, scanAreaPath);
-    canvas.drawPath(overlayPath, Paint()..color = Colors.black.withOpacity(0.5));
-
-    _drawCornerBrackets(canvas, size);
-  }
-
-  void _drawCornerBrackets(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = borderColor
-      ..strokeWidth = borderWidth
-      ..style = PaintingStyle.stroke;
-
-    final scanRect = Rect.fromCenter(
-      center: Offset(size.width / 2, size.height / 2),
-      width: scanAreaSize,
-      height: scanAreaSize,
-    );
-
-    const cornerLength = 20.0;
-    
-    _drawCorner(canvas, paint, scanRect.topLeft, cornerLength, true, true);
-    _drawCorner(canvas, paint, scanRect.topRight, cornerLength, false, true);
-    _drawCorner(canvas, paint, scanRect.bottomLeft, cornerLength, true, false);
-    _drawCorner(canvas, paint, scanRect.bottomRight, cornerLength, false, false);
-  }
-
-  void _drawCorner(Canvas canvas, Paint paint, Offset corner, double length, 
-                  bool isLeft, bool isTop) {
-    final horizontalStart = isLeft ? corner : Offset(corner.dx - length, corner.dy);
-    final horizontalEnd = isLeft ? Offset(corner.dx + length, corner.dy) : corner;
-    
-    final verticalStart = isTop ? corner : Offset(corner.dx, corner.dy - length);
-    final verticalEnd = isTop ? Offset(corner.dx, corner.dy + length) : corner;
-
-    canvas.drawLine(horizontalStart, horizontalEnd, paint);
-    canvas.drawLine(verticalStart, verticalEnd, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// QR Scanner Overlay Shape
-class QrScannerOverlayShape extends ShapeBorder {
-  final Color borderColor;
-  final double borderWidth;
-  final Color overlayColor;
-  final double borderRadius;
-  final double borderLength;
-  final double cutOutSize;
-
-  const QrScannerOverlayShape({
-    this.borderColor = Colors.white,
-    this.borderWidth = 3.0,
-    this.overlayColor = const Color.fromRGBO(0, 0, 0, 80),
-    this.borderRadius = 0,
-    this.borderLength = 40,
-    this.cutOutSize = 250,
-  });
-
-  @override
-  EdgeInsetsGeometry get dimensions => const EdgeInsets.all(10);
-
-  @override
-  Path getInnerPath(Rect rect, {TextDirection? textDirection}) {
-    return Path()
-      ..fillType = PathFillType.evenOdd
-      ..addPath(getOuterPath(rect), Offset.zero);
-  }
-
-  @override
-  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
-    Path _getLeftTopPath(Rect rect) {
-      return Path()
-        ..moveTo(rect.left, rect.bottom)
-        ..lineTo(rect.left, rect.top + borderRadius)
-        ..quadraticBezierTo(
-          rect.left,
-          rect.top,
-          rect.left + borderRadius,
-          rect.top,
-        )
-        ..lineTo(rect.right, rect.top);
-    }
-
-    Path _getRightTopPath(Rect rect) {
-      return Path()
-        ..moveTo(rect.left, rect.top)
-        ..lineTo(rect.right - borderRadius, rect.top)
-        ..quadraticBezierTo(
-          rect.right,
-          rect.top,
-          rect.right,
-          rect.top + borderRadius,
-        )
-        ..lineTo(rect.right, rect.bottom);
-    }
-
-    Path _getRightBottomPath(Rect rect) {
-      return Path()
-        ..moveTo(rect.right, rect.top)
-        ..lineTo(rect.right, rect.bottom - borderRadius)
-        ..quadraticBezierTo(
-          rect.right,
-          rect.bottom,
-          rect.right - borderRadius,
-          rect.bottom,
-        )
-        ..lineTo(rect.left, rect.bottom);
-    }
-
-    Path _getLeftBottomPath(Rect rect) {
-      return Path()
-        ..moveTo(rect.right, rect.bottom)
-        ..lineTo(rect.left + borderRadius, rect.bottom)
-        ..quadraticBezierTo(
-          rect.left,
-          rect.bottom,
-          rect.left,
-          rect.bottom - borderRadius,
-        )
-        ..lineTo(rect.left, rect.top);
-    }
-
-    final width = rect.width;
-    final height = rect.height;
-    final cutOutWidth = cutOutSize < width ? cutOutSize : width - borderWidth;
-    final cutOutHeight = cutOutSize < height ? cutOutSize : height - borderWidth;
-
-    final cutOutRect = Rect.fromLTWH(
-      rect.left + (width - cutOutWidth) / 2 + borderWidth,
-      rect.top + (height - cutOutHeight) / 2 + borderWidth,
-      cutOutWidth - borderWidth * 2,
-      cutOutHeight - borderWidth * 2,
-    );
-
-    final cutOutRRect = RRect.fromRectAndRadius(
-      cutOutRect,
-      Radius.circular(borderRadius),
-    );
-
-    final leftTopCorner = Rect.fromLTWH(
-      cutOutRect.left,
-      cutOutRect.top,
-      borderLength,
-      borderLength,
-    );
-
-    final rightTopCorner = Rect.fromLTWH(
-      cutOutRect.right - borderLength,
-      cutOutRect.top,
-      borderLength,
-      borderLength,
-    );
-
-    final rightBottomCorner = Rect.fromLTWH(
-      cutOutRect.right - borderLength,
-      cutOutRect.bottom - borderLength,
-      borderLength,
-      borderLength,
-    );
-
-    final leftBottomCorner = Rect.fromLTWH(
-      cutOutRect.left,
-      cutOutRect.bottom - borderLength,
-      borderLength,
-      borderLength,
-    );
-
-    return Path.combine(
-      PathOperation.difference,
-      Path()..addRect(rect),
-      Path()
-        ..addRRect(cutOutRRect)
-        ..addPath(_getLeftTopPath(leftTopCorner), Offset.zero)
-        ..addPath(_getRightTopPath(rightTopCorner), Offset.zero)
-        ..addPath(_getRightBottomPath(rightBottomCorner), Offset.zero)
-        ..addPath(_getLeftBottomPath(leftBottomCorner), Offset.zero),
-    );
-  }
-
-  @override
-  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
-    final width = rect.width;
-    final height = rect.height;
-    final cutOutWidth = cutOutSize < width ? cutOutSize : width - borderWidth;
-    final cutOutHeight = cutOutSize < height ? cutOutSize : height - borderWidth;
-
-    final cutOutRect = Rect.fromLTWH(
-      rect.left + (width - cutOutWidth) / 2 + borderWidth,
-      rect.top + (height - cutOutHeight) / 2 + borderWidth,
-      cutOutWidth - borderWidth * 2,
-      cutOutHeight - borderWidth * 2,
-    );
-
-    final paint = Paint()
-      ..color = overlayColor
-      ..style = PaintingStyle.fill;
-
-    final backgroundPath = Path()
-      ..addRect(rect)
-      ..addRRect(
-        RRect.fromRectAndRadius(cutOutRect, Radius.circular(borderRadius)),
-      );
-
-    canvas.drawPath(backgroundPath, paint..blendMode = BlendMode.srcOver);
-
-    final borderPaint = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = borderWidth;
-
-    // Draw corner borders
-    final path = Path();
-
-    // Left top corner
-    path.moveTo(cutOutRect.left - borderWidth, cutOutRect.top + borderLength);
-    path.lineTo(
-      cutOutRect.left - borderWidth,
-      cutOutRect.top - borderWidth + borderRadius,
-    );
-    path.arcToPoint(
-      Offset(cutOutRect.left + borderRadius, cutOutRect.top - borderWidth),
-      radius: Radius.circular(borderRadius),
-    );
-    path.lineTo(cutOutRect.left + borderLength, cutOutRect.top - borderWidth);
-
-    // Right top corner
-    path.moveTo(cutOutRect.right - borderLength, cutOutRect.top - borderWidth);
-    path.lineTo(cutOutRect.right - borderRadius, cutOutRect.top - borderWidth);
-    path.arcToPoint(
-      Offset(cutOutRect.right + borderWidth, cutOutRect.top + borderRadius),
-      radius: Radius.circular(borderRadius),
-    );
-    path.lineTo(cutOutRect.right + borderWidth, cutOutRect.top + borderLength);
-
-    // Right bottom corner
-    path.moveTo(
-      cutOutRect.right + borderWidth,
-      cutOutRect.bottom - borderLength,
-    );
-    path.lineTo(
-      cutOutRect.right + borderWidth,
-      cutOutRect.bottom - borderRadius,
-    );
-    path.arcToPoint(
-      Offset(cutOutRect.right - borderRadius, cutOutRect.bottom + borderWidth),
-      radius: Radius.circular(borderRadius),
-    );
-    path.lineTo(
-      cutOutRect.right - borderLength,
-      cutOutRect.bottom + borderWidth,
-    );
-
-    // Left bottom corner
-    path.moveTo(
-      cutOutRect.left + borderLength,
-      cutOutRect.bottom + borderWidth,
-    );
-    path.lineTo(
-      cutOutRect.left + borderRadius,
-      cutOutRect.bottom + borderWidth,
-    );
-    path.arcToPoint(
-      Offset(cutOutRect.left - borderWidth, cutOutRect.bottom - borderRadius),
-      radius: Radius.circular(borderRadius),
-    );
-    path.lineTo(
-      cutOutRect.left - borderWidth,
-      cutOutRect.bottom - borderLength,
-    );
-
-    canvas.drawPath(path, borderPaint);
-  }
-
-  @override
-  ShapeBorder scale(double t) {
-    return QrScannerOverlayShape(
-      borderColor: borderColor,
-      borderWidth: borderWidth * t,
-      overlayColor: overlayColor,
-      borderRadius: borderRadius * t,
-      borderLength: borderLength * t,
-      cutOutSize: cutOutSize * t,
-    );
   }
 }

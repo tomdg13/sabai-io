@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'ProductAddPage.dart';
@@ -8,8 +9,6 @@ import 'package:inventory/config/theme.dart';
 import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// ignore: unused_import
-import 'dart:developer' as developer;
 
 class ProductPage extends StatefulWidget {
   const ProductPage({Key? key}) : super(key: key);
@@ -32,7 +31,7 @@ class _ProductPageState extends State<ProductPage> {
   @override
   void initState() {
     super.initState();
-    print('🚀 DEBUG: ProductPage initState() called');
+    print('ProductPage initState() called');
     debugPrint('Language code: $langCode');
 
     _loadLangCode();
@@ -40,38 +39,38 @@ class _ProductPageState extends State<ProductPage> {
     fetchProducts();
     
     _searchController.addListener(() {
-      print('🔍 DEBUG: Search query: ${_searchController.text}');
+      print('Search query: ${_searchController.text}');
       filterProducts(_searchController.text);
     });
   }
 
   void _loadLangCode() async {
-    print('📱 DEBUG: Loading language code...');
+    print('Loading language code...');
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       langCode = prefs.getString('languageCode') ?? 'en';
-      print('🌐 DEBUG: Language code loaded: $langCode');
+      print('Language code loaded: $langCode');
     });
   }
 
   void _loadCurrentTheme() async {
-    print('🎨 DEBUG: Loading current theme...');
+    print('Loading current theme...');
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
-      print('🎨 DEBUG: Theme loaded: $currentTheme');
+      print('Theme loaded: $currentTheme');
     });
   }
 
   @override
   void dispose() {
-    print('🗑️ DEBUG: ProductPage dispose() called');
+    print('ProductPage dispose() called');
     _searchController.dispose();
     super.dispose();
   }
 
   void filterProducts(String query) {
-    print('🔍 DEBUG: Filtering products with query: "$query"');
+    print('Filtering products with query: "$query"');
     final lowerQuery = query.toLowerCase();
     setState(() {
       filteredProducts = products.where((product) {
@@ -90,21 +89,15 @@ class _ProductPageState extends State<ProductPage> {
             
         return matches;
       }).toList();
-      print('🔍 DEBUG: Filtered products count: ${filteredProducts.length}');
+      print('Filtered products count: ${filteredProducts.length}');
     });
   }
 
-  List<Product> _getActiveProducts(List<Product> allProducts) {
-    final activeProducts = allProducts.where((product) => product.status != 'deleted').toList();
-    print('✅ DEBUG: Active products (excluding deleted): ${activeProducts.length} out of ${allProducts.length}');
-    return activeProducts;
-  }
-
   Future<void> fetchProducts() async {
-    print('🔍 DEBUG: Starting fetchProducts()');
+    print('Starting fetchProducts()');
     
     if (!mounted) {
-      print('⚠️ DEBUG: Widget not mounted, aborting fetchProducts()');
+      print('Widget not mounted, aborting fetchProducts()');
       return;
     }
     
@@ -113,102 +106,101 @@ class _ProductPageState extends State<ProductPage> {
       error = null;
     });
 
-    // Correct API endpoint for your NestJS IoProduct API
     final url = AppConfig.api('/api/ioproduct');
-    print('🌐 DEBUG: API URL: $url');
+    print('API URL: $url');
     
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
       final companyId = CompanyConfig.getCompanyId();
       
-      print('🔑 DEBUG: Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
-      print('🏢 DEBUG: Company ID: $companyId');
+      print('Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
+      print('Company ID: $companyId');
       
       // Build query parameters
       final queryParams = {
-        'status': 'active', // or 'admin' to see all products
         'company_id': companyId.toString(),
       };
       
       final uri = Uri.parse(url.toString()).replace(queryParameters: queryParams);
-      print('🔗 DEBUG: Full URI: $uri');
+      print('Full URI: $uri');
       
       final headers = {
         'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
       };
-      print('📋 DEBUG: Request headers: $headers');
+      print('Request headers: $headers');
       
       final response = await http.get(uri, headers: headers);
 
-      print('📡 DEBUG: Response Status Code: ${response.statusCode}');
-      print('📄 DEBUG: Response Headers: ${response.headers}');
-      print('📝 DEBUG: Response Body: ${response.body}');
+      print('Response Status Code: ${response.statusCode}');
+      print('Response Headers: ${response.headers}');
+      print('Response Body: ${response.body}');
 
       if (!mounted) {
-        print('⚠️ DEBUG: Widget not mounted after API call, aborting');
+        print('Widget not mounted after API call, aborting');
         return;
       }
 
       if (response.statusCode == 200) {
         try {
           final data = jsonDecode(response.body);
-          print('✅ DEBUG: Parsed JSON successfully');
-          print('📊 DEBUG: API Response structure: ${data.keys.toList()}');
+          print('Parsed JSON successfully');
+          print('API Response structure: ${data.keys.toList()}');
           
           if (data['status'] == 'success') {
             final List<dynamic> rawProducts = data['data'] ?? [];
-            print('📦 DEBUG: Raw products count: ${rawProducts.length}');
+            print('Raw products count: ${rawProducts.length}');
             
             // Print first product for debugging
             if (rawProducts.isNotEmpty) {
-              print('🔍 DEBUG: First product data: ${rawProducts[0]}');
+              print('First product data: ${rawProducts[0]}');
             }
             
             products = rawProducts.map((e) {
               try {
                 return Product.fromJson(e);
               } catch (parseError) {
-                print('❌ DEBUG: Error parsing product: $parseError');
-                print('📝 DEBUG: Problem product data: $e');
+                print('Error parsing product: $parseError');
+                print('Problem product data: $e');
                 rethrow;
               }
             }).toList();
             
-            filteredProducts = _getActiveProducts(products);
+            // Filter out deleted products for display
+            filteredProducts = products.where((product) => product.status != 'deleted').toList();
             
-            print('✅ DEBUG: Total products loaded: ${products.length}');
-            print('✅ DEBUG: Active products: ${filteredProducts.length}');
+            print('Total products loaded: ${products.length}');
+            print('Active products: ${filteredProducts.length}');
             
             setState(() => loading = false);
           } else {
-            print('❌ DEBUG: API returned error status: ${data['status']}');
-            print('❌ DEBUG: API error message: ${data['message']}');
+            print('API returned error status: ${data['status']}');
+            print('API error message: ${data['message']}');
             setState(() {
               loading = false;
               error = data['message'] ?? 'Unknown error from API';
             });
           }
         } catch (jsonError) {
-          print('❌ DEBUG: JSON parsing error: $jsonError');
-          print('📝 DEBUG: Raw response that failed to parse: ${response.body}');
+          print('JSON parsing error: $jsonError');
+          print('Raw response that failed to parse: ${response.body}');
           setState(() {
             loading = false;
             error = 'Failed to parse server response: $jsonError';
           });
         }
       } else {
-        print('❌ DEBUG: HTTP Error ${response.statusCode}');
-        print('❌ DEBUG: Error response body: ${response.body}');
+        print('HTTP Error ${response.statusCode}');
+        print('Error response body: ${response.body}');
         setState(() {
           loading = false;
           error = 'Server error: ${response.statusCode}\n${response.body}';
         });
       }
     } catch (e, stackTrace) {
-      print('💥 DEBUG: Exception caught: $e');
-      print('📚 DEBUG: Stack trace: $stackTrace');
+      print('Exception caught: $e');
+      print('Stack trace: $stackTrace');
       setState(() {
         loading = false;
         error = 'Failed to load data: $e';
@@ -217,29 +209,27 @@ class _ProductPageState extends State<ProductPage> {
   }
 
   void _onAddProduct() async {
-    print('➕ DEBUG: Add product button pressed');
+    print('Add Product button pressed');
     
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => ProductAddPage()),
     );
 
-    print('📝 DEBUG: Add product result: $result');
+    print('Add Product result: $result');
     if (result == true) {
-      print('🔄 DEBUG: Refreshing products after add');
+      print('Refreshing products after add');
       fetchProducts();
     }
   }
 
-  // ✅ FIXED: Better image widget with proper error handling
-  // ignore: unused_element
   Widget _buildProductImage(Product product) {
-    print('🖼️ DEBUG: Building image for product: ${product.productName}');
-    print('🖼️ DEBUG: Image URL: ${product.imageUrl}');
+    print('Building image for product: ${product.productName}');
+    print('Image URL: ${product.imageUrl}');
     
     // Check if we have a valid image URL
     if (product.imageUrl == null || product.imageUrl!.isEmpty) {
-      print('🖼️ DEBUG: No image URL, showing placeholder');
+      print('No image URL, showing placeholder');
       return CircleAvatar(
         radius: 25,
         backgroundColor: Colors.grey[200],
@@ -267,7 +257,7 @@ class _ProductPageState extends State<ProductPage> {
       }
     }
     
-    print('🖼️ DEBUG: Final image URL: $imageUrl');
+    print('Final image URL: $imageUrl');
 
     return CircleAvatar(
       radius: 25,
@@ -280,10 +270,10 @@ class _ProductPageState extends State<ProductPage> {
           fit: BoxFit.cover,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) {
-              print('🖼️ DEBUG: Image loaded successfully for ${product.productName}');
+              print('Image loaded successfully for ${product.productName}');
               return child;
             }
-            print('🖼️ DEBUG: Loading image for ${product.productName}...');
+            print('Loading image for ${product.productName}...');
             return Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
@@ -294,8 +284,8 @@ class _ProductPageState extends State<ProductPage> {
             );
           },
           errorBuilder: (context, error, stackTrace) {
-            print('❌ DEBUG: Error loading image for ${product.productName}: $error');
-            print('📝 DEBUG: Failed URL: $imageUrl');
+            print('Error loading image for ${product.productName}: $error');
+            print('Failed URL: $imageUrl');
             return Icon(
               Icons.inventory_2,
               color: Colors.grey[600],
@@ -309,11 +299,19 @@ class _ProductPageState extends State<ProductPage> {
 
   @override
   Widget build(BuildContext context) {
-    print('🎨 DEBUG: Building ProductPage widget');
-    print('📊 DEBUG: Current state - loading: $loading, error: $error, products: ${products.length}');
+    print('Building ProductPage widget');
+    print('Current state - loading: $loading, error: $error, products: ${products.length}');
     
+    // Get responsive dimensions
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+    final horizontalPadding = isWideScreen ? 32.0 : 16.0;
+    final cardMargin = isWideScreen ? 
+        EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8) :
+        EdgeInsets.symmetric(horizontal: 16, vertical: 8);
+
     if (loading) {
-      print('⏳ DEBUG: Showing loading indicator');
+      print('Showing loading indicator');
       return Scaffold(
         appBar: AppBar(
           title: Text('Products'),
@@ -330,7 +328,7 @@ class _ProductPageState extends State<ProductPage> {
                 ),
               ),
               SizedBox(height: 16),
-              Text('Loading products...'),
+              Text('Loading Products...'),
             ],
           ),
         ),
@@ -338,7 +336,7 @@ class _ProductPageState extends State<ProductPage> {
     }
 
     if (error != null) {
-      print('❌ DEBUG: Showing error state: $error');
+      print('Showing error state: $error');
       return Scaffold(
         appBar: AppBar(
           title: Text('Products'),
@@ -346,33 +344,83 @@ class _ProductPageState extends State<ProductPage> {
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         ),
         body: Center(
-          child: Padding(
-            padding: EdgeInsets.all(16.0),
+          child: Container(
+            constraints: BoxConstraints(maxWidth: isWideScreen ? 600 : double.infinity),
+            child: Padding(
+              padding: EdgeInsets.all(horizontalPadding),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  SizedBox(height: 16),
+                  Text(
+                    'Error Loading Products',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      print('Retry button pressed');
+                      fetchProducts();
+                    },
+                    icon: Icon(Icons.refresh),
+                    label: Text('Retry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                      foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (products.isEmpty) {
+      print('Showing empty state');
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('Products (0)'),
+          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+          foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+          actions: [
+            IconButton(
+              onPressed: () {
+                print('Refresh button pressed from empty state');
+                fetchProducts();
+              },
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+            ),
+          ],
+        ),
+        body: Center(
+          child: Container(
+            constraints: BoxConstraints(maxWidth: isWideScreen ? 600 : double.infinity),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline, size: 64, color: Colors.red),
+                Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey),
                 SizedBox(height: 16),
                 Text(
-                  'Error Loading Products',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  error!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
-                  ),
+                  'No Products found',
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
                 ),
                 SizedBox(height: 16),
                 ElevatedButton.icon(
-                  onPressed: () {
-                    print('🔄 DEBUG: Retry button pressed');
-                    fetchProducts();
-                  },
-                  icon: Icon(Icons.refresh),
-                  label: Text('Retry'),
+                  onPressed: _onAddProduct,
+                  icon: Icon(Icons.add),
+                  label: Text('Add First Product'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
                     foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
@@ -382,54 +430,17 @@ class _ProductPageState extends State<ProductPage> {
             ),
           ),
         ),
-      );
-    }
-
-    if (products.isEmpty) {
-      print('📭 DEBUG: Showing empty state');
-      return Scaffold(
-        appBar: AppBar(
-          title: Text('Products (0)'),
+        floatingActionButton: isWideScreen ? null : FloatingActionButton(
+          onPressed: _onAddProduct,
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-          actions: [
-            IconButton(
-              onPressed: () {
-                print('🔄 DEBUG: Refresh button pressed from empty state');
-                fetchProducts();
-              },
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
-            ),
-          ],
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey),
-              SizedBox(height: 16),
-              Text(
-                'No products found',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-              SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _onAddProduct,
-                icon: Icon(Icons.add),
-                label: Text('Add First Product'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                  foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-                ),
-              ),
-            ],
-          ),
+          tooltip: SimpleTranslations.get(langCode, 'add_product'),
+          child: const Icon(Icons.add),
         ),
       );
     }
 
-    print('📱 DEBUG: Rendering main product list with ${filteredProducts.length} products');
+    print('Rendering main product list with ${filteredProducts.length} products');
     
     return Scaffold(
       appBar: AppBar(
@@ -437,9 +448,17 @@ class _ProductPageState extends State<ProductPage> {
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         actions: [
+          if (isWideScreen) ...[
+            // Add button in app bar for wide screens
+            IconButton(
+              onPressed: _onAddProduct,
+              icon: const Icon(Icons.add),
+              tooltip: SimpleTranslations.get(langCode, 'add_product'),
+            ),
+          ],
           IconButton(
             onPressed: () {
-              print('🔄 DEBUG: Refresh button pressed from app bar');
+              print('Refresh button pressed from app bar');
               fetchProducts();
             },
             icon: const Icon(Icons.refresh),
@@ -447,189 +466,79 @@ class _ProductPageState extends State<ProductPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: SimpleTranslations.get(langCode, 'search'),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        onPressed: () {
-                          print('🧹 DEBUG: Clear search button pressed');
-                          _searchController.clear();
-                        },
-                        icon: Icon(Icons.clear),
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                    width: 2,
+      body: Center(
+        child: Container(
+          constraints: BoxConstraints(maxWidth: isWideScreen ? 1200 : double.infinity),
+          child: Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    labelText: SimpleTranslations.get(langCode, 'search'),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: ThemeConfig.getPrimaryColor(currentTheme),
+                    ),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            onPressed: () {
+                              print('Clear search button pressed');
+                              _searchController.clear();
+                            },
+                            icon: Icon(Icons.clear),
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: ThemeConfig.getPrimaryColor(currentTheme),
+                        width: 2,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-          Expanded(
-            child: filteredProducts.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.search_off, size: 80, color: Colors.grey),
-                        const SizedBox(height: 16),
-                        Text(
-                          _searchController.text.isNotEmpty
-                              ? 'No products match your search'
-                              : 'No products found',
-                          style: const TextStyle(fontSize: 18, color: Colors.grey),
-                        ),
-                        if (_searchController.text.isNotEmpty) ...[
-                          SizedBox(height: 8),
-                          Text(
-                            'Try a different search term',
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: fetchProducts,
-                    child: ListView.builder(
-                      itemCount: filteredProducts.length,
-                      itemBuilder: (ctx, i) {
-                        final product = filteredProducts[i];
-                        print('🏗️ DEBUG: Building list item for product: ${product.productName}');
-
-                        return Card(
-                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          elevation: 2,
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              radius: 25,
-                              backgroundImage: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                                  ? NetworkImage(product.imageUrl!) // Try original URL first
-                                  : const AssetImage('assets/images/default_product.png') as ImageProvider,
-                              onBackgroundImageError: (exception, stackTrace) {
-                                print('🖼️ DEBUG: Error loading image for ${product.productName}');
-                                print('🖼️ DEBUG: Original URL failed: ${product.imageUrl}');
-                                print('🖼️ DEBUG: Error: $exception');
-                                print('🖼️ DEBUG: Testing alternative URLs...');
-                                
-                                // Print alternative URLs to test
-                                if (product.imageUrl!.contains('/public/')) {
-                                  print('🖼️ DEBUG: Try without /public/: ${product.imageUrl!.replaceAll('/public/', '/')}');
-                                  print('🖼️ DEBUG: Try with /uploads/: ${product.imageUrl!.replaceAll('/public/images/', '/uploads/')}');
-                                  print('🖼️ DEBUG: Try with /static/: ${product.imageUrl!.replaceAll('/public/images/', '/static/')}');
-                                }
-                              },
+              Expanded(
+                child: filteredProducts.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.search_off, size: 80, color: Colors.grey),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchController.text.isNotEmpty
+                                  ? 'No Products match your search'
+                                  : 'No Products found',
+                              style: const TextStyle(fontSize: 18, color: Colors.grey),
                             ),
-                            title: Text(
-                              product.productName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                            if (_searchController.text.isNotEmpty) ...[
+                              SizedBox(height: 8),
+                              Text(
+                                'Try a different search term',
+                                style: TextStyle(color: Colors.grey[600]),
                               ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (product.category != null && product.category!.isNotEmpty)
-                                  Text(
-                                    'Category: ${product.category}',
-                                    style: TextStyle(fontSize: 13),
-                                  ),
-                                if (product.brand != null && product.brand!.isNotEmpty)
-                                  Text(
-                                    'Brand: ${product.brand}',
-                                    style: TextStyle(fontSize: 13),
-                                  ),
-                                if (product.productCode != null && product.productCode!.isNotEmpty)
-                                  Text(
-                                    'Code: ${product.productCode}',
-                                    style: TextStyle(fontSize: 13),
-                                  ),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: _getStatusColor(product.status),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        product.status.toUpperCase(),
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    if (product.unit != null) ...[
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Unit: ${product.unit}',
-                                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                            trailing: Icon(
-                              Icons.edit,
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                            ),
-                            onTap: () async {
-                              print('👆 DEBUG: Product tapped: ${product.productName}');
-                              
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ProductEditPage(
-                                    productData: product.toJson(),
-                                  ),
-                                ),
-                              );
-
-                              print('📝 DEBUG: Edit product result: $result');
-                              if (result == true || result == 'deleted') {
-                                print('🔄 DEBUG: Product operation completed, refreshing list...');
-                                fetchProducts();
-                                
-                                if (result == 'deleted') {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Product removed from list'),
-                                      backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: fetchProducts,
+                        child: isWideScreen
+                            ? _buildGridView(cardMargin)
+                            : _buildListView(cardMargin),
+                      ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: isWideScreen ? null : FloatingActionButton(
         onPressed: _onAddProduct,
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
@@ -639,34 +548,181 @@ class _ProductPageState extends State<ProductPage> {
     );
   }
 
-  // ✅ Helper method to find correct image URL path
-  // ignore: unused_element
-  String _getCorrectImageUrl(String imageUrl) {
-    print('🖼️ DEBUG: Original image URL: $imageUrl');
+  Widget _buildListView(EdgeInsets cardMargin) {
+    return ListView.builder(
+      itemCount: filteredProducts.length,
+      itemBuilder: (ctx, i) {
+        final product = filteredProducts[i];
+        print('Building list item for product: ${product.productName}');
+
+        return Card(
+          margin: cardMargin,
+          elevation: 2,
+          child: ListTile(
+            leading: _buildProductImage(product),
+            title: Text(
+              product.productName,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            subtitle: _buildProductSubtitle(product),
+            trailing: Icon(
+              Icons.edit,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+            onTap: () => _navigateToEdit(product),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGridView(EdgeInsets cardMargin) {
+    return GridView.builder(
+      padding: EdgeInsets.symmetric(horizontal: cardMargin.horizontal / 2),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: MediaQuery.of(context).size.width > 900 ? 3 : 2,
+        childAspectRatio: 3.0,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: filteredProducts.length,
+      itemBuilder: (ctx, i) {
+        final product = filteredProducts[i];
+        print('Building grid item for product: ${product.productName}');
+
+        return Card(
+          elevation: 2,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => _navigateToEdit(product),
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  _buildProductImage(product),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          product.productName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 4),
+                        _buildProductSubtitle(product, compact: true),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.edit,
+                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildProductSubtitle(Product product, {bool compact = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (product.productCode != null && product.productCode!.isNotEmpty)
+          Text(
+            'Code: ${product.productCode}',
+            style: TextStyle(
+              fontSize: compact ? 11 : 13,
+              fontWeight: FontWeight.w500,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        if (!compact && product.category != null && product.category!.isNotEmpty)
+          Text(
+            'Category: ${product.category}',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        if (!compact && product.brand != null && product.brand!.isNotEmpty)
+          Text(
+            'Brand: ${product.brand}',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        Row(
+          children: [
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: _getStatusColor(product.status),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                product.status.toUpperCase(),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: compact ? 8 : 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (!compact && product.unit != null) ...[
+              SizedBox(width: 8),
+              Text(
+                'Unit: ${product.unit}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _navigateToEdit(Product product) async {
+    print('Product tapped: ${product.productName}');
     
-    // Try different URL patterns to find the working one
-    List<String> urlsToTry = [];
-    
-    // Pattern 1: Keep original URL with /public/
-    urlsToTry.add(imageUrl);
-    
-    // Pattern 2: Remove /public/ from URL
-    if (imageUrl.contains('/public/')) {
-      urlsToTry.add(imageUrl.replaceAll('/public/', '/'));
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductEditPage(
+          productData: product.toJson(),
+        ),
+      ),
+    );
+
+    print('Edit Product result: $result');
+    if (result == true || result == 'deleted') {
+      print('Product operation completed, refreshing list...');
+      fetchProducts();
+      
+      if (result == 'deleted') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Product removed from list'),
+            backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
-    
-    // Pattern 3: Use direct file path (common for static files)
-    if (imageUrl.contains('/public/images/')) {
-      urlsToTry.add(imageUrl.replaceAll('/public/images/', '/uploads/'));
-      urlsToTry.add(imageUrl.replaceAll('/public/images/', '/static/'));
-      urlsToTry.add(imageUrl.replaceAll('/public/images/', '/files/'));
-    }
-    
-    // For now, return the original URL and log all possibilities
-    print('🖼️ DEBUG: URLs to try: $urlsToTry');
-    
-    // Let's first try the original URL
-    return imageUrl;
   }
 
   Color _getStatusColor(String status) {
@@ -722,9 +778,9 @@ class Product {
   });
   
   factory Product.fromJson(Map<String, dynamic> json) {
-    print('🔄 DEBUG: Converting JSON to Product');
-    print('📝 DEBUG: JSON keys: ${json.keys.toList()}');
-    print('📝 DEBUG: JSON data: $json');
+    print('Converting JSON to Product');
+    print('JSON keys: ${json.keys.toList()}');
+    print('JSON data: $json');
     
     try {
       // Handle different date formats
@@ -734,7 +790,7 @@ class Product {
           try {
             return DateTime.parse(dateValue);
           } catch (e) {
-            print('⚠️ DEBUG: Error parsing date string "$dateValue": $e');
+            print('Error parsing date string "$dateValue": $e');
             return DateTime.now();
           }
         }
@@ -743,7 +799,7 @@ class Product {
 
       final product = Product(
         productId: json['product_id'] ?? 0,
-        companyId: CompanyConfig.getCompanyId(), // Use centralized config instead
+        companyId: json['company_id'] ?? CompanyConfig.getCompanyId(),
         productName: json['product_name'] ?? '',
         productCode: json['product_code'],
         description: json['description'],
@@ -759,12 +815,12 @@ class Product {
         status: json['status'] ?? 'active',
       );
       
-      print('✅ DEBUG: Successfully created product: ${product.productName}');
+      print('Successfully created Product: ${product.productName}');
       return product;
     } catch (e, stackTrace) {
-      print('❌ DEBUG: Error parsing product JSON: $e');
-      print('📚 DEBUG: Stack trace: $stackTrace');
-      print('📝 DEBUG: Problem JSON: $json');
+      print('Error parsing Product JSON: $e');
+      print('Stack trace: $stackTrace');
+      print('Problem JSON: $json');
       rethrow;
     }
   }

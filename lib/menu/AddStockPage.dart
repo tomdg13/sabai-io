@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:developer' as developer;
+import '../utils/simple_translations.dart';
 
 class AddStockPage extends StatefulWidget {
   final String? currentTheme;
@@ -254,16 +255,16 @@ class _AddStockPageState extends State<AddStockPage> {
     _showMessage('Selected: ${product['product_name']}');
   }
 
-  Future<void> _scanBarcode() async {
+  Future<void> _scanbarcode() async {
     if (kIsWeb) {
-      _showBarcodeInputDialog();
+      _showbarcodeInputDialog();
       return;
     }
 
     final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(
-        builder: (context) => BarcodeScannerPage(
+        builder: (context) => barcodeScannerPage(
           langCode: _langCode,
           primaryColor: _primaryColor,
         ),
@@ -271,17 +272,17 @@ class _AddStockPageState extends State<AddStockPage> {
     );
 
     if (result != null) {
-      await _lookupProductByBarcode(result);
+      await _lookupProductBybarcode(result);
     }
   }
 
-  void _showBarcodeInputDialog() {
+  void _showbarcodeInputDialog() {
     final controller = TextEditingController();
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Enter Barcode'),
+        title: Text(SimpleTranslations.get(_langCode, 'enter_barcode')),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(
@@ -292,14 +293,14 @@ class _AddStockPageState extends State<AddStockPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(SimpleTranslations.get(_langCode, 'cancel')),
           ),
           ElevatedButton(
             onPressed: () {
               final barcode = controller.text.trim();
               if (barcode.isNotEmpty) {
                 Navigator.pop(context);
-                _lookupProductByBarcode(barcode);
+                _lookupProductBybarcode(barcode);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -313,7 +314,7 @@ class _AddStockPageState extends State<AddStockPage> {
     );
   }
 
-  Future<void> _lookupProductByBarcode(String barcode) async {
+  Future<void> _lookupProductBybarcode(String barcode) async {
     setState(() => _isLoading = true);
 
     try {
@@ -340,75 +341,324 @@ class _AddStockPageState extends State<AddStockPage> {
     }
   }
 
-  // FORM OPERATIONS
-  Future<void> _addInventory() async {
-    if (!_validateForm()) return;
+// ENHANCED DEBUG VERSION - Add these methods to your existing AddStockPage class
 
-    setState(() => _isSubmitting = true);
+// Replace your existing _addInventory method with this enhanced version:
+Future<void> _addInventory() async {
+  print('🚀 === STARTING INVENTORY SUBMISSION ===');
+  
+  if (!_validateForm()) {
+    print('❌ Form validation failed');
+    return;
+  }
 
-    try {
-      final body = _buildRequestBody();
-      final response = await _apiRequest('POST', '/api/inventory', body: body);
+  setState(() => _isSubmitting = true);
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+  try {
+    // Build request body with detailed logging
+    final body = _buildRequestBody();
+    print('📦 REQUEST BODY:');
+    print('   Raw body: ${jsonEncode(body)}');
+    print('   Body keys: ${body.keys.toList()}');
+    print('   Body values: ${body.values.toList()}');
+    
+    // Log each field individually for easier debugging
+    print('📝 INDIVIDUAL FIELDS:');
+    body.forEach((key, value) {
+      print('   $key: $value (${value.runtimeType})');
+    });
+
+    // Build the full API URL
+    final endpoint = '/api/inventory';
+    final fullUrl = AppConfig.api(endpoint);
+    print('🌐 API DETAILS:');
+    print('   Endpoint: $endpoint');
+    print('   Full URL: $fullUrl');
+    print('   Company ID: $_companyId');
+    print('   User ID: $_userId');
+    print('   Branch ID: $_branchId');
+    print('   Access Token: ${_accessToken != null ? '${_accessToken!.substring(0, 20)}...' : 'null'}');
+
+    // Prepare headers
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $_accessToken',
+    };
+    print('📋 REQUEST HEADERS:');
+    headers.forEach((key, value) {
+      if (key == 'Authorization') {
+        print('   $key: Bearer ${value.substring(7, 27)}...');
+      } else {
+        print('   $key: $value');
+      }
+    });
+
+    // Make the API request with timing
+    final stopwatch = Stopwatch()..start();
+    print('⏰ Making API request at: ${DateTime.now().toIso8601String()}');
+    
+    final response = await http.post(
+      fullUrl,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    
+    stopwatch.stop();
+    print('⏱️ Request completed in: ${stopwatch.elapsedMilliseconds}ms');
+
+    // Log response details
+    print('📡 === API RESPONSE ===');
+    print('   Status Code: ${response.statusCode}');
+    print('   Status Text: ${response.reasonPhrase}');
+    print('   Response Headers:');
+    response.headers.forEach((key, value) {
+      print('     $key: $value');
+    });
+    
+    print('📄 Response Body (Raw):');
+    print('   Length: ${response.body.length} characters');
+    print('   Content: ${response.body}');
+
+    // Handle response
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      print('✅ SUCCESS Response');
+      
+      // Try to parse response body
+      try {
+        final responseData = jsonDecode(response.body);
+        print('📊 Parsed Response Data:');
+        print('   Type: ${responseData.runtimeType}');
+        print('   Keys: ${responseData is Map ? responseData.keys.toList() : 'Not a Map'}');
+        print('   Full Data: ${jsonEncode(responseData)}');
+        
         _showMessage('Stock added successfully');
         _clearForm();
+        
+        print('🔄 Navigating to menu page...');
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => const MenuPage(role: 'user', tabIndex: 1),
           ),
         );
-      } else {
-        final data = jsonDecode(response.body);
-        _showMessage(data['message'] ?? 'Failed to add stock', isError: true);
+        print('✅ Navigation completed');
+        
+      } catch (parseError) {
+        print('❌ Failed to parse success response: $parseError');
+        print('   Raw response was: ${response.body}');
+        _showMessage('Stock added but response parsing failed');
       }
-    } catch (e) {
-      _showMessage('Error adding stock: $e', isError: true);
-    } finally {
+      
+    } else {
+      print('❌ ERROR Response');
+      
+      // Try to parse error response
+      try {
+        final errorData = jsonDecode(response.body);
+        print('📊 Parsed Error Data:');
+        print('   Type: ${errorData.runtimeType}');
+        print('   Keys: ${errorData is Map ? errorData.keys.toList() : 'Not a Map'}');
+        print('   Full Data: ${jsonEncode(errorData)}');
+        
+        final errorMessage = errorData is Map ? 
+            (errorData['message'] ?? errorData['error'] ?? 'Failed to add stock') : 
+            'Failed to add stock';
+        
+        print('   Error Message: $errorMessage');
+        _showMessage(errorMessage, isError: true);
+        
+      } catch (parseError) {
+        print('❌ Failed to parse error response: $parseError');
+        print('   Raw error response was: ${response.body}');
+        _showMessage('Server error: ${response.statusCode}\n${response.body}', isError: true);
+      }
+    }
+
+  } catch (e, stackTrace) {
+    print('💥 === EXCEPTION CAUGHT ===');
+    print('   Exception: $e');
+    print('   Exception Type: ${e.runtimeType}');
+    print('   Stack Trace:');
+    print('$stackTrace');
+    
+    _showMessage('Error adding stock: $e', isError: true);
+    
+  } finally {
+    print('🏁 === SUBMISSION COMPLETED ===');
+    if (mounted) {
       setState(() => _isSubmitting = false);
     }
+    print('   isSubmitting set to false');
+  }
+}
+
+Map<String, dynamic> _buildRequestBody() {
+  print('🔧 === BUILDING REQUEST BODY ===');
+  
+  // Log form field values
+  print('📝 Form Controller Values:');
+  _controllers.forEach((key, controller) {
+    print('   $key: "${controller.text}" (length: ${controller.text.length})');
+  });
+  
+  // Log selected items
+  print('🎯 Selected Items:');
+  print('   Location: ${_selectedLocation != null ? jsonEncode(_selectedLocation) : 'null'}');
+  print('   Vendor: ${_selectedvendor != null ? jsonEncode(_selectedvendor) : 'null'}');
+  print('   Product: ${_selectedProduct != null ? jsonEncode(_selectedProduct) : 'null'}');
+  print('   Scanned Product: ${_scannedProduct != null ? jsonEncode(_scannedProduct) : 'null'}');
+  print('   Expire Date: $_selectedExpireDate');
+  print('   Currency: $_selectedCurrency');
+  print('   Status: $_selectedStatus');
+
+  // Validate required fields before building
+  final productId = _controllers['productId']!.text.trim();
+  final productName = _controllers['productName']!.text.trim();
+  final amount = _controllers['amount']!.text.trim();
+  final price = _controllers['price']!.text.trim();
+  
+  print('🔍 Field Validation:');
+  print('   Product ID: "$productId" (valid: ${productId.isNotEmpty})');
+  print('   Product Name: "$productName" (valid: ${productName.isNotEmpty})');
+  print('   Amount: "$amount" (valid: ${amount.isNotEmpty && int.tryParse(amount) != null})');
+  print('   price: "$price" (valid: ${price.isNotEmpty && double.tryParse(price) != null})');
+  print('   Location Selected: ${_selectedLocation != null}');
+  print('   Vendor Selected: ${_selectedvendor != null}');
+
+  // Parse numeric values with validation
+  int? parsedAmount;
+  double? parsedprice;
+  int? parsedProductId;
+  
+  try {
+    parsedProductId = int.parse(productId);
+    print('   ✅ Product ID parsed: $parsedProductId');
+  } catch (e) {
+    print('   ❌ Product ID parse error: $e');
+    throw Exception('Invalid Product ID: $productId');
+  }
+  
+  try {
+    parsedAmount = int.parse(amount);
+    print('   ✅ Amount parsed: $parsedAmount');
+  } catch (e) {
+    print('   ❌ Amount parse error: $e');
+    throw Exception('Invalid Amount: $amount');
+  }
+  
+  try {
+    parsedprice = double.parse(price);
+    print('   ✅ price parsed: $parsedprice');
+  } catch (e) {
+    print('   ❌ price parse error: $e');
+    throw Exception('Invalid price: $price');
   }
 
-  Map<String, dynamic> _buildRequestBody() => {
-    'product_id': int.parse(_controllers['productId']!.text),
-    'product_name': _controllers['productName']!.text.trim(),
+  // Build the body WITHOUT vendor fields (as per API error)
+  final body = <String, dynamic>{
+    'product_id': parsedProductId,
+    'supplier_id': _selectedvendor!['vendor_id'],
+    'product_name': productName,
     'location_id': _selectedLocation!['location_id'],
     'location': _selectedLocation!['location'] ?? _selectedLocation!['location_name'],
     'currency_primary': _selectedCurrency,
-    'amount': int.parse(_controllers['amount']!.text), // Positive for addition
-    'price': double.parse(_controllers['price']!.text),
+    'amount': parsedAmount,
+    'price': parsedprice,
     'status': _selectedStatus,
-    'vendor_id': _selectedvendor!['vendor_id'],
-    'vendor_name': _selectedvendor!['vendor_name'] ?? _selectedvendor!['name'],
     'user_id': _userId,
     'branch_id': _branchId != null ? int.tryParse(_branchId!) : null,
     'txntype': 'STOCK_IN',
     'company_id': _companyId,
-    if (_controllers['barcode']!.text.trim().isNotEmpty)
-      'barcode': _controllers['barcode']!.text.trim(),
-    if (_controllers['batchNumber']!.text.trim().isNotEmpty)
-      'batch_number': _controllers['batchNumber']!.text.trim(),
-    if (_controllers['supplierId']!.text.trim().isNotEmpty)
-      'supplier_id': int.tryParse(_controllers['supplierId']!.text),
-    if (_selectedExpireDate != null)
-      'expire_date': _selectedExpireDate!.toIso8601String().split('T')[0],
   };
 
-  bool _validateForm() {
-    if (!_formKey.currentState!.validate()) {
-      _showMessage('Please fill required fields', isError: true);
-      return false;
-    }
-    if (_selectedLocation == null) {
-      _showMessage('Please select location', isError: true);
-      return false;
-    }
-    if (_selectedvendor == null) {
-      _showMessage('Please select vendor', isError: true);
-      return false;
-    }
-    return true;
+  // Add optional fields
+  final barcode = _controllers['barcode']!.text.trim();
+  if (barcode.isNotEmpty) {
+    body['barcode'] = barcode;
+    print('   ✅ Added barcode: $barcode');
   }
+
+  final batchNumber = _controllers['batchNumber']!.text.trim();
+  if (batchNumber.isNotEmpty) {
+    body['batch_number'] = batchNumber;
+    print('   ✅ Added batch number: $batchNumber');
+  }
+
+  final supplierIdText = _controllers['supplierId']!.text.trim();
+  if (supplierIdText.isNotEmpty) {
+    final supplierId = int.tryParse(supplierIdText);
+    if (supplierId != null) {
+      body['supplier_id'] = supplierId;
+      print('   ✅ Added supplier ID: $supplierId');
+    } else {
+      print('   ⚠️ Invalid supplier ID ignored: $supplierIdText');
+    }
+  }
+
+  if (_selectedExpireDate != null) {
+    final expireDateString = _selectedExpireDate!.toIso8601String().split('T')[0];
+    body['expire_date'] = expireDateString;
+    print('   ✅ Added expire date: $expireDateString');
+  }
+
+  print('🏗️ Final Request Body Built (WITHOUT vendor fields):');
+  print('   Field count: ${body.length}');
+  body.forEach((key, value) {
+    print('   $key: $value (${value.runtimeType})');
+  });
+
+  return body;
+}
+
+// Also update your _validateForm method to remove vendor validation:
+bool _validateForm() {
+  print('🔍 === FORM VALIDATION ===');
+  
+  // Check form validation
+  final isFormValid = _formKey.currentState!.validate();
+  print('   Form.validate(): $isFormValid');
+  
+  if (!isFormValid) {
+    print('   ❌ Form validation failed - check required fields');
+    _showMessage('Please fill required fields', isError: true);
+    return false;
+  }
+  
+  // Check location selection
+  if (_selectedLocation == null) {
+    print('   ❌ No location selected');
+    _showMessage('Please select location', isError: true);
+    return false;
+  }
+  print('   ✅ Location selected: ${_selectedLocation!['location'] ?? _selectedLocation!['location_name']}');
+  
+
+  final amount = _controllers['amount']!.text.trim();
+  final price = _controllers['price']!.text.trim();
+  final productId = _controllers['productId']!.text.trim();
+  
+  if (int.tryParse(amount) == null || int.parse(amount) <= 0) {
+    print('   ❌ Invalid amount: $amount');
+    _showMessage('Please enter a valid amount greater than 0', isError: true);
+    return false;
+  }
+  
+  if (double.tryParse(price) == null || double.parse(price) < 0) {
+    print('   ❌ Invalid price: $price');
+    _showMessage('Please enter a valid price', isError: true);
+    return false;
+  }
+  
+  if (int.tryParse(productId) == null) {
+    print('   ❌ Invalid product ID: $productId');
+    _showMessage('Please enter a valid product ID', isError: true);
+    return false;
+  }
+  
+  print('   ✅ All validations passed (vendor not required by API)');
+  return true;
+}
+
+
 
   void _clearForm() {
     for (final controller in _controllers.values) {
@@ -518,7 +768,7 @@ class _AddStockPageState extends State<AddStockPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Add Stock', style: TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(SimpleTranslations.get(_langCode, 'add_stock'), style: TextStyle(fontWeight: FontWeight.w600)),
         backgroundColor: Colors.white,
         foregroundColor: Colors.grey[800],
         elevation: 0,
@@ -562,7 +812,7 @@ class _AddStockPageState extends State<AddStockPage> {
             CircularProgressIndicator(color: _primaryColor, strokeWidth: 3),
             const SizedBox(height: 16),
             Text(
-              'Loading data...',
+              SimpleTranslations.get(_langCode, 'loading_data'),
               style: TextStyle(
                 color: Colors.grey[600],
                 fontSize: 16,
@@ -606,7 +856,7 @@ class _AddStockPageState extends State<AddStockPage> {
               ),
               const SizedBox(width: 12),
               Text(
-                'Select Product to Add',
+                SimpleTranslations.get(_langCode, 'select_product'),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -623,15 +873,15 @@ class _AddStockPageState extends State<AddStockPage> {
               border: Border.all(color: Colors.grey[200]!),
             ),
             child: _isLoadingProducts
-              ? _buildLoadingIndicator('Loading products...')
+              ? _buildLoadingIndicator(SimpleTranslations.get(_langCode,'loading_products'))
               : _products.isEmpty
-                ? _buildEmptyState('products', _loadProducts)
+                ? _buildEmptyState(SimpleTranslations.get(_langCode,'products') , _loadProducts)
                 : _buildProductDropdown(),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              _buildActionButton('Refresh', Icons.refresh, Colors.green, _loadProducts),
+              _buildActionButton(SimpleTranslations.get(_langCode,'Refresh'), Icons.refresh, Colors.green, _loadProducts),
               const Spacer(),
               _buildCountBadge('${_products.length} products available', Colors.green),
             ],
@@ -668,7 +918,7 @@ class _AddStockPageState extends State<AddStockPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Scanned Product',
+                  SimpleTranslations.get(_langCode,'Scanned Product'),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.green[700],
@@ -681,7 +931,7 @@ class _AddStockPageState extends State<AddStockPage> {
                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                 ),
                 Text(
-                  'ID: ${_scannedProduct!['product_id']}',
+                  SimpleTranslations.get(_langCode,'ID: ${_scannedProduct!['product_id']}'),
                   style: TextStyle(color: Colors.grey[600], fontSize: 13),
                 ),
               ],
@@ -708,26 +958,26 @@ class _AddStockPageState extends State<AddStockPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Add Stock Item', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+             Text(SimpleTranslations.get(_langCode,'add_stock_item'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
             
-            _buildBarcodeField(),
+            _buildbarcodeField(),
             const SizedBox(height: 16),
-            _buildTextField('productId', 'Product ID', required: true, keyboardType: TextInputType.number),
+            _buildTextField('productId', SimpleTranslations.get(_langCode, 'product_id'), required: true),
             const SizedBox(height: 16),
-            _buildTextField('productName', 'Product Name', required: true),
+            _buildTextField('productName', SimpleTranslations.get(_langCode, 'product_name'), required: true),
             const SizedBox(height: 16),
             _buildLocationDropdown(),
             const SizedBox(height: 16),
             _buildvendorDropdown(),
             const SizedBox(height: 16),
-            _buildTextField('amount', 'Add Amount', required: true, keyboardType: TextInputType.number),
+            _buildTextField('amount', SimpleTranslations.get(_langCode, 'add_amount'), required: true),
             const SizedBox(height: 16),
-            _buildTextField('price', 'Price', required: true, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+            _buildTextField('price', SimpleTranslations.get(_langCode,'price'), required: true, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
             const SizedBox(height: 16),
-            _buildTextField('batchNumber', 'Batch Number (Optional)'),
+            _buildTextField('batchNumber', SimpleTranslations.get(_langCode,'Batch Number (Optional)')),
             const SizedBox(height: 16),
-            _buildTextField('supplierId', 'Supplier ID (Optional)', keyboardType: TextInputType.number),
+            _buildTextField('supplierId', SimpleTranslations.get(_langCode,'Supplier ID (Optional)'), keyboardType: TextInputType.number),
             const SizedBox(height: 16),
             _buildDatePicker(),
             const SizedBox(height: 16),
@@ -741,16 +991,16 @@ class _AddStockPageState extends State<AddStockPage> {
     );
   }
 
-  Widget _buildBarcodeField() {
+  Widget _buildbarcodeField() {
     return Row(
       children: [
-        Expanded(child: _buildTextField('barcode', 'Barcode *', required: true)),
+        Expanded(child: _buildTextField('barcode', SimpleTranslations.get(_langCode,'barcode *'), required: true)),
         const SizedBox(width: 8),
         SizedBox(
           width: 56,
           height: 56,
           child: ElevatedButton(
-            onPressed: _scanBarcode,
+            onPressed: _scanbarcode,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
@@ -778,7 +1028,7 @@ class _AddStockPageState extends State<AddStockPage> {
       ),
       validator: required ? (value) {
         if (value == null || value.trim().isEmpty) {
-          return 'This field is required';
+          return SimpleTranslations.get(_langCode,'This field is required');
         }
         return null;
       } : null,
@@ -787,7 +1037,7 @@ class _AddStockPageState extends State<AddStockPage> {
 
   Widget _buildLocationDropdown() {
     return _buildDropdownSection(
-      title: 'Location',
+      title: SimpleTranslations.get(_langCode,'Location'),
       icon: Icons.location_on,
       value: _selectedLocation,
       items: _locations,
@@ -803,7 +1053,7 @@ class _AddStockPageState extends State<AddStockPage> {
 
   Widget _buildvendorDropdown() {
     return _buildDropdownSection(
-      title: 'vendor',
+      title: SimpleTranslations.get(_langCode,'vendor'),
       icon: Icons.local_shipping,
       value: _selectedvendor,
       items: _vendors,
@@ -849,7 +1099,7 @@ class _AddStockPageState extends State<AddStockPage> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Select $title',
+                SimpleTranslations.get(_langCode,'Select $title'),
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -859,14 +1109,14 @@ class _AddStockPageState extends State<AddStockPage> {
           ),
           const SizedBox(height: 12),
           if (isLoading)
-            _buildLoadingIndicator('Loading ${title.toLowerCase()}...')
+            _buildLoadingIndicator(SimpleTranslations.get(_langCode,'Loading ${title.toLowerCase()}...'))
           else if (items.isEmpty)
             _buildEmptyState(title.toLowerCase(), onRefresh)
           else
             DropdownButtonHideUnderline(
               child: DropdownButton<T>(
                 value: value,
-                hint: Text('Choose a ${title.toLowerCase()}'),
+                hint: Text(SimpleTranslations.get(_langCode,'Choose a ${title.toLowerCase()}')),
                 isExpanded: true,
                 items: items.map((item) => DropdownMenuItem<T>(
                   value: item,
@@ -888,7 +1138,7 @@ class _AddStockPageState extends State<AddStockPage> {
                   Icon(Icons.check_circle, color: Colors.green[600], size: 16),
                   const SizedBox(width: 8),
                   Text(
-                    'Selected: ${_getItemDisplayName(value)}',
+                    SimpleTranslations.get(_langCode,'Selected: ${_getItemDisplayName(value)}'),
                     style: TextStyle(color: Colors.green[700], fontSize: 12),
                   ),
                 ],
@@ -898,7 +1148,7 @@ class _AddStockPageState extends State<AddStockPage> {
           const SizedBox(height: 8),
           Row(
             children: [
-              _buildActionButton('Refresh', Icons.refresh, _primaryColor, onRefresh),
+              _buildActionButton(SimpleTranslations.get(_langCode,'Refresh'), Icons.refresh, _primaryColor, onRefresh),
               const Spacer(),
               _buildCountBadge('${items.length} ${title.toLowerCase()}s', _primaryColor),
             ],
@@ -918,7 +1168,8 @@ class _AddStockPageState extends State<AddStockPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                item['location'] ?? item['location_name'] ?? 'Unknown',
+                item['location'] ?? item['location_name'] 
+                ?? SimpleTranslations.get(_langCode,'Unknown'),
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -946,7 +1197,7 @@ class _AddStockPageState extends State<AddStockPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                item['vendor_name'] ?? item['name'] ?? 'Unknown vendor',
+                item['vendor_name'] ?? item['name'] ?? SimpleTranslations.get(_langCode,'Unknown vendor'),
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -967,14 +1218,14 @@ class _AddStockPageState extends State<AddStockPage> {
   Widget _buildProductDropdown() {
     _logDropdown('PRODUCTS', 'BUILD_DROPDOWN', {'count': _products.length});
 
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<Map<String, dynamic>>(
-        value: _selectedProduct != null && _products.any((p) => p['product_id'] == _selectedProduct!['product_id']) 
-            ? _selectedProduct : null,
-        hint: const Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('Select a product'),
-        ),
+  return DropdownButtonHideUnderline(
+  child: DropdownButton<Map<String, dynamic>>(
+    value: _selectedProduct != null && _products.any((p) => p['product_id'] == _selectedProduct!['product_id']) 
+        ? _selectedProduct : null,
+    hint: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Text(SimpleTranslations.get(_langCode, 'select_product')),
+    ),
         isExpanded: true,
         items: _products.map((product) => DropdownMenuItem<Map<String, dynamic>>(
           value: product,
@@ -986,7 +1237,7 @@ class _AddStockPageState extends State<AddStockPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    product['product_name'] ?? 'Unknown Product',
+                    product['product_name'] ?? SimpleTranslations.get(_langCode,'Unknown Product'),
                     style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1001,7 +1252,7 @@ class _AddStockPageState extends State<AddStockPage> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      'Stock: ${product['stock_quantity']}',
+                      SimpleTranslations.get(_langCode,'Stock: ${product['stock_quantity']}'),
                       style: TextStyle(
                         fontSize: 10,
                         color: product['stock_quantity'] > 0 ? Colors.green : Colors.red,
@@ -1024,7 +1275,7 @@ class _AddStockPageState extends State<AddStockPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Expire Date (Optional)', style: TextStyle(fontSize: 12, color: Colors.grey)),
+         Text(SimpleTranslations.get(_langCode,'Expire Date (Optional)'), style: TextStyle(fontSize: 12, color: Colors.grey)),
         const SizedBox(height: 4),
         InkWell(
           onTap: () async {
@@ -1054,7 +1305,7 @@ class _AddStockPageState extends State<AddStockPage> {
                 Text(
                   _selectedExpireDate != null
                     ? '${_selectedExpireDate!.day}/${_selectedExpireDate!.month}/${_selectedExpireDate!.year}'
-                    : 'Select expire date',
+                    : SimpleTranslations.get(_langCode,'Select expire date'),
                   style: TextStyle(color: _selectedExpireDate != null ? Colors.black : Colors.grey[600]),
                 ),
                 Icon(Icons.calendar_today, color: Colors.grey[600]),
@@ -1082,7 +1333,7 @@ class _AddStockPageState extends State<AddStockPage> {
       children: [
         Expanded(
           child: _buildSimpleDropdown(
-            'Currency',
+            SimpleTranslations.get(_langCode,'Currency'),
             _selectedCurrency,
             currencies,
             (currency) => currency['code'] as String,
@@ -1102,7 +1353,7 @@ class _AddStockPageState extends State<AddStockPage> {
               ],
             ),
             (value) {
-              _logDropdown('CURRENCY', 'SELECTED', {'old': _selectedCurrency, 'new': value});
+              _logDropdown('CURRENCY', 'SELECTED', {'old': _selectedCurrency,'new': value});
               setState(() => _selectedCurrency = value);
             },
           ),
@@ -1110,7 +1361,7 @@ class _AddStockPageState extends State<AddStockPage> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildSimpleDropdown(
-            'Status',
+            SimpleTranslations.get(_langCode,'Status'),
             _selectedStatus,
             statuses,
             (status) => status['value'] as String,
@@ -1182,27 +1433,27 @@ class _AddStockPageState extends State<AddStockPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: _isSubmitting
-          ? const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation(Colors.white),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Text('Adding stock...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            )
-          : const Row(
+          ?  Row(
+  mainAxisAlignment: MainAxisAlignment.center,
+  children: [
+    const SizedBox(
+      width: 20,
+      height: 20,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        valueColor: AlwaysStoppedAnimation(Colors.white),
+      ),
+    ),
+    const SizedBox(width: 12),
+    Text(SimpleTranslations.get(_langCode, 'adding_stock'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+  ],
+)
+          :  Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.add_shopping_cart, size: 24),
                 SizedBox(width: 8),
-                Text('Add Stock', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(SimpleTranslations.get(_langCode, 'Add Stock'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
       ),
@@ -1239,22 +1490,22 @@ class _AddStockPageState extends State<AddStockPage> {
               borderRadius: BorderRadius.circular(50),
             ),
             child: Icon(
-              type == 'products' ? Icons.inventory_2_outlined : 
-              type == 'locations' ? Icons.location_off : Icons.local_shipping,
+              type ==  'products' ? Icons.inventory_2_outlined : 
+              type ==  'locations' ? Icons.location_off : Icons.local_shipping,
               size: 48, 
               color: Colors.grey[400]
             ),
           ),
           const SizedBox(height: 16),
           Text(
-            'No $type available',
+            SimpleTranslations.get(_langCode, 'No $type available'),
             style: TextStyle(fontSize: 16, color: Colors.grey[700], fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh, size: 20),
-            label: Text('Load ${type[0].toUpperCase()}${type.substring(1)}'),
+            label: Text(SimpleTranslations.get(_langCode, 'Load ${type[0].toUpperCase()}${type.substring(1)}')),
             style: ElevatedButton.styleFrom(
               backgroundColor: _primaryColor,
               foregroundColor: Colors.white,
@@ -1325,28 +1576,28 @@ class _AddStockPageState extends State<AddStockPage> {
   String _getItemDisplayName(dynamic item) {
     if (item is Map<String, dynamic>) {
       return item['location'] ?? item['location_name'] ?? 
-             item['vendor_name'] ?? item['name'] ?? 'Unknown';
+             item[ 'vendor_name'] ?? item['name'] ??  'Unknown';
     }
-    return 'Unknown';
+    return SimpleTranslations.get(_langCode, 'Unknown');
   }
 }
 
-// Barcode Scanner Page
-class BarcodeScannerPage extends StatefulWidget {
+// barcode Scanner Page
+class barcodeScannerPage extends StatefulWidget {
   final String langCode;
   final Color primaryColor;
 
-  const BarcodeScannerPage({
+  const barcodeScannerPage({
     super.key,
     required this.langCode,
     required this.primaryColor,
   });
 
   @override
-  State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
+  State<barcodeScannerPage> createState() => _barcodeScannerPageState();
 }
 
-class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
+class _barcodeScannerPageState extends State<barcodeScannerPage> {
   late MobileScannerController _controller;
   bool _isScanned = false;
 
@@ -1419,31 +1670,30 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   }
 
   Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.camera_alt_outlined, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            'Camera Error',
-            style: TextStyle(color: Colors.grey[400], fontSize: 16),
-            textAlign: TextAlign.center,
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.camera_alt_outlined, size: 64, color: Colors.grey[400]),
+        const SizedBox(height: 16),
+        Text(
+          SimpleTranslations.get(widget.langCode, 'camera_error'),  // Changed to widget.langCode and fixed key
+          style: TextStyle(color: Colors.grey[400], fontSize: 16),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: widget.primaryColor,
+            foregroundColor: Colors.white,
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
+          child: Text(SimpleTranslations.get(widget.langCode, 'close')),  // Fixed hardcoded text
+        ),
+      ],
+    ),
+  );
+}
   Widget _buildSuccessIndicator() {
     return Center(
       child: Container(
@@ -1452,13 +1702,13 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
           color: Colors.green.withOpacity(0.9),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Row(
+        child:  Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.check_circle, color: Colors.white),
             SizedBox(width: 8),
             Text(
-              'Barcode Detected',
+              SimpleTranslations.get(widget.langCode,'barcode Detected'),
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ],
@@ -1482,8 +1732,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
         children: [
           Icon(Icons.qr_code_scanner, size: 48, color: widget.primaryColor),
           const SizedBox(height: 16),
-          const Text(
-            'Position the barcode within the scanning area',
+           Text(
+            SimpleTranslations.get(widget.langCode,'Position the barcode within the scanning area'),
             style: TextStyle(
               color: Colors.white,
               fontSize: 16,
@@ -1501,7 +1751,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: const Text('Cancel', style: TextStyle(fontSize: 16)),
+              child:  Text(SimpleTranslations.get(widget.langCode,'Cancel'), style: TextStyle(fontSize: 16)),
             ),
           ),
         ],

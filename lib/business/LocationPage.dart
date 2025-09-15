@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'LocationAddPage.dart';
@@ -32,6 +33,7 @@ class _LocationPageState extends State<LocationPage> {
     super.initState();
     print('🚀 DEBUG: LocationPage initState() called');
     debugPrint('Language code: $langCode');
+    debugPrint('Running on web: ${kIsWeb}');
 
     _loadLangCode();
     _loadCurrentTheme();
@@ -257,6 +259,8 @@ class _LocationPageState extends State<LocationPage> {
           width: 50,
           height: 50,
           fit: BoxFit.cover,
+          // Web-specific configurations
+          headers: kIsWeb ? null : {}, // Headers for web requests if needed
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) {
               print('🖼️ DEBUG: Image loaded successfully for ${location.locationName}');
@@ -290,6 +294,14 @@ class _LocationPageState extends State<LocationPage> {
   Widget build(BuildContext context) {
     print('🎨 DEBUG: Building LocationPage widget');
     print('📊 DEBUG: Current state - loading: $loading, error: $error, locations: ${locations.length}');
+    
+    // Get responsive dimensions
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+    final horizontalPadding = isWideScreen ? 32.0 : 16.0;
+    final cardMargin = isWideScreen ? 
+        EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8) :
+        EdgeInsets.symmetric(horizontal: 16, vertical: 8);
     
     if (loading) {
       print('⏳ DEBUG: Showing loading indicator');
@@ -325,39 +337,42 @@ class _LocationPageState extends State<LocationPage> {
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         ),
         body: Center(
-          child: Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 64, color: Colors.red),
-                SizedBox(height: 16),
-                Text(
-                  'Error Loading Locations',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  error!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
+          child: Container(
+            constraints: BoxConstraints(maxWidth: isWideScreen ? 600 : double.infinity),
+            child: Padding(
+              padding: EdgeInsets.all(horizontalPadding),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  SizedBox(height: 16),
+                  Text(
+                    'Error Loading Locations',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                ),
-                SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    print('🔄 DEBUG: Retry button pressed');
-                    fetchLocations();
-                  },
-                  icon: Icon(Icons.refresh),
-                  label: Text('Retry'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                    foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                  SizedBox(height: 8),
+                  Text(
+                    error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: ThemeConfig.getThemeColors(currentTheme)['error'] ?? Colors.red,
+                    ),
                   ),
-                ),
-              ],
+                  SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      print('🔄 DEBUG: Retry button pressed');
+                      fetchLocations();
+                    },
+                    icon: Icon(Icons.refresh),
+                    label: Text('Retry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                      foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -383,27 +398,37 @@ class _LocationPageState extends State<LocationPage> {
           ],
         ),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.location_on_outlined, size: 80, color: Colors.grey),
-              SizedBox(height: 16),
-              Text(
-                'No Locations found',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-              SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _onAddLocation,
-                icon: Icon(Icons.add),
-                label: Text('Add First Location'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                  foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+          child: Container(
+            constraints: BoxConstraints(maxWidth: isWideScreen ? 600 : double.infinity),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.location_on_outlined, size: 80, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'No Locations found',
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
                 ),
-              ),
-            ],
+                SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _onAddLocation,
+                  icon: Icon(Icons.add),
+                  label: Text('Add First Location'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                    foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                  ),
+                ),
+              ],
+            ),
           ),
+        ),
+        floatingActionButton: isWideScreen ? null : FloatingActionButton(
+          onPressed: _onAddLocation,
+          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+          foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+          tooltip: SimpleTranslations.get(langCode, 'add_Location'),
+          child: const Icon(Icons.add),
         ),
       );
     }
@@ -416,6 +441,14 @@ class _LocationPageState extends State<LocationPage> {
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         actions: [
+          if (isWideScreen) ...[
+            // Add button in app bar for wide screens
+            IconButton(
+              onPressed: _onAddLocation,
+              icon: const Icon(Icons.add),
+              tooltip: SimpleTranslations.get(langCode, 'add_Location'),
+            ),
+          ],
           IconButton(
             onPressed: () {
               print('🔄 DEBUG: Refresh button pressed from app bar');
@@ -426,129 +459,79 @@ class _LocationPageState extends State<LocationPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: SimpleTranslations.get(langCode, 'search'),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        onPressed: () {
-                          print('🧹 DEBUG: Clear search button pressed');
-                          _searchController.clear();
-                        },
-                        icon: Icon(Icons.clear),
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                    width: 2,
+      body: Center(
+        child: Container(
+          constraints: BoxConstraints(maxWidth: isWideScreen ? 1200 : double.infinity),
+          child: Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    labelText: SimpleTranslations.get(langCode, 'search'),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: ThemeConfig.getPrimaryColor(currentTheme),
+                    ),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            onPressed: () {
+                              print('🧹 DEBUG: Clear search button pressed');
+                              _searchController.clear();
+                            },
+                            icon: Icon(Icons.clear),
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: ThemeConfig.getPrimaryColor(currentTheme),
+                        width: 2,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-          Expanded(
-            child: filteredLocations.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.search_off, size: 80, color: Colors.grey),
-                        const SizedBox(height: 16),
-                        Text(
-                          _searchController.text.isNotEmpty
-                              ? 'No Locations match your search'
-                              : 'No Locations found',
-                          style: const TextStyle(fontSize: 18, color: Colors.grey),
-                        ),
-                        if (_searchController.text.isNotEmpty) ...[
-                          SizedBox(height: 8),
-                          Text(
-                            'Try a different search term',
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: fetchLocations,
-                    child: ListView.builder(
-                      itemCount: filteredLocations.length,
-                      itemBuilder: (ctx, i) {
-                        final location = filteredLocations[i];
-                        print('🏗️ DEBUG: Building list item for location: ${location.locationName}');
-
-                        return Card(
-                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          elevation: 2,
-                          child: ListTile(
-                            leading: _buildLocationImage(location),
-                            title: Text(
-                              location.locationName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+              Expanded(
+                child: filteredLocations.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.search_off, size: 80, color: Colors.grey),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchController.text.isNotEmpty
+                                  ? 'No Locations match your search'
+                                  : 'No Locations found',
+                              style: const TextStyle(fontSize: 18, color: Colors.grey),
+                            ),
+                            if (_searchController.text.isNotEmpty) ...[
+                              SizedBox(height: 8),
+                              Text(
+                                'Try a different search term',
+                                style: TextStyle(color: Colors.grey[600]),
                               ),
-                            ),
-                            subtitle: Text(
-                              'Company ID: ${location.companyId}',
-                              style: TextStyle(fontSize: 13),
-                            ),
-                            trailing: Icon(
-                              Icons.edit,
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                            ),
-                            onTap: () async {
-                              print('👆 DEBUG: Location tapped: ${location.locationName}');
-                              
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => LocationEditPage(
-                                    LocationData: location.toJson(),
-                                  ),
-                                ),
-                              );
-
-                              print('📝 DEBUG: Edit Location result: $result');
-                              if (result == true || result == 'deleted') {
-                                print('🔄 DEBUG: Location operation completed, refreshing list...');
-                                fetchLocations();
-                                
-                                if (result == 'deleted') {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Location removed from list'),
-                                      backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: fetchLocations,
+                        child: isWideScreen
+                            ? _buildGridView(cardMargin)
+                            : _buildListView(cardMargin),
+                      ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: isWideScreen ? null : FloatingActionButton(
         onPressed: _onAddLocation,
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
@@ -556,6 +539,141 @@ class _LocationPageState extends State<LocationPage> {
         child: const Icon(Icons.add),
       ),
     );
+  }
+
+  Widget _buildListView(EdgeInsets cardMargin) {
+    return ListView.builder(
+      itemCount: filteredLocations.length,
+      itemBuilder: (ctx, i) {
+        final location = filteredLocations[i];
+        print('🏗️ DEBUG: Building list item for location: ${location.locationName}');
+
+        return Card(
+          margin: cardMargin,
+          elevation: 2,
+          child: ListTile(
+            leading: _buildLocationImage(location),
+            title: Text(
+              location.locationName,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            subtitle: _buildLocationSubtitle(location),
+            trailing: Icon(
+              Icons.edit,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+            onTap: () => _navigateToEdit(location),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGridView(EdgeInsets cardMargin) {
+    return GridView.builder(
+      padding: EdgeInsets.symmetric(horizontal: cardMargin.horizontal / 2),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: MediaQuery.of(context).size.width > 900 ? 3 : 2,
+        childAspectRatio: 3.5,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: filteredLocations.length,
+      itemBuilder: (ctx, i) {
+        final location = filteredLocations[i];
+        print('🏗️ DEBUG: Building grid item for location: ${location.locationName}');
+
+        return Card(
+          elevation: 2,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => _navigateToEdit(location),
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  _buildLocationImage(location),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          location.locationName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 4),
+                        _buildLocationSubtitle(location, compact: true),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.edit,
+                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLocationSubtitle(IoLocation location, {bool compact = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Company ID: ${location.companyId}',
+          style: TextStyle(
+            fontSize: compact ? 11 : 13,
+            color: Colors.grey[600],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  void _navigateToEdit(IoLocation location) async {
+    print('👆 DEBUG: Location tapped: ${location.locationName}');
+    
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationEditPage(
+          LocationData: location.toJson(),
+        ),
+      ),
+    );
+
+    print('📝 DEBUG: Edit Location result: $result');
+    if (result == true || result == 'deleted') {
+      print('🔄 DEBUG: Location operation completed, refreshing list...');
+      fetchLocations();
+      
+      if (result == 'deleted') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Location removed from list'),
+            backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 }
 
