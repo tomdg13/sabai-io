@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../utils/simple_translations.dart';
 
 class ListDetailPage extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -26,6 +27,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   bool _isGeneratingPDF = false;
   bool _isGeneratingExcel = false;
   String currentTheme = ThemeConfig.defaultTheme;
+  String _langCode = 'en';
   List<Map<String, dynamic>> terminalDetails = [];
 
   // Oxford Blue color palette
@@ -51,6 +53,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      _langCode = prefs.getString('languageCode') ?? 'en';
     });
   }
 
@@ -62,7 +65,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
   // Utility Methods
   String _formatExpireDate(dynamic date) {
-    if (date == null) return 'N/A';
+    if (date == null) return SimpleTranslations.get(_langCode, 'n_a');
     
     DateTime? dateTime;
     if (date is DateTime) {
@@ -74,7 +77,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
         return date.toString();
       }
     } else {
-      return 'N/A';
+      return SimpleTranslations.get(_langCode, 'n_a');
     }
     
     const List<String> months = [
@@ -90,10 +93,10 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 
   String _getExpiryStatus(Terminal terminal) {
-    if (terminal.expireDate == null) return 'No Expiry';
-    if (terminal.isExpired) return 'Expired';
-    if (terminal.isExpiringSoon) return 'Expiring Soon';
-    return 'Valid';
+    if (terminal.expireDate == null) return SimpleTranslations.get(_langCode, 'no_expiry');
+    if (terminal.isExpired) return SimpleTranslations.get(_langCode, 'expired');
+    if (terminal.isExpiringSoon) return SimpleTranslations.get(_langCode, 'expiring_soon');
+    return SimpleTranslations.get(_langCode, 'valid');
   }
 
   Color _getExpiryStatusColor(Terminal terminal) {
@@ -119,14 +122,14 @@ class _ListDetailPageState extends State<ListDetailPage> {
     );
   }
 
-  // PDF Generation
+  // PDF Generation with Lao Font Support
   Future<void> _generatePDF() async {
     setState(() => _isGeneratingPDF = true);
     try {
       final pdf = await _createPDFReport();
       await _showPDFPreview(pdf);
     } catch (e) {
-      _showMessage('Failed to generate PDF: $e', MessageType.error);
+      _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_generate_pdf')}: $e', MessageType.error);
     } finally {
       setState(() => _isGeneratingPDF = false);
     }
@@ -137,29 +140,37 @@ class _ListDetailPageState extends State<ListDetailPage> {
     final font = await PdfGoogleFonts.notoSansRegular();
     final fontBold = await PdfGoogleFonts.notoSansBold();
     
+    // Load Lao font
+    final fontData = await rootBundle.load('assets/fonts/Phetsarath-Regular.ttf');
+    final laoFont = pw.Font.ttf(fontData);
+    
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(20),
-        build: (context) => _buildPDFContent(font, fontBold),
+        build: (context) => _buildPDFContent(font, fontBold, laoFont),
       ),
     );
     
     return pdf;
   }
 
-  List<pw.Widget> _buildPDFContent(pw.Font font, pw.Font fontBold) {
+  List<pw.Widget> _buildPDFContent(pw.Font font, pw.Font fontBold, pw.Font laoFont) {
+    // Choose appropriate font based on language
+    final currentFont = _langCode == 'lo' ? laoFont : font;
+    final currentFontBold = _langCode == 'lo' ? laoFont : fontBold;
+    
     return [
-      _buildPDFHeader(fontBold),
+      _buildPDFHeader(currentFontBold),
       pw.SizedBox(height: 20),
       if (terminalDetails.isNotEmpty) ...[
-        _buildPDFSummarySection(font, fontBold),
+        _buildPDFSummarySection(currentFont, currentFontBold),
         pw.SizedBox(height: 20),
-        _buildPDFTerminalSection(font, fontBold, terminalDetails),
+        _buildPDFTerminalSection(currentFont, currentFontBold, terminalDetails),
       ] else ...[
-        _buildPDFTerminalSection(font, fontBold, null),
+        _buildPDFTerminalSection(currentFont, currentFontBold, null),
       ],
-      _buildPDFSignatureSection(font, fontBold),
+      _buildPDFSignatureSection(currentFont, currentFontBold),
     ];
   }
 
@@ -173,13 +184,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
-            'TERMINAL REGISTRATION FORM REPORT',
+            SimpleTranslations.get(_langCode, 'terminal_registration_form_report').toUpperCase(),
             style: pw.TextStyle(font: fontBold, fontSize: 24, color: oxfordBlue),
           ),
           pw.SizedBox(height: 8),
           pw.Text(
-            'Generated: ${DateTime.now().toString().substring(0, 19)}',
-            style: pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
+            '${SimpleTranslations.get(_langCode, 'generated')}: ${DateTime.now().toString().substring(0, 19)}',
+            style: pw.TextStyle(font: fontBold, fontSize: 12, color: PdfColors.grey600),
           ),
         ],
       ),
@@ -202,34 +213,31 @@ class _ListDetailPageState extends State<ListDetailPage> {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
-            'Organization Hierarchy Summary',
+            SimpleTranslations.get(_langCode, 'organization_hierarchy_summary'),
             style: pw.TextStyle(font: fontBold, fontSize: 16, color: oxfordBlue800),
           ),
           pw.SizedBox(height: 12),
-             _buildPDFInfoBlock('Group Information', [
-            _buildPDFDetailRow('Code:', first['group_code'] ?? 'N/A', font, fontBold),
-            _buildPDFDetailRow('Name:', first['group_name'] ?? 'N/A', font, fontBold),
-            // _buildPDFDetailRow('Phone:', first['group_phone'] ?? 'N/A', font, fontBold),
-            _buildPDFDetailRow('Mobile:', first['mobile'] ?? 'N/A', font, fontBold),
+          _buildPDFInfoBlock(SimpleTranslations.get(_langCode, 'group_information'), [
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'code')}:', first['group_code'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'name')}:', first['group_name'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'mobile')}:', first['mobile'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
           ], font, fontBold),
           pw.SizedBox(height: 12),
-          _buildPDFInfoBlock('Merchant Information', [
-            _buildPDFDetailRow('Code:', first['merchant_code'] ?? 'N/A', font, fontBold),
-            _buildPDFDetailRow('Name:', first['merchant_name'] ?? 'N/A', font, fontBold),
-            // _buildPDFDetailRow('Phone:', first['merchant_phone'] ?? 'N/A', font, fontBold),
+          _buildPDFInfoBlock(SimpleTranslations.get(_langCode, 'merchant_information'), [
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'code')}:', first['merchant_code'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'name')}:', first['merchant_name'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
           ], font, fontBold),
           pw.SizedBox(height: 12),
-          _buildPDFInfoBlock('Store Information', [
-            _buildPDFDetailRow('Code:', first['store_code'] ?? 'N/A', font, fontBold),
-            _buildPDFDetailRow('Name:', first['store_name'] ?? 'N/A', font, fontBold),
-            _buildPDFDetailRow('Manager:', first['store_manager'] ?? 'N/A', font, fontBold),
-            _buildPDFDetailRow('Email:', first['store_email'] ?? 'N/A', font, fontBold),
-            // _buildPDFDetailRow('Phone:', first['store_phone'] ?? 'N/A', font, fontBold),
-            _buildPDFDetailRow('UPI %:', first['upi_percentage'] ?? '0.00', font, fontBold),
-            _buildPDFDetailRow('Visa %:', first['visa_percentage'] ?? '0.00', font, fontBold),
-            _buildPDFDetailRow('Master %:', first['master_percentage'] ?? '0.00', font, fontBold),
-            _buildPDFDetailRow('Account Name:', first['store_type'] ?? 'N/A', font, fontBold),
-            _buildPDFDetailRow('Account No:', first['store_account'] ?? 'N/A', font, fontBold),
+          _buildPDFInfoBlock(SimpleTranslations.get(_langCode, 'store_information'), [
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'code')}:', first['store_code'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'name')}:', first['store_name'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'store_manager')}:', first['store_manager'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'store_email')}:', first['store_email'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'upi_percentage')}:', first['upi_percentage'] ?? '0.00', font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'visa_percentage')}:', first['visa_percentage'] ?? '0.00', font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'master_percentage')}:', first['master_percentage'] ?? '0.00', font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'account_name')}:', first['store_type'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'account_no')}:', first['store_account'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
           ], font, fontBold),
         ],
       ),
@@ -277,7 +285,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                'Registered Terminals',
+                SimpleTranslations.get(_langCode, 'registered_terminals'),
                 style: pw.TextStyle(font: fontBold, fontSize: 16, color: PdfColors.white),
               ),
               pw.Container(
@@ -287,7 +295,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   borderRadius: pw.BorderRadius.circular(12),
                 ),
                 child: pw.Text(
-                  '$count items',
+                  '$count ${SimpleTranslations.get(_langCode, 'items')}',
                   style: pw.TextStyle(font: fontBold, fontSize: 12, color: oxfordBlue800),
                 ),
               ),
@@ -317,23 +325,23 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 decoration: const pw.BoxDecoration(color: PdfColors.grey100),
                 children: [
                   _buildTableHeaderCell('#', fontBold),
-                  _buildTableHeaderCell('Terminal Name', fontBold),
-                  _buildTableHeaderCell('Code', fontBold),
-                  _buildTableHeaderCell('Serial Number', fontBold),
-                  _buildTableHeaderCell('SIM Number', fontBold),
-                  _buildTableHeaderCell('Expire Date', fontBold),
+                  _buildTableHeaderCell(SimpleTranslations.get(_langCode, 'terminal_name'), fontBold),
+                  _buildTableHeaderCell(SimpleTranslations.get(_langCode, 'code'), fontBold),
+                  _buildTableHeaderCell(SimpleTranslations.get(_langCode, 'serial_number'), fontBold),
+                  _buildTableHeaderCell(SimpleTranslations.get(_langCode, 'sim_number'), fontBold),
+                  _buildTableHeaderCell(SimpleTranslations.get(_langCode, 'expire_date'), fontBold),
                 ],
               ),
               ...List.generate(count, (index) {
                 if (details != null) {
                   final terminal = details[index];
-                  return _buildTableRow(index, terminal['terminal_name'] ?? 'N/A',
-                      terminal['terminal_code'] ?? 'N/A', terminal['serial_number'] ?? 'N/A',
-                      terminal['sim_number'] ?? 'N/A', terminal['expire_date'] ?? 'N/A', font);
+                  return _buildTableRow(index, terminal['terminal_name'] ?? SimpleTranslations.get(_langCode, 'n_a'),
+                      terminal['terminal_code'] ?? SimpleTranslations.get(_langCode, 'n_a'), terminal['serial_number'] ?? SimpleTranslations.get(_langCode, 'n_a'),
+                      terminal['sim_number'] ?? SimpleTranslations.get(_langCode, 'n_a'), terminal['expire_date'] ?? SimpleTranslations.get(_langCode, 'n_a'), font);
                 } else {
                   final terminal = widget.selectedTerminals[index];
-                  return _buildTableRow(index, terminal.terminalName, terminal.terminalCode ?? 'N/A',
-                      terminal.serialNumber ?? 'N/A', terminal.simNumber ?? 'N/A',
+                  return _buildTableRow(index, terminal.terminalName, terminal.terminalCode ?? SimpleTranslations.get(_langCode, 'n_a'),
+                      terminal.serialNumber ?? SimpleTranslations.get(_langCode, 'n_a'), terminal.simNumber ?? SimpleTranslations.get(_langCode, 'n_a'),
                       _formatExpireDate(terminal.expireDate), font);
                 }
               }),
@@ -355,11 +363,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text(
-                  'Total Terminals Registered: $count',
+                  '${SimpleTranslations.get(_langCode, 'total_terminals_registered')}: $count',
                   style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColors.grey700),
                 ),
                 pw.Text(
-                  'Report Generated: ${DateTime.now().toString().substring(0, 16)}',
+                  '${SimpleTranslations.get(_langCode, 'report_generated')}: ${DateTime.now().toString().substring(0, 16)}',
                   style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey600),
                 ),
               ],
@@ -425,7 +433,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     PdfColor textColor = PdfColors.grey700;
     PdfColor? backgroundColor;
     
-    if (isCode && text != 'N/A') {
+    if (isCode && text != SimpleTranslations.get(_langCode, 'n_a')) {
       textColor = oxfordBlue700;
       backgroundColor = oxfordBlue50;
     }
@@ -461,9 +469,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          _buildPDFSignatureBlock('APPROVED BY', font, fontBold),
+          _buildPDFSignatureBlock(SimpleTranslations.get(_langCode, 'approved_by'), font, fontBold),
           pw.SizedBox(width: 20),
-          _buildPDFSignatureBlock('CREATED BY', font, fontBold),
+          _buildPDFSignatureBlock(SimpleTranslations.get(_langCode, 'created_by'), font, fontBold),
         ],
       ),
     );
@@ -489,7 +497,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
               ),
             ),
             pw.SizedBox(height: 8),
-            pw.Text('Signature', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
+            pw.Text(SimpleTranslations.get(_langCode, 'signature'), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
             pw.SizedBox(height: 16),
             pw.Container(
               height: 1,
@@ -498,7 +506,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
               ),
             ),
             pw.SizedBox(height: 4),
-            pw.Text('Name', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
+            pw.Text(SimpleTranslations.get(_langCode, 'name'), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
             pw.SizedBox(height: 16),
             pw.Container(
               height: 1,
@@ -507,7 +515,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
               ),
             ),
             pw.SizedBox(height: 4),
-            pw.Text('Date', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
+            pw.Text(SimpleTranslations.get(_langCode, 'date'), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
           ],
         ),
       ),
@@ -531,9 +539,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
         selectedTerminals: widget.selectedTerminals,
       );
       await ExcelService.downloadExcelFile(excelFile);
-      _showMessage('Excel file downloaded successfully', MessageType.success);
+      _showMessage(SimpleTranslations.get(_langCode, 'excel_file_downloaded_successfully'), MessageType.success);
     } catch (e) {
-      _showMessage('Failed to generate Excel: $e', MessageType.error);
+      _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_generate_excel')}: $e', MessageType.error);
     } finally {
       setState(() => _isGeneratingExcel = false);
     }
@@ -590,7 +598,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Terminal Registration Complete',
+                      SimpleTranslations.get(_langCode, 'terminal_registration_complete'),
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -601,7 +609,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      widget.data['message'] ?? 'Registration completed successfully',
+                      widget.data['message'] ?? SimpleTranslations.get(_langCode, 'registration_completed_successfully'),
                       style: TextStyle(
                         fontSize: 14,
                         color: const Color(0xFF001A35),
@@ -626,7 +634,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 Icon(Icons.terminal, color: const Color(0xFF002147), size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  'Registered ${terminalDetails.isNotEmpty ? terminalDetails.length : widget.selectedTerminals.length} terminals',
+                  '${SimpleTranslations.get(_langCode, 'registered_terminals')} ${terminalDetails.isNotEmpty ? terminalDetails.length : widget.selectedTerminals.length}',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -673,7 +681,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                     )
                   : const Icon(Icons.picture_as_pdf, size: 22),
                 label: Text(
-                  _isGeneratingPDF ? 'Generating...' : 'PDF Report',
+                  _isGeneratingPDF ? SimpleTranslations.get(_langCode, 'generating') : SimpleTranslations.get(_langCode, 'pdf_report'),
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -707,7 +715,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                     )
                   : const Icon(Icons.table_chart, size: 22),
                 label: Text(
-                  _isGeneratingExcel ? 'Generating...' : 'Excel Export',
+                  _isGeneratingExcel ? SimpleTranslations.get(_langCode, 'generating') : SimpleTranslations.get(_langCode, 'excel_export'),
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -778,7 +786,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Registered Terminals',
+                    SimpleTranslations.get(_langCode, 'registered_terminals'),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -844,7 +852,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      terminal['terminal_name'] ?? 'Unknown',
+                      terminal['terminal_name'] ?? SimpleTranslations.get(_langCode, 'unknown'),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -853,7 +861,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    _buildCodeBadge(terminal['terminal_code'] ?? 'No Code'),
+                    _buildCodeBadge(terminal['terminal_code'] ?? SimpleTranslations.get(_langCode, 'no_code')),
                   ],
                 ),
               ),
@@ -861,10 +869,10 @@ class _ListDetailPageState extends State<ListDetailPage> {
           ),
           const SizedBox(height: 12),
           _buildTerminalDetails([
-            if (terminal['hierarchy_path'] != null) ('Path', terminal['hierarchy_path']),
-            if (terminal['serial_number'] != null) ('Serial', terminal['serial_number']),
-            if (terminal['sim_number'] != null) ('SIM', terminal['sim_number']),
-            if (terminal['expire_date'] != null) ('Expires', _formatExpireDate(terminal['expire_date'])),
+            if (terminal['hierarchy_path'] != null) (SimpleTranslations.get(_langCode, 'path'), terminal['hierarchy_path']),
+            if (terminal['serial_number'] != null) (SimpleTranslations.get(_langCode, 'serial'), terminal['serial_number']),
+            if (terminal['sim_number'] != null) (SimpleTranslations.get(_langCode, 'sim'), terminal['sim_number']),
+            if (terminal['expire_date'] != null) (SimpleTranslations.get(_langCode, 'expires'), _formatExpireDate(terminal['expire_date'])),
           ]),
         ],
       ),
@@ -904,9 +912,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
             children: [
               if (terminal.terminalCode != null) _buildCodeBadge(terminal.terminalCode!),
               if (terminal.serialNumber?.isNotEmpty == true) 
-                _buildDetailText('Serial: ${terminal.serialNumber}'),
+                _buildDetailText('${SimpleTranslations.get(_langCode, 'serial')}: ${terminal.serialNumber}'),
               if (terminal.simNumber?.isNotEmpty == true) 
-                _buildDetailText('SIM: ${terminal.simNumber}'),
+                _buildDetailText('${SimpleTranslations.get(_langCode, 'sim')}: ${terminal.simNumber}'),
               if (terminal.expireDate != null) 
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -1041,7 +1049,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
         ),
         const SizedBox(width: 4),
         Text(
-          'Expires: ${_formatExpireDate(terminal.expireDate)} ($status)',
+          '${SimpleTranslations.get(_langCode, 'expires')}: ${_formatExpireDate(terminal.expireDate)} ($status)',
           style: TextStyle(color: color, fontWeight: FontWeight.w500),
         ),
       ],
@@ -1079,7 +1087,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Signatures',
+                    SimpleTranslations.get(_langCode, 'signatures'),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -1091,9 +1099,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  Expanded(child: _buildSignatureBlock('CREATED BY')),
+                  Expanded(child: _buildSignatureBlock(SimpleTranslations.get(_langCode, 'created_by'))),
                   const SizedBox(width: 16),
-                  Expanded(child: _buildSignatureBlock('APPROVED BY')),
+                  Expanded(child: _buildSignatureBlock(SimpleTranslations.get(_langCode, 'approved_by'))),
                 ],
               ),
             ],
@@ -1142,11 +1150,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildSignatureField('Signature', height: 80),
+          _buildSignatureField(SimpleTranslations.get(_langCode, 'signature'), height: 80),
           const SizedBox(height: 12),
-          _buildSignatureField('Name'),
+          _buildSignatureField(SimpleTranslations.get(_langCode, 'name')),
           const SizedBox(height: 8),
-          _buildSignatureField('Date'),
+          _buildSignatureField(SimpleTranslations.get(_langCode, 'date')),
         ],
       ),
     );
@@ -1189,7 +1197,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Register Form for Terminal'),
+        title: Text(SimpleTranslations.get(_langCode, 'register_form_for_terminal')),
         backgroundColor: const Color(0xFF002147),
         foregroundColor: Colors.white,
       ),

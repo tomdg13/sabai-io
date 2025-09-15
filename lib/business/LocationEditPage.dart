@@ -29,6 +29,7 @@ class _LocationEditPageState extends State<LocationEditPage> with TickerProvider
   String? _currentImageUrl;
   File? _imageFile; // For mobile
   Uint8List? _webImageBytes; // For web
+  // ignore: unused_field
   String? _webImageName; // For web
   bool _isLoading = false;
   bool _isDeleting = false;

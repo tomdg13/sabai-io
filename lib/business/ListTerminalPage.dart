@@ -7,6 +7,7 @@ import 'package:inventory/config/theme.dart';
 import 'package:inventory/models/terminal_models.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/simple_translations.dart';
 
 class ListterminalPage extends StatefulWidget {
   const ListterminalPage({Key? key}) : super(key: key);
@@ -18,16 +19,13 @@ class ListterminalPage extends StatefulWidget {
 class _ListterminalPageState extends State<ListterminalPage> 
     with TickerProviderStateMixin {
   
-  // Controllers
-  final _formKey = GlobalKey<FormState>();
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   
-  // State
   bool _isLoading = false;
   String currentTheme = ThemeConfig.defaultTheme;
+  String _langCode = 'en';
   
-  // Data
   List<Group> _groups = [];
   Group? _selectedGroup;
   bool _isLoadingGroups = false;
@@ -44,11 +42,9 @@ class _ListterminalPageState extends State<ListterminalPage>
   List<Terminal> _selectedTerminals = [];
   bool _isLoadingTerminals = false;
 
-  // Table sorting (for web view)
   int _sortColumnIndex = 0;
   bool _isAscending = true;
 
-  // Check if device is mobile
   bool get isMobile => MediaQuery.of(context).size.width < 768;
 
   @override
@@ -63,7 +59,6 @@ class _ListterminalPageState extends State<ListterminalPage>
     super.dispose();
   }
 
-  // Initialization
   void _initializeApp() {
     _loadCurrentTheme();
     _setupAnimations();
@@ -85,10 +80,10 @@ class _ListterminalPageState extends State<ListterminalPage>
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      _langCode = prefs.getString('languageCode') ?? 'en';
     });
   }
 
-  // API Helpers
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
@@ -117,7 +112,6 @@ class _ListterminalPageState extends State<ListterminalPage>
     throw Exception('Failed to load data: ${response.statusCode}');
   }
 
-  // Data Loading Methods (same as before)
   Future<void> _loadGroups() async {
     setState(() => _isLoadingGroups = true);
     
@@ -132,7 +126,7 @@ class _ListterminalPageState extends State<ListterminalPage>
       
       setState(() => _groups = groups);
     } catch (e) {
-      _showMessage('Failed to load groups: $e', detail.MessageType.error);
+      _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_load_groups')}: $e', detail.MessageType.error);
     } finally {
       setState(() => _isLoadingGroups = false);
     }
@@ -154,7 +148,7 @@ class _ListterminalPageState extends State<ListterminalPage>
       
       setState(() => _merchants = merchants);
     } catch (e) {
-      _showMessage('Failed to load merchants: $e', detail.MessageType.error);
+      _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_load_merchants')}: $e', detail.MessageType.error);
       setState(() => _merchants = []);
     } finally {
       setState(() => _isLoadingMerchants = false);
@@ -177,7 +171,7 @@ class _ListterminalPageState extends State<ListterminalPage>
       
       setState(() => _stores = stores);
     } catch (e) {
-      _showMessage('Failed to load stores: $e', detail.MessageType.error);
+      _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_load_stores')}: $e', detail.MessageType.error);
       setState(() => _stores = []);
     } finally {
       setState(() => _isLoadingStores = false);
@@ -200,17 +194,16 @@ class _ListterminalPageState extends State<ListterminalPage>
       
       setState(() => _terminals = terminals);
     } catch (e) {
-      _showMessage('Failed to load terminals: $e', detail.MessageType.error);
+      _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_load_terminals')}: $e', detail.MessageType.error);
       setState(() => _terminals = []);
     } finally {
       setState(() => _isLoadingTerminals = false);
     }
   }
 
-  // Bulk Terminal Operations (same as before)
   Future<void> _createBulkTerminals() async {
     if (_selectedTerminals.isEmpty) {
-      _showMessage('Please select at least one terminal', detail.MessageType.warning);
+      _showMessage(SimpleTranslations.get(_langCode, 'please_select_at_least_one_terminal'), detail.MessageType.warning);
       return;
     }
 
@@ -232,7 +225,7 @@ class _ListterminalPageState extends State<ListterminalPage>
     }
   }
 
-Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
+  Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
     final headers = await _getHeaders();
     final apiUrl = AppConfig.api('/api/ioterminal/bulk').toString();
     
@@ -240,26 +233,11 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
       'terminalIds': terminalIds,
     };
     
-    // Console log for API request
-    print('=== POST /api/ioterminal/bulk ===');
-    print('URL: $apiUrl');
-    print('Headers: ${jsonEncode(headers)}');
-    print('Request Body: ${jsonEncode(requestBody)}');
-    print('Terminal IDs Count: ${terminalIds.length}');
-    print('===============================');
-    
     final response = await http.post(
       Uri.parse(apiUrl),
       headers: headers,
       body: jsonEncode(requestBody),
     );
-    
-    // Console log for API response
-    print('=== API Response ===');
-    print('Status Code: ${response.statusCode}');
-    print('Response Headers: ${response.headers}');
-    print('Response Body: ${response.body}');
-    print('==================');
     
     return response;
   }
@@ -292,23 +270,22 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
     
     switch (response.statusCode) {
       case 409:
-        errorMessage = 'Terminal already exists: ${errorData['details'] ?? errorData['message']}';
+        errorMessage = '${SimpleTranslations.get(_langCode, 'terminal_already_exists')}: ${errorData['details'] ?? errorData['message']}';
         break;
       case 400:
         if (errorData['message'] is List) {
-          errorMessage = 'Validation error: ${(errorData['message'] as List).join(', ')}';
+          errorMessage = '${SimpleTranslations.get(_langCode, 'validation_error')}: ${(errorData['message'] as List).join(', ')}';
         } else {
-          errorMessage = 'Validation error: ${errorData['message']}';
+          errorMessage = '${SimpleTranslations.get(_langCode, 'validation_error')}: ${errorData['message']}';
         }
         break;
       default:
-        errorMessage = errorData['message'] ?? 'Server error: ${response.statusCode}';
+        errorMessage = errorData['message'] ?? '${SimpleTranslations.get(_langCode, 'server_error')}: ${response.statusCode}';
     }
     
     throw Exception(errorMessage);
   }
 
-  // Selection Handlers
   void _onGroupChanged(Group? value) {
     setState(() {
       _selectedGroup = value;
@@ -371,23 +348,23 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
         dynamic aValue, bValue;
         
         switch (columnIndex) {
-          case 1: // Terminal Name
+          case 1:
             aValue = a.terminalName;
             bValue = b.terminalName;
             break;
-          case 2: // Terminal Code
+          case 2:
             aValue = a.terminalCode ?? '';
             bValue = b.terminalCode ?? '';
             break;
-          case 3: // Terminal ID
+          case 3:
             aValue = a.terminalId;
             bValue = b.terminalId;
             break;
-          case 4: // Company ID
+          case 4:
             aValue = a.companyId;
             bValue = b.companyId;
             break;
-          case 5: // Store ID
+          case 5:
             aValue = a.storeId;
             bValue = b.storeId;
             break;
@@ -405,7 +382,6 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
     });
   }
 
-  // UI Helpers
   void _showMessage(String message, detail.MessageType type) {
     final colors = {
       detail.MessageType.success: Colors.green,
@@ -439,19 +415,19 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.error, color: Colors.red, size: 28),
-            SizedBox(width: 12),
-            Text('Error'),
+            const Icon(Icons.error, color: Colors.red, size: 28),
+            const SizedBox(width: 12),
+            Text(SimpleTranslations.get(_langCode, 'error')),
           ],
         ),
-        content: Text('Failed to process terminals:\n$error'),
+        content: Text('${SimpleTranslations.get(_langCode, 'failed_to_process_terminals')}:\n$error'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
-              'Try Again',
+              SimpleTranslations.get(_langCode, 'try_again'),
               style: TextStyle(
                 color: ThemeConfig.getPrimaryColor(currentTheme),
                 fontWeight: FontWeight.bold,
@@ -463,7 +439,6 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
     );
   }
 
-  // MOBILE UI COMPONENTS (Original Design)
   Widget _buildMobileFiltersSection() {
     return Card(
       elevation: 2,
@@ -478,7 +453,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                 Icon(Icons.info, color: ThemeConfig.getPrimaryColor(currentTheme), size: 24),
                 const SizedBox(width: 12),
                 Text(
-                  'Terminal Selection',
+                  SimpleTranslations.get(_langCode, 'terminal_selection'),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -489,8 +464,10 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
             ),
             const SizedBox(height: 20),
             _buildMobileDropdown<Group>(
-              label: 'Group',
-              hint: _isLoadingGroups ? 'Loading groups...' : 'Select a group (optional)',
+              label: SimpleTranslations.get(_langCode, 'group'),
+              hint: _isLoadingGroups 
+                ? SimpleTranslations.get(_langCode, 'loading_groups')
+                : SimpleTranslations.get(_langCode, 'select_a_group_optional'),
               icon: Icons.group,
               value: _selectedGroup,
               items: _groups,
@@ -509,12 +486,12 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
               isLoading: _isLoadingGroups,
             ),
             _buildMobileDropdown<Merchant>(
-              label: 'Merchant',
+              label: SimpleTranslations.get(_langCode, 'merchant'),
               hint: _selectedGroup == null
-                  ? 'Select a group first'
+                  ? SimpleTranslations.get(_langCode, 'select_group_first')
                   : _isLoadingMerchants
-                      ? 'Loading merchants...'
-                      : 'Select a merchant (optional)',
+                      ? SimpleTranslations.get(_langCode, 'loading_merchants')
+                      : SimpleTranslations.get(_langCode, 'select_a_merchant_optional'),
               icon: Icons.business,
               value: _selectedMerchant,
               items: _merchants,
@@ -534,12 +511,12 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
               isEnabled: _selectedGroup != null,
             ),
             _buildMobileDropdown<Store>(
-              label: 'Store',
+              label: SimpleTranslations.get(_langCode, 'store'),
               hint: _selectedMerchant == null
-                  ? 'Select a merchant first'
+                  ? SimpleTranslations.get(_langCode, 'select_merchant_first')
                   : _isLoadingStores
-                      ? 'Loading stores...'
-                      : 'Select a store (optional)',
+                      ? SimpleTranslations.get(_langCode, 'loading_stores')
+                      : SimpleTranslations.get(_langCode, 'select_a_store_optional'),
               icon: Icons.store,
               value: _selectedStore,
               items: _stores,
@@ -577,8 +554,8 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                 const SizedBox(height: 16),
                 Text(
                   _selectedStore == null 
-                    ? 'Select a store to view terminals'
-                    : 'No terminals found',
+                    ? SimpleTranslations.get(_langCode, 'select_a_store_to_view_terminals')
+                    : SimpleTranslations.get(_langCode, 'no_terminals_found'),
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey[600],
@@ -608,7 +585,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
               Expanded(
                 flex: 3,
                 child: Text(
-                  'Select Terminals (${_selectedTerminals.length}/${_terminals.length})',
+                  '${SimpleTranslations.get(_langCode, 'select_terminals')} (${_selectedTerminals.length}/${_terminals.length})',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -621,8 +598,8 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    _buildSelectButton('All', () => _onSelectAllTerminals(true)),
-                    _buildSelectButton('Clear', () => _onSelectAllTerminals(false)),
+                    _buildSelectButton(SimpleTranslations.get(_langCode, 'all'), () => _onSelectAllTerminals(true)),
+                    _buildSelectButton(SimpleTranslations.get(_langCode, 'clear'), () => _onSelectAllTerminals(false)),
                   ],
                 ),
               ),
@@ -695,7 +672,6 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
     );
   }
 
-  // WEB UI COMPONENTS (Table Design)
   Widget _buildWebFiltersSection() {
     return Card(
       elevation: 2,
@@ -710,7 +686,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                 Icon(Icons.filter_list, color: ThemeConfig.getPrimaryColor(currentTheme), size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  'Filters',
+                  SimpleTranslations.get(_langCode, 'filters'),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -724,8 +700,8 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
               children: [
                 Expanded(
                   child: _buildCompactDropdown<Group>(
-                    label: 'Group',
-                    hint: _isLoadingGroups ? 'Loading...' : 'Select group',
+                    label: SimpleTranslations.get(_langCode, 'group'),
+                    hint: _isLoadingGroups ? SimpleTranslations.get(_langCode, 'loading') : SimpleTranslations.get(_langCode, 'select_group'),
                     icon: Icons.group_outlined,
                     value: _selectedGroup,
                     items: _groups,
@@ -737,12 +713,12 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildCompactDropdown<Merchant>(
-                    label: 'Merchant',
+                    label: SimpleTranslations.get(_langCode, 'merchant'),
                     hint: _selectedGroup == null
-                        ? 'Select group first'
+                        ? SimpleTranslations.get(_langCode, 'select_group_first')
                         : _isLoadingMerchants
-                            ? 'Loading...'
-                            : 'Select merchant',
+                            ? SimpleTranslations.get(_langCode, 'loading')
+                            : SimpleTranslations.get(_langCode, 'select_merchant'),
                     icon: Icons.business_outlined,
                     value: _selectedMerchant,
                     items: _merchants,
@@ -755,12 +731,12 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildCompactDropdown<Store>(
-                    label: 'Store',
+                    label: SimpleTranslations.get(_langCode, 'store'),
                     hint: _selectedMerchant == null
-                        ? 'Select merchant first'
+                        ? SimpleTranslations.get(_langCode, 'select_merchant_first')
                         : _isLoadingStores
-                            ? 'Loading...'
-                            : 'Select store',
+                            ? SimpleTranslations.get(_langCode, 'loading')
+                            : SimpleTranslations.get(_langCode, 'select_store'),
                     icon: Icons.store_outlined,
                     value: _selectedStore,
                     items: _stores,
@@ -791,8 +767,8 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                 const SizedBox(height: 16),
                 Text(
                   _selectedStore == null 
-                    ? 'Select a store to view terminals'
-                    : 'No terminals found',
+                    ? SimpleTranslations.get(_langCode, 'select_a_store_to_view_terminals')
+                    : SimpleTranslations.get(_langCode, 'no_terminals_found'),
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey[600],
@@ -820,7 +796,6 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
     );
   }
 
-  // Helper Widget Builders
   Widget _buildCompactDropdown<T>({
     required String label,
     required String hint,
@@ -919,7 +894,6 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
     );
   }
 
-  // Original mobile helper widgets
   Widget _buildImageContainer({
     required double size,
     required IconData icon,
@@ -1070,7 +1044,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
           const SizedBox(height: 4),
         ],
         Text(
-          'Company ID: ${terminal.companyId}',
+          '${SimpleTranslations.get(_langCode, 'company_id_label')}: ${terminal.companyId}',
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
       ],
@@ -1092,7 +1066,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
         ),
       ),
       child: Text(
-        'Code: $terminalCode',
+        '${SimpleTranslations.get(_langCode, 'code_label')}: $terminalCode',
         style: TextStyle(
           fontSize: 12,
           color: isSelected 
@@ -1129,7 +1103,6 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
     );
   }
 
-  // Web Table Components
   Widget _buildTableHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1148,7 +1121,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
               Icon(Icons.computer, color: ThemeConfig.getPrimaryColor(currentTheme), size: 24),
               const SizedBox(width: 12),
               Text(
-                'Terminals (${_terminals.length})',
+                '${SimpleTranslations.get(_langCode, 'terminals')} (${_terminals.length})',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -1164,7 +1137,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '${_selectedTerminals.length} selected',
+                    '${_selectedTerminals.length} ${SimpleTranslations.get(_langCode, 'selected')}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -1180,7 +1153,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
               TextButton.icon(
                 onPressed: () => _onSelectAllTerminals(true),
                 icon: const Icon(Icons.select_all, size: 18),
-                label: const Text('Select All'),
+                label: Text(SimpleTranslations.get(_langCode, 'select_all')),
                 style: TextButton.styleFrom(
                   foregroundColor: ThemeConfig.getPrimaryColor(currentTheme),
                 ),
@@ -1189,7 +1162,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
               TextButton.icon(
                 onPressed: () => _onSelectAllTerminals(false),
                 icon: const Icon(Icons.clear, size: 18),
-                label: const Text('Clear'),
+                label: Text(SimpleTranslations.get(_langCode, 'clear')),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.grey[600],
                 ),
@@ -1226,27 +1199,27 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
               ),
             ),
             DataColumn(
-              label: const Text('Terminal Name', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: Text(SimpleTranslations.get(_langCode, 'terminal_name'), style: TextStyle(fontWeight: FontWeight.bold)),
               onSort: (columnIndex, ascending) => _sortTerminals(columnIndex, ascending),
             ),
             DataColumn(
-              label: const Text('Code', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: Text(SimpleTranslations.get(_langCode, 'code'), style: TextStyle(fontWeight: FontWeight.bold)),
               onSort: (columnIndex, ascending) => _sortTerminals(columnIndex, ascending),
             ),
             DataColumn(
-              label: const Text('Terminal ID', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: Text(SimpleTranslations.get(_langCode, 'terminal_id'), style: TextStyle(fontWeight: FontWeight.bold)),
               onSort: (columnIndex, ascending) => _sortTerminals(columnIndex, ascending),
             ),
             DataColumn(
-              label: const Text('Company ID', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: Text(SimpleTranslations.get(_langCode, 'company_id'), style: TextStyle(fontWeight: FontWeight.bold)),
               onSort: (columnIndex, ascending) => _sortTerminals(columnIndex, ascending),
             ),
             DataColumn(
-              label: const Text('Store ID', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: Text(SimpleTranslations.get(_langCode, 'store_id'), style: TextStyle(fontWeight: FontWeight.bold)),
               onSort: (columnIndex, ascending) => _sortTerminals(columnIndex, ascending),
             ),
-            const DataColumn(
-              label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold)),
+            DataColumn(
+              label: Text(SimpleTranslations.get(_langCode, 'status'), style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
           rows: _terminals.map((terminal) {
@@ -1300,7 +1273,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                             ),
                             if (terminal.imageUrl?.isNotEmpty == true)
                               Text(
-                                'Has Image',
+                                SimpleTranslations.get(_langCode, 'has_image'),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],
@@ -1327,7 +1300,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                       ),
                     ),
                     child: Text(
-                      terminal.terminalCode ?? 'N/A',
+                      terminal.terminalCode ?? SimpleTranslations.get(_langCode, 'n_a'),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -1365,7 +1338,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                       border: Border.all(color: Colors.green[200]!),
                     ),
                     child: Text(
-                      'Active',
+                      SimpleTranslations.get(_langCode, 'active'),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -1397,7 +1370,7 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            '${_selectedTerminals.length} of ${_terminals.length} terminals selected',
+            '${_selectedTerminals.length} ${SimpleTranslations.get(_langCode, 'of')} ${_terminals.length} ${SimpleTranslations.get(_langCode, 'terminals_selected')}',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[700],
@@ -1418,8 +1391,8 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
               : const Icon(Icons.batch_prediction),
             label: Text(
               _isLoading 
-                ? 'Processing...' 
-                : 'Process Selected (${_selectedTerminals.length})'
+                ? SimpleTranslations.get(_langCode, 'processing')
+                : '${SimpleTranslations.get(_langCode, 'process_selected')} (${_selectedTerminals.length})'
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
@@ -1454,8 +1427,8 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
                   : const Icon(Icons.batch_prediction),
               label: Text(
                 _isLoading 
-                    ? 'Processing...' 
-                    : 'Process Selected (${_selectedTerminals.length})'
+                    ? SimpleTranslations.get(_langCode, 'processing')
+                    : '${SimpleTranslations.get(_langCode, 'process_selected')} (${_selectedTerminals.length})'
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
@@ -1477,8 +1450,8 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text(
-          'Terminal Management',
+        title: Text(
+          SimpleTranslations.get(_langCode, 'terminal_management'),
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
@@ -1492,48 +1465,42 @@ Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
       ),
       body: RefreshIndicator(
         onRefresh: _loadTerminals,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Use different UI based on screen size
-                  if (isMobile) ...[
-                    // Mobile UI - Original Cards Design
-                    _buildMobileFiltersSection(),
-                    if (_selectedStore != null && _terminals.isNotEmpty)
-                      _buildMobileTerminalsList(),
-                    _buildMobileActionButtons(),
-                  ] else ...[
-                    // Web UI - Modern Table Design
-                    _buildWebFiltersSection(),
-                    const SizedBox(height: 16),
-                    if (_isLoadingTerminals)
-                      Card(
-                        child: Container(
-                          height: 200,
-                          child: const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                CircularProgressIndicator(),
-                                SizedBox(height: 16),
-                                Text('Loading terminals...'),
-                              ],
-                            ),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (isMobile) ...[
+                  _buildMobileFiltersSection(),
+                  if (_selectedStore != null && _terminals.isNotEmpty)
+                    _buildMobileTerminalsList(),
+                  _buildMobileActionButtons(),
+                ] else ...[
+                  _buildWebFiltersSection(),
+                  const SizedBox(height: 16),
+                  if (_isLoadingTerminals)
+                    Card(
+                      child: Container(
+                        height: 200,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 16),
+                              Text(SimpleTranslations.get(_langCode, 'loading_terminals')),
+                            ],
                           ),
                         ),
-                      )
-                    else
-                      _buildWebTerminalsTable(),
-                  ],
+                      ),
+                    )
+                  else
+                    _buildWebTerminalsTable(),
                 ],
-              ),
+              ],
             ),
           ),
         ),

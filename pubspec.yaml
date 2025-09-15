@@ -52,6 +52,9 @@ flutter:
     - assets/flags/la.png
     - assets/images/
     - assets/images/default_profile.png
+    - assets/fonts/Phetsarath-Regular.ttf
+    - assets/fonts/Phetsarath-Bold.ttf
+    
 
 dev_dependencies:
   flutter_test:

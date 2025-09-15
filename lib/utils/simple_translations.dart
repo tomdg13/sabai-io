@@ -807,7 +807,14 @@ class SimpleTranslations {
       'group': 'Group',
       'merchants': 'Merchants',
       'terminal': 'Terminal',
+      'Terminal': 'Terminal',
       'home_menu': 'Dashboard',
+      'error_save_theme': 'Error saving theme',
+      'error_save_language': 'Error saving language',
+      'welcome_inventory': 'Welcome to Inventory Management',
+      'inventory_description': 'inventory description',
+      'coming_soon': 'coming soon',
+      'select_language': 'Select Language',
 
       // --- Vendor Management (NEW) ---
       'vendors': 'Vendors',
@@ -858,20 +865,213 @@ class SimpleTranslations {
       'delete_group_confirmation':
           'Are you sure you want to delete this group?',
       'search_groups_hint': 'Search groups by name or code...',
-
       "enter_barcode": "Enter Barcode",
       "enter_product_barcode": "Enter product barcode",
       "add_stock_item": "Add Stock Item",
       "adding_stock": "Adding stock...",
       "error_loading_vendors": "Error loading vendors",
+      "Refresh": "Refresh",
+      'deduct_stock_button': 'Deduct Stock',
+      "Location": "Location",
+      "Select ": "Select ",
+      'lao_kip': 'Lao Kip',
+      'thai_baht': 'Thai Baht',
+      'us_dollar': 'US Dollar',
+      'position_barcode_instruction':
+          'Position the barcode within the scanning area',
+      'select_product_to_deduct': 'Select Product to Deduct',
+      'failed_to_initialize': 'Failed to initialize',
+      'empty_response_from_server': 'Empty response from server',
+      'error_loading_products': 'Error loading products',
+      'failed_to_load_locations': 'Failed to load locations',
+      'selected': 'Selected',
+      'product_found_successfully': 'Product found successfully',
+      'error_deducting_stock': 'Error deducting stock',
+      'this_field_is_required': 'This field is required',
+      'loading_products': 'Loading products...',
+      'supplier_id_optional': 'Supplier ID (Optional)',
+      'expire_date_optional': 'Expire Date (Optional)',
+      'choose_location': 'Choose a location',
+      'choose_store': 'Choose a store',
+      'select_a_product': 'Select a product',
+      'no_products_available': 'No products available',
+      'no_locations_available': 'No locations available',
+      'no_stores_available': 'No stores available',
+      'load_products': 'Load Products',
+      'load_locations': 'Load Locations',
+      'load_stores': 'Load Stores',
+      'products_available': 'products available',
+      'locations_available': 'locations available',
+      'stores_available': 'stores available',
+      'error_logout': 'Error during logout',
+      'manage_system_settings': 'Configure and manage all system',
+      'company': 'Company',
+      'merchant': 'Merchant',
+      'help': 'Help',
+      'language_changed': 'Language changed to',
+      'theme_changed': 'Theme changed to',
+      // Error messages
+      'failed_to_load_groups': 'Failed to load groups',
+      'failed_to_load_merchants': 'Failed to load merchants',
+      'failed_to_load_stores': 'Failed to load stores',
+      'failed_to_load_terminals': 'Failed to load terminals',
+      'please_select_at_least_one_terminal':
+          'Please select at least one terminal',
+      'terminal_already_exists': 'Terminal already exists',
+      'failed_to_process_terminals': 'Failed to process terminals',
+
+      // Page title and headers
+      'terminal_management': 'Terminal Management',
+      'terminal_selection': 'Terminal Selection',
+      'filters': 'Filters',
+      'terminals': 'Terminals',
+
+      // Form labels and hints
+      'select_group': 'Select group',
+      'select_merchant': 'Select merchant',
+      'select_a_group_optional': 'Select a group (optional)',
+      'select_a_merchant_optional': 'Select a merchant (optional)',
+      'select_a_store_optional': 'Select a store (optional)',
+      'loading_groups': 'Loading groups...',
+      'loading_merchants': 'Loading merchants...',
+      'loading_terminals': 'Loading terminals...',
+      'select_group_first': 'Select group first',
+      'select_merchant_first': 'Select merchant first',
+
+      // Terminal selection
+      'select_terminals': 'Select Terminals',
+      'select_all': 'Select All',
+      'clear': 'Clear',
+      'select_a_store_to_view_terminals': 'Select a store to view terminals',
+      'no_terminals_found': 'No terminals found',
+      'terminals_selected': 'terminals selected',
+
+      // Table headers
+      'terminal_name': 'Terminal Name',
+      'code': 'Code',
+      'terminal_id': 'Terminal ID',
+      'company_id': 'Company ID',
+      'store_id': 'Store ID',
+      'has_image': 'Has Image',
+      'n_a': 'N/A',
+
+      // Action buttons
+      'process_selected': 'Process Selected',
+
+      // Status and info
+      'company_id_label': 'Company ID',
+      'code_label': 'Code',
+      'of': 'of',
+      'Company': 'Info',
+      // Messages
+      'failed_to_generate_pdf': 'Failed to generate PDF',
+      'failed_to_generate_excel': 'Failed to generate Excel',
+      'excel_file_downloaded_successfully':
+          'Excel file downloaded successfully',
+
+      // Status labels
+      'expiring_soon': 'Expiring Soon',
+      'valid': 'Valid',
+      'no_code': 'No Code',
+
+      // Header content
+      'terminal_registration_complete': 'Terminal Registration Complete',
+      'registration_completed_successfully':
+          'Registration completed successfully',
+      'registered_terminals': 'Registered terminals',
+
+      // Button labels
+      'generating': 'Generating...',
+      'pdf_report': 'PDF Report',
+      'excel_export': 'Excel Export',
+
+      // PDF Report content
+      'terminal_registration_form_report': 'TERMINAL REGISTRATION FORM REPORT',
+      'generated': 'Generated',
+      'organization_hierarchy_summary': 'Organization Hierarchy Summary',
+      'group_information': 'Group Information',
+      'merchant_information': 'Merchant Information',
+      'store_information': 'Store Information',
+      'mobile': 'Mobile',
+      'manager': 'Manager',
+      'upi_percentage': 'UPI %',
+      'visa_percentage': 'Visa %',
+      'master_percentage': 'Master %',
+
+      // Table headers
+      'serial_number': 'Serial Number',
+      'sim_number': 'SIM Number',
+      'total_terminals_registered': 'Total Terminals Registered',
+      'report_generated': 'Report Generated',
+
+      // Signature section
+      'approved_by': 'APPROVED BY',
+      'created_by': 'CREATED BY',
+      'signature': 'Signature',
+      'signatures': 'Signatures',
+      'store_manager': 'Store Manager',
+      'store_email': 'Store Email',
+
+      // Terminal details
+      'path': 'Path',
+      'serial': 'Serial',
+      'sim': 'SIM',
+
+      // Page title
+      'register_form_for_terminal': 'Register Form for Terminal',
     },
     'la': {
+      'Company': 'ທົວໄປ',
+      'select_location': 'ເລືອກສະຖານທີ',
+      'select_vendor': 'ເລືອກຜູ້ສະໜອງ',
+      'select_product': 'ເລືອກສິນຄ້າ',
+      'location': 'ສະຖານທີ',
+      'vendor': 'ຜູ້ສະໜອງ',
+      'product': 'ສິນຄ້າ',
+      'choose_location': 'ເລືອກສະຖານທີ',
+      'choose_vendor': 'ເລືອກຜູ້ສະໜອງ',
+      'loading_locations': 'ກຳລັງໂຫຼດສະຖານທີ...',
+      'loading_vendors': 'ກຳລັງໂຫຼດຜູ້ສະໜອງ...',
+      'loading_products': 'ກຳລັງໂຫຼດສິນຄ້າ...',
+      'no_locations_available': 'ບໍ່ມີສະຖານທີ',
+      'no_vendors_available': 'ບໍ່ມີຜູ້ສະໜອງ',
+      'no_products_available': 'ບໍ່ມີສິນຄ້າ',
+      'refresh': 'ໂຫຼດໃໝ່',
+      'selected': 'ເລືອກແລ້ວ',
+      'unknown': 'ບໍ່ຮູ້ຈັກ',
+      'unknown_location': 'ສະຖານທີບໍ່ຮູ້ຈັກ',
+      'unknown_vendor': 'ຜູ້ສະໜອງບໍ່ຮູ້ຈັກ',
+      'unknown_product': 'ສິນຄ້າບໍ່ຮູ້ຈັກ',
+      'currency': 'ສະກຸນເງິນ',
+      'status': 'ສະຖານະ',
+      'active': 'ເປີດໃຊ້ງານ',
+      'inactive': 'ປິດໃຊ້ງານ',
+      'enter_barcode': 'ໃສ່ບາໂຄດ',
+      'search': 'ຄົ້ນຫາ',
+      'product_found': 'ພົບສິນຄ້າແລ້ວ',
+      'product_not_found': 'ບໍ່ພົບສິນຄ້າ',
+      'error_looking_up_product': 'ຜິດພາດໃນການຄົ້ນຫາສິນຄ້າ',
+      'stock_added_successfully': 'ເພີ່ມສະຕ໋ອກສຳເລັດແລ້ວ',
+      'failed_to_add_stock': 'ເພີ່ມສະຕ໋ອກບໍ່ສຳເລັດ',
+      'error_adding_stock': 'ຜິດພາດໃນການເພີ່ມສະຕ໋ອກ',
+      'please_fill_required_fields': 'ກະລຸນາຕື່ມຂໍ້ມູນທີ່ຈຳເປັນ',
+      'please_select_location': 'ກະລຸນາເລືອກສະຖານທີ',
+      'please_enter_valid_amount': 'ກະລຸນາໃສ່ຈຳນວນທີ່ຖືກຕ້ອງ',
+      'please_enter_valid_price': 'ກະລຸນາໃສ່ລາຄາທີ່ຖືກຕ້ອງ',
+      'please_enter_valid_product_id': 'ກະລຸນາໃສ່ລະຫັດສິນຄ້າທີ່ຖືກຕ້ອງ',
+      'this_field_is_required': 'ຊ່ອງນີ້ຈຳເປັນຕ້ອງຕື່ມ',
+      'barcode_detected': 'ພົບບາໂຄດແລ້ວ',
+      'camera_error': 'ຜິດພາດກ້ອງຖ່າຍຮູບ',
+      'close': 'ປິດ',
+      'cancel': 'ຍົກເລີກ',
+      'position_barcode_instruction': 'ວາງບາໂຄດໃນບໍລິເວນສະແກນ',
+
+      "Location": "ສະຖານທີ",
       'settings_management': 'ການຕັ້ງຄ່າ ແລະ ການຈັດການ',
       'searching_nearby_customers': 'ກໍາລັງຊອກຫາລູກຄ້າໃກ້ຄຽງ...',
 
       // --- Product Management (Lao) ---
       'products': 'ສິນຄ້າ',
-      'product': 'ສິນຄ້າ',
       'add_product': 'ເພີ່ມສິນຄ້າ',
       'edit_product': 'ແກ້ໄຂສິນຄ້າ',
       'delete_product': 'ລົບສິນຄ້າ',
@@ -901,7 +1101,6 @@ class SimpleTranslations {
       'confirm_delete': 'ຢືນຢັນການລົບ',
       'low_stock': 'ສິນຄ້າໜ້ອຍ',
       'discontinued': 'ຢຸດຈຳໜ່າຍ',
-      'inactive': 'ບໍ່ໃຊ້ງານ',
       'all': 'ທັງໝົດ',
       'stock': 'ສຕ໋ອກ',
       'search_hint': 'ຄົ້ນຫາໂດຍຊື່, ລະຫັດ, SKU, ຫຼື ຍີ່ຫໍ້...',
@@ -1060,8 +1259,6 @@ class SimpleTranslations {
       // --- Common / UI ---
       'add': 'ເພີ່ມ',
       'add_user': 'ເພີ່ມຜູ້ໃຊ້',
-      'cancel': 'ຍົກເລີກ',
-      'close': 'ປິດ',
       'confirm': 'ຢືນຢັນ',
       'delete': 'ລົບ',
       'edit': 'ແກ້ໄຂ',
@@ -1074,7 +1271,7 @@ class SimpleTranslations {
       'Save': 'ບັນທຶກ',
       'Back': 'ກັບຄື້ນ',
       'back': 'ກັບຄື້ນ',
-      'search': 'ຄົ້ນຫາ',
+
       'submit': 'ສົ່ງ',
       'update': 'ອັບເດດ',
 
@@ -1149,7 +1346,6 @@ class SimpleTranslations {
       // driver
       'driver_dashboard': 'ໜ້າຫຼັກ',
       'welcome': 'ຍິນດີຕອນຮັບ',
-      'status': 'ສະຖານະ',
       'go_online': 'ເປີດ',
       'go_offline': 'ປິດ',
       'my_bookings': 'ການຈອງຂອງຂ້ອຍ',
@@ -1216,7 +1412,6 @@ class SimpleTranslations {
       'booking_history': 'ປະຫວັດການຈອງ',
       'grouped_by_status': 'ຈັດກຸ່ມຕາມສະຖານະ',
       'total_bookings': 'ການຈອງທັງໝົດ',
-      'refresh': 'ໂຫຼດໃໝ່',
 
       // Status
       'completed': 'ສຳເລັດ',
@@ -1231,7 +1426,6 @@ class SimpleTranslations {
       'no_bookings_for_status': 'ບໍ່ມີການຈອງທີ່ມີສະຖານະ',
 
       // General
-      'unknown': 'ບໍ່ຮູ້ຈັກ',
       'id': 'ລະຫັດ',
 
       // Time & Date
@@ -1299,7 +1493,6 @@ class SimpleTranslations {
       "pricing_inventory": "ລາຄາ ແລະ ສາງ",
       "additional_details": "ລາຍລະອຽດເພີ່ມເຕີມ",
       "custom_category": "ປະເພດກຳນົດເອງ",
-      "active": "ເປີດໃຊ້ງານ",
 
       "required_field": "ກະລຸນາກະລອກຂໍ້ມູນ",
       "invalid_price": "ລາຄາບໍ່ຖືກຕ້ອງ",
@@ -1348,7 +1541,6 @@ class SimpleTranslations {
       'expire_date': 'ວັນໝົດອາຍຸ',
 
       // Form Labels - Dropdowns
-      'currency': 'ສະກຸນເງິນ',
       'reserved': 'ສຳຮອງ',
 
       // Sections & Headers
@@ -1377,9 +1569,7 @@ class SimpleTranslations {
 
       // Error Messages - API
       'failed_to_create_inventory': 'ສ້າງລາຍການສິນຄ້າບໍ່ສຳເລັດ',
-      'failed_to_add_stock': 'ເພີ່ມສິນຄ້າບໍ່ສຳເລັດ',
       'error_creating_inventory': 'ເກີດຂໍ້ຜິດພາດໃນການສ້າງລາຍການສິນຄ້າ',
-      'error_adding_stock': 'ເກີດຂໍ້ຜິດພາດໃນການເພີ່ມສິນຄ້າ',
       'api_error': 'ເກີດຂໍ້ຜິດພາດ API',
 
       // Error Messages - Validation
@@ -1393,7 +1583,6 @@ class SimpleTranslations {
       'passwords_dont_match': 'ລະຫັດຜ່ານບໍ່ກົງກັນ',
 
       // Inventory Related Terms
-      'location': 'ສະຖານທີ່',
       'current_stock': 'ສະຕ໋ອກປັດຈຸບັນ',
       'available': 'ມີໃຫ້',
       'available_quantity': 'ຈຳນວນທີ່ມີ',
@@ -1408,8 +1597,6 @@ class SimpleTranslations {
 
       // Dropdown Hints & Placeholders
       'select_inventory_item_hint': 'ເລືອກລາຍການສິນຄ້າ',
-      'select_product': 'ເລືອກສິນຄ້າ',
-      'select_location': 'ເລືອກສະຖານທີ່',
       'select_supplier': 'ເລືອກຜູ້ສະໜອງ',
       'choose_option': 'ເລືອກຕົວເລືອກ',
       'no_options_available': 'ບໍ່ມີຕົວເລືອກ',
@@ -1446,9 +1633,7 @@ class SimpleTranslations {
       'camera_permission_denied':
           'ການອະນຸຍາດກ້ອງຖືກປະຕິເສດ. ກະລຸນາເປີດການເຂົ້າເຖິງກ້ອງໃນການຕັ້ງຄ່າ.',
       'product_found_success': 'ພົບສິນຄ້າສຳເລັດແລ້ວ!',
-      'product_not_found': 'ບໍ່ພົບສິນຄ້າດ້ວຍບາໂຄດນີ້',
       'failed_to_lookup_product': 'ຄົ້ນຫາສິນຄ້າບໍ່ສຳເລັດ',
-      'error_looking_up_product': 'ເກີດຂໍ້ຜິດພາດໃນການຄົ້ນຫາສິນຄ້າ',
       'scanned_product': 'ສິນຄ້າທີ່ສະແກນ',
 
       // Page Title & Headers
@@ -1465,7 +1650,6 @@ class SimpleTranslations {
 
       // Dropdowns
       'select_store': 'ເລືອກຮ້ານ',
-      'unknown_location': 'ສະຖານທີ່ບໍ່ທາງ',
       'unknown_store': 'ຮ້ານບໍ່ທາງ',
 
       // Buttons
@@ -1477,19 +1661,11 @@ class SimpleTranslations {
 
       // Scanner
       'initializing_camera': 'ກຳລັງເປີດກ້ອງ...',
-      'camera_error': 'ເກີດຂໍ້ຜິດພາດກ້ອງ',
-      'barcode_detected': 'ພົບບາໂຄດແລ້ວ',
 
       // Loading States
       'loading_data': 'ກຳລັງໂຫຼດຂໍ້ມູນ...',
-      'loading_locations': 'ກຳລັງໂຫຼດສະຖານທີ່...',
       'loading_stores': 'ກຳລັງໂຫຼດຮ້ານ...',
-
-      // Error Messages - Validation
-      'please_fill_required_fields': 'ກະລຸນາຕື່ມຂໍ້ມູນທີ່ຈຳເປັນໃຫ້ຄົບ',
-      'please_select_location': 'ກະລຸນາເລືອກສະຖານທີ່',
       'please_select_store': 'ກະລຸນາເລືອກຮ້ານ',
-      'please_enter_valid_product_id': 'ກະລຸນາໃສ່ລະຫັດສິນຄ້າທີ່ຖືກຕ້ອງ',
       'please_enter_valid_stock_quantity':
           'ກະລຸນາໃສ່ຈຳນວນສາງທີ່ຖືກຕ້ອງ (ຫຼາຍກວ່າ 0)',
       'please_enter_valid_minimum_stock':
@@ -1621,14 +1797,11 @@ class SimpleTranslations {
       'no_expiry_date': 'ບໍ່ມີວັນທີໝົດ',
       'manage_expiry': 'ຈັດການຄວາມສົດ',
       'manage_item': 'ຈັດການສິນຄ້າ',
-      'unknown_product': 'ສິນຄ້າບໍ່ຮູ້',
       'qty': 'ຈໍານວນ',
       'branch': 'ສາຂາ', // Branch in Lao
-      'vendor': 'ຜູ້ສະໜອງ', // Vendor/Supplier in Lao
       'all_locations': 'ທຸກສະຖານີ',
       'all_stores': 'ທຸກຮ້ານ',
       'select_branch': 'ເລືອກສາຂາ',
-      'select_vendor': 'ເລືອກຜູ້ສະໜອງ',
       'dashboard': 'ໜ້າຫຼັກ',
       'deduct': 'ນຳສົງສິນຄ້າ',
       'increase': 'ເພີ່ມສິນຄ້າເຂົ້າສາງ',
@@ -1650,6 +1823,7 @@ class SimpleTranslations {
       'group': 'ກຸ່ມບໍລິສັດ',
       'merchant': 'ຮ້ານຄ້າ',
       'terminal': 'ອຸປະກອນ/ເຄົາເຕີ',
+      'Terminal': 'ອຸປະກອນ',
       'home_menu': 'ໜ້າຫຼັກ',
 
       // --- Vendor Management (NEW) - Lao ---
@@ -1714,8 +1888,6 @@ class SimpleTranslations {
 
       // --- Navigation & Menu (NEW) - Lao ---
       'merchants': 'ຮ້ານຄ້າ',
-
-      "enter_barcode": "ປ້ອນບາໂຄດ",
       "enter_product_barcode": "ປ້ອນບາໂຄດຂອງສິນຄ້າ",
       "add_stock_item": "ເພີ່ມສິນຄ້າເຂົ້າສາງ",
       "adding_stock": "ກຳລັງເພີ່ມສາງ...",
@@ -1723,23 +1895,13 @@ class SimpleTranslations {
 
       "add_amount": "ຈຳນວນເພີ່ມ",
       "select_product_to_add": "ເລືອກສິນຄ້າທີ່ຈະເພີ່ມ",
-      "loading_products": "ກຳລັງໂຫຼດສິນຄ້າ...",
       "products_available": "ສິນຄ້າທີ່ມີ",
       "supplier_id_optional": "ລະຫັດຜູ້ສະໜອງ (ທາງເລືອກ)",
       "expire_date_optional": "ວັນໝົດອາຍຸ (ທາງເລືອກ)",
-      "choose_location": "ເລືອກສະຖານທີ່",
-      "loading_vendors": "ກຳລັງໂຫຼດຜູ້ຂາຍ...",
-      "choose_vendor": "ເລືອກຜູ້ຂາຍ",
       "lao_kip": "ກີບລາວ",
       "thai_baht": "ບາດໄທ",
       "us_dollar": "ໂດລາສະຫະລັດ",
-      "selected": "ເລືອກແລ້ວ:",
-
-      "unknown_vendor": "ຜູ້ຂາຍບໍ່ຮູ້ຈັກ",
-
-      "no_products_available": "ບໍ່ມີສິນຄ້າ",
-      "no_locations_available": "ບໍ່ມີສະຖານທີ່",
-      "no_vendors_available": "ບໍ່ມີຜູ້ຂາຍ",
+      "Refresh": "ຣິເຟັສ",
       "load_products": "ໂຫຼດສິນຄ້າ",
       "load_locations": "ໂຫຼດສະຖານທີ່",
       "load_vendors": "ໂຫຼດຜູ້ຂາຍ",
@@ -1747,20 +1909,144 @@ class SimpleTranslations {
       "failed_to_initialize": "ການເລີ່ມຕົ້ນລົ້ມເຫລວ:",
       "error_loading_products": "ຜິດພາດໃນການໂຫຼດສິນຄ້າ:",
       "product_found_successfully": "ພົບສິນຄ້າສຳເລັດ",
-
-      "stock_added_successfully": "ເພີ່ມສາງສຳເລັດແລ້ວ",
-      "this_field_is_required": "ຊ່ອງນີ້ຈຳເປັນຕ້ອງໃສ່",
-
       "please_select_vendor": "ກະລຸນາເລືອກຜູ້ຂາຍ",
-      "please_enter_valid_amount": "ກະລຸນາໃສ່ຈຳນວນທີ່ຖືກຕ້ອງມາກກວ່າ 0",
-      "please_enter_valid_price": "ກະລຸນາໃສ່ລາຄາທີ່ຖືກຕ້ອງ",
       "position_barcode_within_scanning_area": "ວາງບາໂຄດໃນພື້ນທີ່ສະແກນ",
+      'choose_product': 'ເລືອກສິນຄ້າ',
+      'deduct_stock_button': 'ຫັກສະຕ໋ອກ',
+      'select_product_to_deduct': 'ເລືອກສິນຄ້າທີ່ຈະຫັກ',
+      'empty_response_from_server': 'ບໍ່ມີຂໍ້ມູນກັບມາຈາກເຊີເວີ',
+      'failed_to_load_locations': 'ໂຫຼດສະຖານທີບໍ່ສຳເລັດ',
+      'error_deducting_stock': 'ຜິດພາດໃນການຫັກສະຕ໋ອກ',
+      'choose_store': 'ເລືອກຮ້ານຄ້າ',
+      'select_a_product': 'ເລືອກສິນຄ້າ',
+      'no_stores_available': 'ບໍ່ມີຮ້ານຄ້າ',
+      'load_stores': 'ໂຫຼດຮ້ານຄ້າ',
+      'locations_available': 'ສະຖານທີທີ່ມີ',
+      'stores_available': 'ຮ້ານຄ້າທີ່ມີ',
+      'error_save_theme': 'ຜິດພາດໃນການບັນທຶກຮູບແບບ',
+      'error_save_language': 'ຜິດພາດໃນການບັນທຶກພາສາ',
+      'welcome_inventory': 'ຍິນດີຕ້ອນຮັບສູ່ການຈັດການສິນຄ້າ',
+      'inventory_description': 'ຕິດຕາມລະດັບສະຕ໋ອກ',
+      'coming_soon': 'ໃກ້ຈະມາ',
+      'select_language': 'ເລືອກພາສາ',
+      'error_logout': 'ຜິດພາດໃນການອອກຈາກລະບົບ',
+      'manage_system_settings': 'ກຳນົດແລະຈັດການການຕັ້ງຄ່າລະບົບທັງໝົດ',
+      'company': 'ບໍລິສັດ',
+      'help': 'ຊ່ວຍເຫຼືອ',
+      'theme_changed': 'ຮູບແບບຖືກປ່ຽນເປັນ',
+      // Error messages
+      'failed_to_load_groups': 'ໂຫຼດກຸ່ມບໍ່ສຳເລັດ',
+      'failed_to_load_merchants': 'ໂຫຼດຜູ້ຂາຍບໍ່ສຳເລັດ',
+      'failed_to_load_stores': 'ໂຫຼດຮ້ານຄ້າບໍ່ສຳເລັດ',
+      'failed_to_load_terminals': 'ໂຫຼດເຄື່ອງຂາຍບໍ່ສຳເລັດ',
+      'please_select_at_least_one_terminal':
+          'ກະລຸນາເລືອກເຄື່ອງຂາຍຢ່າງໜ້ອຍໜຶ່ງເຄື່ອງ',
+      'terminal_already_exists': 'ເຄື່ອງຂາຍມີຢູ່ແລ້ວ',
+      'failed_to_process_terminals': 'ປະມວນຜົນເຄື່ອງຂາຍບໍ່ສຳເລັດ',
+
+      // Page title and headers
+      'terminal_management': 'ການຈັດການເຄື່ອງຂາຍ',
+      'terminal_selection': 'ການເລືອກເຄື່ອງຂາຍ',
+      'filters': 'ຕົວກອງ',
+      'terminals': 'ເຄື່ອງຂາຍ',
+
+      // Form labels and hints
+      'select_group': 'ເລືອກກຸ່ມ',
+      'select_merchant': 'ເລືອກຜູ້ຂາຍ',
+      'select_a_group_optional': 'ເລືອກກຸ່ມ (ບໍ່ບັງຄັບ)',
+      'select_a_merchant_optional': 'ເລືອກຜູ້ຂາຍ (ບໍ່ບັງຄັບ)',
+      'select_a_store_optional': 'ເລືອກຮ້ານຄ້າ (ບໍ່ບັງຄັບ)',
+      'loading_groups': 'ກຳລັງໂຫຼດກຸ່ມ...',
+      'loading_merchants': 'ກຳລັງໂຫຼດຜູ້ຂາຍ...',
+      'loading_terminals': 'ກຳລັງໂຫຼດເຄື່ອງຂາຍ...',
+      'select_group_first': 'ເລືອກກຸ່ມກ່ອນ',
+      'select_merchant_first': 'ເລືອກຜູ້ຂາຍກ່ອນ',
+
+      // Terminal selection
+      'select_terminals': 'ເລືອກເຄື່ອງຂາຍ',
+      'select_all': 'ເລືອກທັງໝົດ',
+      'clear': 'ລຶບ',
+      'select_a_store_to_view_terminals': 'ເລືອກຮ້ານຄ້າເພື່ອເບິ່ງເຄື່ອງຂາຍ',
+      'no_terminals_found': 'ບໍ່ພົບເຄື່ອງຂາຍ',
+      'terminals_selected': 'ເຄື່ອງຂາຍທີ່ເລືອກ',
+
+      // Table headers
+      'terminal_name': 'ຊື່ເຄື່ອງຂາຍ',
+      'code': 'ລະຫັດ',
+      'terminal_id': 'ລະຫັດເຄື່ອງຂາຍ',
+      'company_id': 'ລະຫັດບໍລິສັດ',
+      'store_id': 'ລະຫັດຮ້ານຄ້າ',
+      'has_image': 'ມີຮູບພາບ',
+      'n_a': 'ບໍ່ມີ',
+
+      // Action buttons
+      'process_selected': 'ປະມວນຜົນທີ່ເລືອກ',
+
+      // Status and info
+      'company_id_label': 'ລະຫັດບໍລິສັດ',
+      'code_label': 'ລະຫັດ',
+      'of': 'ຈາກ',
+      // Messages
+      'failed_to_generate_pdf': 'ສ້າງ PDF ບໍ່ສຳເລັດ',
+      'failed_to_generate_excel': 'ສ້າງ Excel ບໍ່ສຳເລັດ',
+      'excel_file_downloaded_successfully': 'ດາວໂຫຼດໄຟລ໌ Excel ສຳເລັດແລ້ວ',
+
+      // Status labels
+      'expiring_soon': 'ໃກ້ໝົດອາຍຸ',
+      'valid': 'ຍັງໃຊ້ໄດ້',
+      'no_code': 'ບໍ່ມີລະຫັດ',
+
+      // Header content
+      'terminal_registration_complete': 'ລົງທະບຽນເຄື່ອງຂາຍສຳເລັດແລ້ວ',
+      'registration_completed_successfully': 'ລົງທະບຽນສຳເລັດແລ້ວ',
+      'registered_terminals': 'ເຄື່ອງຂາຍທີ່ລົງທະບຽນແລ້ວ',
+
+      // Button labels
+      'generating': 'ກຳລັງສ້າງ...',
+      'pdf_report': 'ບົດລາຍງານ PDF',
+      'excel_export': 'ສົ່ງອອກ Excel',
+
+      // PDF Report content
+      'terminal_registration_form_report': 'ບົດລາຍງານແບບຟອມລົງທະບຽນເຄື່ອງຂາຍ',
+      'generated': 'ສ້າງຂຶ້ນ',
+      'organization_hierarchy_summary': 'ສະຫຼຸບລຳດັບຊັ້ນອົງກອນ',
+      'group_information': 'ຂໍ້ມູນກຸ່ມ',
+      'merchant_information': 'ຂໍ້ມູນຜູ້ຂາຍ',
+      'store_information': 'ຂໍ້ມູນຮ້ານຄ້າ',
+      'mobile': 'ໂທລະສັບ',
+      'manager': 'ຜູ້ຈັດການ',
+      'upi_percentage': 'UPI %',
+      'visa_percentage': 'Visa %',
+      'master_percentage': 'Master %',
+
+      // Table headers
+      'serial_number': 'ເລກຊີຣຽນ',
+      'sim_number': 'ເລກ SIM',
+      'total_terminals_registered': 'ຈຳນວນເຄື່ອງຂາຍທີ່ລົງທະບຽນທັງໝົດ',
+      'report_generated': 'ສ້າງບົດລາຍງານ',
+
+      // Signature section
+      'approved_by': 'ອະນຸມັດໂດຍ',
+      'created_by': 'ສ້າງໂດຍ',
+      'signature': 'ລາຍເຊັນ',
+      'signatures': 'ລາຍເຊັນ',
+
+      // Terminal details
+      'path': 'ເສັ້ນທາງ',
+      'serial': 'ຊີຣຽນ',
+      'sim': 'SIM',
+
+      // Page title
+      'register_form_for_terminal': 'ແບບຟອມລົງທະບຽນເຄື່ອງຂາຍ',
+      'store_manager': 'ຜູ້ຈັດການຮ້ານຄ່າ',
+      'store_email': 'ອີເມວ',
+
+      
     },
   };
 
   final String lang;
   const SimpleTranslations(this.lang);
-
   String t(String key) {
     return _translations[lang]?[key] ?? key;
   }
