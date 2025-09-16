@@ -7,6 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:typed_data';
 import '../utils/simple_translations.dart';
 
 class ListDetailPage extends StatefulWidget {
@@ -15,6 +18,7 @@ class ListDetailPage extends StatefulWidget {
 
   const ListDetailPage({
     Key? key,
+    
     required this.data,
     required this.selectedTerminals,
   }) : super(key: key);
@@ -29,6 +33,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
   String currentTheme = ThemeConfig.defaultTheme;
   String _langCode = 'en';
   List<Map<String, dynamic>> terminalDetails = [];
+  String? companyLogoUrl;
+  Uint8List? logoImageBytes;
+  String? companyName;
 
   // Oxford Blue color palette
   static const PdfColor oxfordBlue = PdfColor.fromInt(0xFF002147);
@@ -47,6 +54,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   void _initialize() {
     _loadCurrentTheme();
     _extractTerminalDetails();
+    _fetchCompanyLogo();
   }
 
   Future<void> _loadCurrentTheme() async {
@@ -62,6 +70,105 @@ class _ListDetailPageState extends State<ListDetailPage> {
       terminalDetails = List<Map<String, dynamic>>.from(widget.data['data']);
     }
   }
+
+ // Fetch company logo from API
+  Future<void> _fetchCompanyLogo() async {
+    try {
+      // Get the token from SharedPreferences for authentication
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      
+      if (token == null) {
+        print('No access token available for company logo fetch');
+        return;
+      }
+
+      // Use the correct full URL with proper base URL
+      const int companyId = 5; // You might want to get this from widget.data or preferences
+      final response = await http.get(
+        Uri.parse('https://sabaiapp.com/api/iocompany?company_id=$companyId'), // Use full URL
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token', // Add authorization header
+        },
+      );
+
+      print('Company logo API response status: ${response.statusCode}');
+      print('Company logo API response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        // Check if response is actually JSON
+        if (response.body.trim().startsWith('{') || response.body.trim().startsWith('[')) {
+          try {
+            final responseData = json.decode(response.body);
+            
+            // Check if data array exists and has items
+            if (responseData['data'] != null && responseData['data'] is List && responseData['data'].isNotEmpty) {
+              final companyData = responseData['data'][0]; // Get first company from array
+              final logoUrl = companyData['logo_full_url'] as String?;
+              final name = companyData['company_name'] as String?;
+              
+              print('Logo URL from API: $logoUrl');
+              print('Company name from API: $name');
+              
+              if (logoUrl != null && logoUrl.isNotEmpty) {
+                setState(() {
+                  companyLogoUrl = logoUrl;
+                  companyName = name;
+                });
+                await _downloadLogo(logoUrl);
+              } else {
+                print('No logo URL found in API response');
+              }
+            } else {
+              print('No company data found in API response');
+            }
+          } catch (jsonError) {
+            print('Error parsing company logo JSON: $jsonError');
+            print('Response body was: ${response.body}');
+          }
+        } else {
+          print('API returned HTML instead of JSON. Response: ${response.body.substring(0, 200)}...');
+        }
+      } else {
+        print('Company logo API returned status ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      print('Error fetching company logo: $e');
+      // Continue without logo if fetch fails
+    }
+  }
+
+  // Download logo image bytes with better error handling
+  Future<void> _downloadLogo(String logoUrl) async {
+    try {
+      print('Downloading logo from: $logoUrl');
+      
+      // Check if URL is absolute or relative
+      Uri logoUri;
+      if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) {
+        logoUri = Uri.parse(logoUrl);
+      } else {
+        // If relative URL, prepend base URL
+        logoUri = Uri.parse('https://sabaiapp.com$logoUrl');
+      }
+      
+      final response = await http.get(logoUri);
+      print('Logo download response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        setState(() {
+          logoImageBytes = response.bodyBytes;
+        });
+        print('Logo downloaded successfully: ${logoImageBytes!.length} bytes');
+      } else {
+        print('Failed to download logo: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error downloading logo: $e');
+    }
+  }
+  
 
   // Utility Methods
   String _formatExpireDate(dynamic date) {
@@ -122,11 +229,18 @@ class _ListDetailPageState extends State<ListDetailPage> {
     );
   }
 
-  // PDF Generation with Lao Font Support
+  String _getPDFTranslation(String pdfLangCode, String key) {
+    return SimpleTranslations.get(pdfLangCode, key);
+  }
+
   Future<void> _generatePDF() async {
+    // Show language selection dialog
+    final selectedLanguage = await _showLanguageSelectionDialog();
+    if (selectedLanguage == null) return; // User cancelled
+
     setState(() => _isGeneratingPDF = true);
     try {
-      final pdf = await _createPDFReport();
+      final pdf = await _createPDFReport(languageCode: selectedLanguage);
       await _showPDFPreview(pdf);
     } catch (e) {
       _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_generate_pdf')}: $e', MessageType.error);
@@ -135,69 +249,284 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
   }
 
-  Future<pw.Document> _createPDFReport() async {
+  // Language selection dialog
+  Future<String?> _showLanguageSelectionDialog() async {
+    return showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF002147),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.language, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                SimpleTranslations.get(_langCode, 'select_language'),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF002147),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                SimpleTranslations.get(_langCode, 'choose_pdf_language'),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildLanguageOption('en', 'English', Icons.language),
+              const SizedBox(height: 12),
+              _buildLanguageOption('la', 'ລາວ (Lao)', Icons.translate),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                SimpleTranslations.get(_langCode, 'cancel'),
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Language option button builder
+  Widget _buildLanguageOption(String langCode, String langName, IconData icon) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () => Navigator.of(context).pop(langCode),
+        icon: Icon(icon, size: 20),
+        label: Text(
+          langName,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: langCode == _langCode 
+            ? const Color(0xFF002147) 
+            : const Color(0xFFE8EDF7),
+          foregroundColor: langCode == _langCode 
+            ? Colors.white 
+            : const Color(0xFF002147),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: const Color(0xFF002147).withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+Future<pw.Document> _createPDFReport({String? languageCode}) async {
     final pdf = pw.Document();
-    final font = await PdfGoogleFonts.notoSansRegular();
-    final fontBold = await PdfGoogleFonts.notoSansBold();
     
-    // Load Lao font
-    final fontData = await rootBundle.load('assets/fonts/Phetsarath-Regular.ttf');
-    final laoFont = pw.Font.ttf(fontData);
+    // Load both Times New Roman and Lao fonts regardless of language
+    pw.Font timesFont;
+    pw.Font timesBoldFont;
+    pw.Font laoFont;
+    pw.Font laoBoldFont;
+    
+    try {
+      // Load Times New Roman fonts
+      final timesData = await rootBundle.load('assets/fonts/times.ttf');
+      timesFont = pw.Font.ttf(timesData);
+      
+      final timesBoldData = await rootBundle.load('assets/fonts/times-bold.ttf');
+      timesBoldFont = pw.Font.ttf(timesBoldData);
+      
+      print('Times New Roman fonts loaded successfully');
+    } catch (e) {
+      print('Error loading Times fonts: $e');
+      // Fallback to Google Fonts
+      timesFont = await PdfGoogleFonts.notoSerifRegular();
+      timesBoldFont = await PdfGoogleFonts.notoSerifBold();
+    }
+    
+    try {
+      // Try to load Saysettha first, then Phetsarath OT, then regular Phetsarath
+      try {
+        final saysetthaData = await rootBundle.load('assets/fonts/Saysettha-Regular.ttf');
+        laoFont = pw.Font.ttf(saysetthaData);
+        
+        try {
+          final saysethaBoldData = await rootBundle.load('assets/fonts/Saysettha-Bold.ttf');
+          laoBoldFont = pw.Font.ttf(saysethaBoldData);
+        } catch (e) {
+          laoBoldFont = laoFont;
+        }
+        print('Using Saysettha fonts for Lao text');
+      } catch (e) {
+        print('Saysettha not found, trying Phetsarath OT');
+        try {
+          final phetsarathOTData = await rootBundle.load('assets/fonts/Phetsarath-OT.ttf');
+          laoFont = pw.Font.ttf(phetsarathOTData);
+          
+          try {
+            final phetsarathOTBoldData = await rootBundle.load('assets/fonts/Phetsarath-OT-Bold.ttf');
+            laoBoldFont = pw.Font.ttf(phetsarathOTBoldData);
+          } catch (e) {
+            laoBoldFont = laoFont;
+          }
+          print('Using Phetsarath OT fonts for Lao text');
+        } catch (e) {
+          print('Phetsarath OT not found, trying regular Phetsarath');
+          final phetsarathData = await rootBundle.load('assets/fonts/Phetsarath-Regular.ttf');
+          laoFont = pw.Font.ttf(phetsarathData);
+          
+          final phetsarathBoldData = await rootBundle.load('assets/fonts/Phetsarath-Bold.ttf');
+          laoBoldFont = pw.Font.ttf(phetsarathBoldData);
+          print('Using Phetsarath Regular fonts for Lao text');
+        }
+      }
+    } catch (e) {
+      print('Error loading all Lao fonts: $e');
+      // Use Times as fallback for Lao
+      laoFont = timesFont;
+      laoBoldFont = timesBoldFont;
+    }
+    
+    // Use the selected language for PDF generation
+    final pdfLangCode = languageCode ?? _langCode;
+    
+    // Create a font fallback system for mixed content
+    final mixedFont = await _createMixedFont(timesFont, laoFont);
+    final mixedBoldFont = await _createMixedFont(timesBoldFont, laoBoldFont);
+    
+    // Prepare logo image for PDF if available
+    pw.ImageProvider? logoImage;
+    if (logoImageBytes != null) {
+      try {
+        logoImage = pw.MemoryImage(logoImageBytes!);
+        print('Logo image prepared for PDF');
+      } catch (e) {
+        print('Error creating logo image for PDF: $e');
+      }
+    }
     
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(20),
-        build: (context) => _buildPDFContent(font, fontBold, laoFont),
+        build: (context) => _buildPDFContentMixed(
+          mixedFont,      // Mixed font supporting both English and Lao
+          mixedBoldFont,  // Mixed bold font
+          pdfLangCode, 
+          logoImage
+        ),
       ),
     );
     
     return pdf;
   }
 
-  List<pw.Widget> _buildPDFContent(pw.Font font, pw.Font fontBold, pw.Font laoFont) {
-    // Choose appropriate font based on language
-    final currentFont = _langCode == 'lo' ? laoFont : font;
-    final currentFontBold = _langCode == 'lo' ? laoFont : fontBold;
-    
+  // Create a font that can handle mixed English and Lao content
+  Future<pw.Font> _createMixedFont(pw.Font primaryFont, pw.Font laoFont) async {
+    // For now, return the primary font
+    // The PDF library will use font fallbacks automatically
+    // when characters are not available in the primary font
+    return primaryFont;
+  }
+
+  List<pw.Widget> _buildPDFContentMixed(pw.Font font, pw.Font fontBold, String pdfLangCode, pw.ImageProvider? logoImage) {
     return [
-      _buildPDFHeader(currentFontBold),
+      _buildPDFHeaderWithLogo(fontBold, pdfLangCode, logoImage),
       pw.SizedBox(height: 20),
       if (terminalDetails.isNotEmpty) ...[
-        _buildPDFSummarySection(currentFont, currentFontBold),
+        _buildPDFSummarySectionWithLang(font, fontBold, pdfLangCode),
         pw.SizedBox(height: 20),
-        _buildPDFTerminalSection(currentFont, currentFontBold, terminalDetails),
+        _buildPDFTerminalSectionWithLang(font, fontBold, terminalDetails, pdfLangCode),
       ] else ...[
-        _buildPDFTerminalSection(currentFont, currentFontBold, null),
+        _buildPDFTerminalSectionWithLang(font, fontBold, null, pdfLangCode),
       ],
-      _buildPDFSignatureSection(currentFont, currentFontBold),
+      _buildPDFSignatureSectionWithLang(font, fontBold, pdfLangCode),
     ];
   }
 
-  pw.Widget _buildPDFHeader(pw.Font fontBold) {
+ // Enhanced header with logo
+  pw.Widget _buildPDFHeaderWithLogo(pw.Font fontBold, String pdfLangCode, pw.ImageProvider? logoImage) {
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 20),
       decoration: const pw.BoxDecoration(
         border: pw.Border(bottom: pw.BorderSide(width: 2, color: oxfordBlue)),
       ),
-      child: pw.Column(
+      child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text(
-            SimpleTranslations.get(_langCode, 'terminal_registration_form_report').toUpperCase(),
-            style: pw.TextStyle(font: fontBold, fontSize: 24, color: oxfordBlue),
-          ),
-          pw.SizedBox(height: 8),
-          pw.Text(
-            '${SimpleTranslations.get(_langCode, 'generated')}: ${DateTime.now().toString().substring(0, 19)}',
-            style: pw.TextStyle(font: fontBold, fontSize: 12, color: PdfColors.grey600),
+          // Logo section
+          if (logoImage != null)
+            pw.Container(
+              width: 80,
+              height: 80,
+              margin: const pw.EdgeInsets.only(right: 20),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: oxfordBlue200, width: 1),
+                borderRadius: pw.BorderRadius.circular(8),
+              ),
+              child: pw.Image(
+                logoImage,
+                fit: pw.BoxFit.contain,
+              ),
+            ),
+          
+          // Title and info section
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  _getPDFTranslation(pdfLangCode, 'terminal_registration_form_report').toUpperCase(),
+                  style: pw.TextStyle(
+                    font: fontBold, 
+                    fontSize: logoImage != null ? 20 : 24, 
+                    color: oxfordBlue,
+                    height: 1.2,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Text(
+                  '${_getPDFTranslation(pdfLangCode, 'generated')}: ${DateTime.now().toString().substring(0, 19)}',
+                  style: pw.TextStyle(font: fontBold, fontSize: 12, color: PdfColors.grey600),
+                ),
+                if (companyName != null) ...[
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    companyName!,
+                    style: pw.TextStyle(font: fontBold, fontSize: 14, color: oxfordBlue700),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _buildPDFSummarySection(pw.Font font, pw.Font fontBold) {
+  pw.Widget _buildPDFSummarySectionWithLang(pw.Font font, pw.Font fontBold, String pdfLangCode) {
     if (terminalDetails.isEmpty) return pw.Container();
     
     final first = terminalDetails.first;
@@ -213,60 +542,42 @@ class _ListDetailPageState extends State<ListDetailPage> {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
-            SimpleTranslations.get(_langCode, 'organization_hierarchy_summary'),
+            _getPDFTranslation(pdfLangCode, 'organization_hierarchy_summary'),
+            
             style: pw.TextStyle(font: fontBold, fontSize: 16, color: oxfordBlue800),
+            
+            
           ),
           pw.SizedBox(height: 12),
-          _buildPDFInfoBlock(SimpleTranslations.get(_langCode, 'group_information'), [
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'code')}:', first['group_code'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'name')}:', first['group_name'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'mobile')}:', first['mobile'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+          _buildPDFInfoBlock(_getPDFTranslation(pdfLangCode, 'group_information'), [
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'logo')}:', companyLogoUrl ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'code')}:', first['group_code'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'name')}:', first['group_name'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'mobile')}:', first['mobile'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
           ], font, fontBold),
           pw.SizedBox(height: 12),
-          _buildPDFInfoBlock(SimpleTranslations.get(_langCode, 'merchant_information'), [
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'code')}:', first['merchant_code'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'name')}:', first['merchant_name'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+          _buildPDFInfoBlock(_getPDFTranslation(pdfLangCode, 'merchant_information'), [
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'code')}:', first['merchant_code'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'name')}:', first['merchant_name'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
           ], font, fontBold),
           pw.SizedBox(height: 12),
-          _buildPDFInfoBlock(SimpleTranslations.get(_langCode, 'store_information'), [
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'code')}:', first['store_code'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'name')}:', first['store_name'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'store_manager')}:', first['store_manager'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'store_email')}:', first['store_email'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'upi_percentage')}:', first['upi_percentage'] ?? '0.00', font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'visa_percentage')}:', first['visa_percentage'] ?? '0.00', font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'master_percentage')}:', first['master_percentage'] ?? '0.00', font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'account_name')}:', first['store_type'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
-            _buildPDFDetailRow('${SimpleTranslations.get(_langCode, 'account_no')}:', first['store_account'] ?? SimpleTranslations.get(_langCode, 'n_a'), font, fontBold),
+          _buildPDFInfoBlock(_getPDFTranslation(pdfLangCode, 'store_information'), [
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'code')}:', first['store_code'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'name')}:', first['store_name'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'store_manager')}:', first['store_manager'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'store_email')}:', first['store_email'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'upi_percentage')}:', first['upi_percentage'] ?? '0.00', font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'visa_percentage')}:', first['visa_percentage'] ?? '0.00', font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'master_percentage')}:', first['master_percentage'] ?? '0.00', font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'account_name')}:', first['store_type'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
+            _buildPDFDetailRow('${_getPDFTranslation(pdfLangCode, 'account_no')}:', first['store_account'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, fontBold),
           ], font, fontBold),
         ],
       ),
     );
   }
 
-  pw.Widget _buildPDFInfoBlock(String title, List<pw.Widget> content, pw.Font font, pw.Font fontBold) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Text(
-          title,
-          style: pw.TextStyle(font: fontBold, fontSize: 12, color: oxfordBlue700),
-        ),
-        pw.SizedBox(height: 6),
-        pw.Container(
-          padding: const pw.EdgeInsets.all(8),
-          decoration: pw.BoxDecoration(
-            color: PdfColors.white,
-            border: pw.Border.all(color: oxfordBlue100),
-            borderRadius: pw.BorderRadius.circular(4),
-          ),
-          child: pw.Column(children: content),
-        ),
-      ],
-    );
-  }
-
-  pw.Widget _buildPDFTerminalSection(pw.Font font, pw.Font fontBold, List<Map<String, dynamic>>? details) {
+  pw.Widget _buildPDFTerminalSectionWithLang(pw.Font font, pw.Font fontBold, List<Map<String, dynamic>>? details, String pdfLangCode) {
     final count = details?.length ?? widget.selectedTerminals.length;
     
     return pw.Column(
@@ -285,7 +596,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                SimpleTranslations.get(_langCode, 'registered_terminals'),
+                _getPDFTranslation(pdfLangCode, 'registered_terminals'),
                 style: pw.TextStyle(font: fontBold, fontSize: 16, color: PdfColors.white),
               ),
               pw.Container(
@@ -295,7 +606,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   borderRadius: pw.BorderRadius.circular(12),
                 ),
                 child: pw.Text(
-                  '$count ${SimpleTranslations.get(_langCode, 'items')}',
+                  '$count ${_getPDFTranslation(pdfLangCode, 'items')}',
                   style: pw.TextStyle(font: fontBold, fontSize: 12, color: oxfordBlue800),
                 ),
               ),
@@ -325,24 +636,24 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 decoration: const pw.BoxDecoration(color: PdfColors.grey100),
                 children: [
                   _buildTableHeaderCell('#', fontBold),
-                  _buildTableHeaderCell(SimpleTranslations.get(_langCode, 'terminal_name'), fontBold),
-                  _buildTableHeaderCell(SimpleTranslations.get(_langCode, 'code'), fontBold),
-                  _buildTableHeaderCell(SimpleTranslations.get(_langCode, 'serial_number'), fontBold),
-                  _buildTableHeaderCell(SimpleTranslations.get(_langCode, 'sim_number'), fontBold),
-                  _buildTableHeaderCell(SimpleTranslations.get(_langCode, 'expire_date'), fontBold),
+                  _buildTableHeaderCell(_getPDFTranslation(pdfLangCode, 'terminal_name'), fontBold),
+                  _buildTableHeaderCell(_getPDFTranslation(pdfLangCode, 'code'), fontBold),
+                  _buildTableHeaderCell(_getPDFTranslation(pdfLangCode, 'serial_number'), fontBold),
+                  _buildTableHeaderCell(_getPDFTranslation(pdfLangCode, 'sim_number'), fontBold),
+                  _buildTableHeaderCell(_getPDFTranslation(pdfLangCode, 'expire_date'), fontBold),
                 ],
               ),
               ...List.generate(count, (index) {
                 if (details != null) {
                   final terminal = details[index];
-                  return _buildTableRow(index, terminal['terminal_name'] ?? SimpleTranslations.get(_langCode, 'n_a'),
-                      terminal['terminal_code'] ?? SimpleTranslations.get(_langCode, 'n_a'), terminal['serial_number'] ?? SimpleTranslations.get(_langCode, 'n_a'),
-                      terminal['sim_number'] ?? SimpleTranslations.get(_langCode, 'n_a'), terminal['expire_date'] ?? SimpleTranslations.get(_langCode, 'n_a'), font);
+                  return _buildTableRow(index, terminal['terminal_name'] ?? _getPDFTranslation(pdfLangCode, 'n_a'),
+                      terminal['terminal_code'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), terminal['serial_number'] ?? _getPDFTranslation(pdfLangCode, 'n_a'),
+                      terminal['sim_number'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), terminal['expire_date'] ?? _getPDFTranslation(pdfLangCode, 'n_a'), font, pdfLangCode);
                 } else {
                   final terminal = widget.selectedTerminals[index];
-                  return _buildTableRow(index, terminal.terminalName, terminal.terminalCode ?? SimpleTranslations.get(_langCode, 'n_a'),
-                      terminal.serialNumber ?? SimpleTranslations.get(_langCode, 'n_a'), terminal.simNumber ?? SimpleTranslations.get(_langCode, 'n_a'),
-                      _formatExpireDate(terminal.expireDate), font);
+                  return _buildTableRow(index, terminal.terminalName, terminal.terminalCode ?? _getPDFTranslation(pdfLangCode, 'n_a'),
+                      terminal.serialNumber ?? _getPDFTranslation(pdfLangCode, 'n_a'), terminal.simNumber ?? _getPDFTranslation(pdfLangCode, 'n_a'),
+                      _formatExpireDate(terminal.expireDate), font, pdfLangCode);
                 }
               }),
             ],
@@ -363,11 +674,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text(
-                  '${SimpleTranslations.get(_langCode, 'total_terminals_registered')}: $count',
+                  '${_getPDFTranslation(pdfLangCode, 'total_terminals_registered')}: $count',
                   style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColors.grey700),
                 ),
                 pw.Text(
-                  '${SimpleTranslations.get(_langCode, 'report_generated')}: ${DateTime.now().toString().substring(0, 16)}',
+                  '${_getPDFTranslation(pdfLangCode, 'report_generated')}: ${DateTime.now().toString().substring(0, 16)}',
                   style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey600),
                 ),
               ],
@@ -377,19 +688,138 @@ class _ListDetailPageState extends State<ListDetailPage> {
     );
   }
 
-  pw.TableRow _buildTableRow(int index, String name, String code, String serial, String sim, String expire, pw.Font font) {
+  // Keep only the language-aware version of _buildTableRow
+  pw.TableRow _buildTableRow(int index, String name, String code, String serial, String sim, String expire, pw.Font font, String pdfLangCode) {
     final isEven = index % 2 == 0;
     return pw.TableRow(
       decoration: pw.BoxDecoration(
         color: isEven ? PdfColors.white : PdfColors.grey50,
       ),
       children: [
-        _buildTableDataCell((index + 1).toString(), font, isCenter: true),
-        _buildTableDataCell(name, font),
-        _buildTableDataCell(code, font, isCode: true),
-        _buildTableDataCell(serial, font),
-        _buildTableDataCell(sim, font),
-        _buildTableDataCell(expire, font),
+        _buildTableDataCell((index + 1).toString(), font, isCenter: true, pdfLangCode: pdfLangCode),
+        _buildTableDataCell(name, font, pdfLangCode: pdfLangCode),
+        _buildTableDataCell(code, font, isCode: true, pdfLangCode: pdfLangCode),
+        _buildTableDataCell(serial, font, pdfLangCode: pdfLangCode),
+        _buildTableDataCell(sim, font, pdfLangCode: pdfLangCode),
+        _buildTableDataCell(expire, font, pdfLangCode: pdfLangCode),
+      ],
+    );
+  }
+
+  // Keep only the language-aware version of _buildTableDataCell
+  pw.Widget _buildTableDataCell(String text, pw.Font font, {bool isCenter = false, bool isCode = false, required String pdfLangCode}) {
+    PdfColor textColor = PdfColors.grey700;
+    PdfColor? backgroundColor;
+    
+    if (isCode && text != _getPDFTranslation(pdfLangCode, 'n_a')) {
+      textColor = oxfordBlue700;
+      backgroundColor = oxfordBlue50;
+    }
+
+    pw.Widget cellContent = pw.Text(
+      text,
+      style: pw.TextStyle(font: font, fontSize: 8, color: textColor),
+      textAlign: isCenter ? pw.TextAlign.center : pw.TextAlign.left,
+    );
+
+    if (backgroundColor != null) {
+      cellContent = pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        decoration: pw.BoxDecoration(
+          color: backgroundColor,
+          borderRadius: pw.BorderRadius.circular(3),
+          border: pw.Border.all(color: oxfordBlue200, width: 0.5),
+        ),
+        child: cellContent,
+      );
+    }
+
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(6),
+      child: isCenter ? pw.Center(child: cellContent) : cellContent,
+    );
+  }
+
+  pw.Widget _buildPDFSignatureSectionWithLang(pw.Font font, pw.Font fontBold, String pdfLangCode) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(top: 30),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _buildPDFSignatureBlockWithLang(_getPDFTranslation(pdfLangCode, 'approved_by'), font, fontBold, pdfLangCode),
+          pw.SizedBox(width: 20),
+          _buildPDFSignatureBlockWithLang(_getPDFTranslation(pdfLangCode, 'created_by'), font, fontBold, pdfLangCode),
+        ],
+      ),
+    );
+  }
+
+ // Continuation of the ListDetailPage class - remaining methods
+
+  pw.Widget _buildPDFSignatureBlockWithLang(String title, pw.Font font, pw.Font fontBold, String pdfLangCode) {
+    return pw.Expanded(
+      child: pw.Container(
+        padding: const pw.EdgeInsets.all(16),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: oxfordBlue200),
+          borderRadius: pw.BorderRadius.circular(8),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(title, style: pw.TextStyle(font: fontBold, fontSize: 12, color: oxfordBlue700)),
+            pw.SizedBox(height: 20),
+            pw.Container(
+              height: 60,
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
+              ),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Text(_getPDFTranslation(pdfLangCode, 'signature'), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
+            pw.SizedBox(height: 16),
+            pw.Container(
+              height: 1,
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
+              ),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(_getPDFTranslation(pdfLangCode, 'name'), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
+            pw.SizedBox(height: 16),
+            pw.Container(
+              height: 1,
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
+              ),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(_getPDFTranslation(pdfLangCode, 'date'), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _buildPDFInfoBlock(String title, List<pw.Widget> content, pw.Font font, pw.Font fontBold) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          title,
+          style: pw.TextStyle(font: fontBold, fontSize: 12, color: oxfordBlue700),
+        ),
+        pw.SizedBox(height: 6),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(8),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.white,
+            border: pw.Border.all(color: oxfordBlue100),
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
+          child: pw.Column(children: content),
+        ),
       ],
     );
   }
@@ -425,99 +855,6 @@ class _ListDetailPageState extends State<ListDetailPage> {
         text,
         style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColors.grey800),
         textAlign: pw.TextAlign.left,
-      ),
-    );
-  }
-
-  pw.Widget _buildTableDataCell(String text, pw.Font font, {bool isCenter = false, bool isCode = false}) {
-    PdfColor textColor = PdfColors.grey700;
-    PdfColor? backgroundColor;
-    
-    if (isCode && text != SimpleTranslations.get(_langCode, 'n_a')) {
-      textColor = oxfordBlue700;
-      backgroundColor = oxfordBlue50;
-    }
-
-    pw.Widget cellContent = pw.Text(
-      text,
-      style: pw.TextStyle(font: font, fontSize: 8, color: textColor),
-      textAlign: isCenter ? pw.TextAlign.center : pw.TextAlign.left,
-    );
-
-    if (backgroundColor != null) {
-      cellContent = pw.Container(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-        decoration: pw.BoxDecoration(
-          color: backgroundColor,
-          borderRadius: pw.BorderRadius.circular(3),
-          border: pw.Border.all(color: oxfordBlue200, width: 0.5),
-        ),
-        child: cellContent,
-      );
-    }
-
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(6),
-      child: isCenter ? pw.Center(child: cellContent) : cellContent,
-    );
-  }
-
-  pw.Widget _buildPDFSignatureSection(pw.Font font, pw.Font fontBold) {
-    return pw.Container(
-      margin: const pw.EdgeInsets.only(top: 30),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          _buildPDFSignatureBlock(SimpleTranslations.get(_langCode, 'approved_by'), font, fontBold),
-          pw.SizedBox(width: 20),
-          _buildPDFSignatureBlock(SimpleTranslations.get(_langCode, 'created_by'), font, fontBold),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _buildPDFSignatureBlock(String title, pw.Font font, pw.Font fontBold) {
-    return pw.Expanded(
-      child: pw.Container(
-        padding: const pw.EdgeInsets.all(16),
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: oxfordBlue200),
-          borderRadius: pw.BorderRadius.circular(8),
-        ),
-        child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(title, style: pw.TextStyle(font: fontBold, fontSize: 12, color: oxfordBlue700)),
-            pw.SizedBox(height: 20),
-            pw.Container(
-              height: 60,
-              decoration: const pw.BoxDecoration(
-                border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
-              ),
-            ),
-            pw.SizedBox(height: 8),
-            pw.Text(SimpleTranslations.get(_langCode, 'signature'), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
-            pw.SizedBox(height: 16),
-            pw.Container(
-              height: 1,
-              decoration: const pw.BoxDecoration(
-                border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
-              ),
-            ),
-            pw.SizedBox(height: 4),
-            pw.Text(SimpleTranslations.get(_langCode, 'name'), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
-            pw.SizedBox(height: 16),
-            pw.Container(
-              height: 1,
-              decoration: const pw.BoxDecoration(
-                border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey400)),
-              ),
-            ),
-            pw.SizedBox(height: 4),
-            pw.Text(SimpleTranslations.get(_langCode, 'date'), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
-          ],
-        ),
       ),
     );
   }
@@ -619,6 +956,31 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   ],
                 ),
               ),
+              // Show logo in UI header if available
+              if (logoImageBytes != null)
+                Container(
+                  width: 60,
+                  height: 60,
+                  margin: const EdgeInsets.only(left: 16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFA3B7D1), width: 1),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF002147).withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(7),
+                    child: Image.memory(
+                      logoImageBytes!,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 20),

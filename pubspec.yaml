@@ -52,8 +52,24 @@ flutter:
     - assets/flags/la.png
     - assets/images/
     - assets/images/default_profile.png
-    - assets/fonts/Phetsarath-Regular.ttf
-    - assets/fonts/Phetsarath-Bold.ttf
+    - assets/fonts/
+
+  fonts:
+  - family: Times
+    fonts:
+      - asset: assets/fonts/times.ttf
+      - asset: assets/fonts/times-bold.ttf
+        weight: 700
+  - family: Saysettha
+    fonts:
+      - asset: assets/fonts/Saysettha-Regular.ttf
+      - asset: assets/fonts/Saysettha-Bold.ttf
+        weight: 700
+  - family: Phetsarath
+    fonts:
+      - asset: assets/fonts/Phetsarath-Regular.ttf
+      - asset: assets/fonts/Phetsarath-Bold.ttf
+        weight: 700
     
 
 dev_dependencies:
