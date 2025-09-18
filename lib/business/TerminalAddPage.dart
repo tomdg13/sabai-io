@@ -118,18 +118,19 @@ class TerminalAddPage extends StatefulWidget {
   State<TerminalAddPage> createState() => _TerminalAddPageState();
 }
 
-class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderStateMixin {
+class _TerminalAddPageState extends State<TerminalAddPage>
+    with TickerProviderStateMixin {
   // Form controllers
   final _formKey = GlobalKey<FormState>();
   final _terminalNameController = TextEditingController();
   final _terminalNameFocus = FocusNode();
-  
+
   // NEW: Controllers for the new fields
   final _serialNumberController = TextEditingController();
   final _simNumberController = TextEditingController();
   final _serialNumberFocus = FocusNode();
   final _simNumberFocus = FocusNode();
-  
+
   // NEW: Expire date
   DateTime? _selectedExpireDate;
 
@@ -141,16 +142,16 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
   String? _webImageName; // For web
   bool _isLoading = false;
   String currentTheme = ThemeConfig.defaultTheme;
-  
+
   // Dropdown data
   List<Group> _groups = [];
   Group? _selectedGroup;
   bool _isLoadingGroups = false;
-  
+
   List<Merchant> _merchants = [];
   Merchant? _selectedMerchant;
   bool _isLoadingMerchants = false;
-  
+
   List<Store> _stores = [];
   Store? _selectedStore;
   bool _isLoadingStores = false;
@@ -210,10 +211,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
       }
     } catch (e) {
       print('Error picking image: $e');
-      _showSnackBar(
-        message: 'Error selecting image: $e',
-        isError: true,
-      );
+      _showSnackBar(message: 'Error selecting image: $e', isError: true);
     }
   }
 
@@ -232,7 +230,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
       reader.onLoadEnd.listen((e) async {
         final Uint8List bytes = reader.result as Uint8List;
         final String base64String = base64Encode(bytes);
-        
+
         setState(() {
           _webImageBytes = bytes;
           _webImageName = file.name;
@@ -240,10 +238,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
         });
 
         print('Web image selected and converted to base64');
-        _showSnackBar(
-          message: 'Image selected successfully',
-          isError: false,
-        );
+        _showSnackBar(message: 'Image selected successfully', isError: false);
       });
 
       reader.readAsArrayBuffer(file);
@@ -311,17 +306,14 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
       final File imageFile = File(image.path);
       final Uint8List imageBytes = await imageFile.readAsBytes();
       final String base64String = base64Encode(imageBytes);
-      
+
       setState(() {
         _imageFile = imageFile;
         _base64Image = 'data:image/jpeg;base64,$base64String';
       });
 
       print('Mobile image selected and converted to base64');
-      _showSnackBar(
-        message: 'Image selected successfully',
-        isError: false,
-      );
+      _showSnackBar(message: 'Image selected successfully', isError: false);
     }
   }
 
@@ -402,11 +394,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
                   color: Colors.black.withOpacity(0.6),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Icon(
-                  Icons.edit,
-                  color: Colors.white,
-                  size: 16,
-                ),
+                child: Icon(Icons.edit, color: Colors.white, size: 16),
               ),
             ),
           ],
@@ -432,11 +420,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
                   color: Colors.black.withOpacity(0.6),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Icon(
-                  Icons.edit,
-                  color: Colors.white,
-                  size: 16,
-                ),
+                child: Icon(Icons.edit, color: Colors.white, size: 16),
               ),
             ),
           ],
@@ -463,10 +447,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
           SizedBox(height: 4),
           Text(
             'Recommended: 800x800px',
-            style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 12,
-            ),
+            style: TextStyle(color: Colors.grey[400], fontSize: 12),
           ),
           if (kIsWeb) ...[
             SizedBox(height: 8),
@@ -488,7 +469,8 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
   Future<void> _scanBarcode() async {
     if (kIsWeb) {
       _showSnackBar(
-        message: 'Barcode scanning is not available on web. Please enter manually.',
+        message:
+            'Barcode scanning is not available on web. Please enter manually.',
         isError: true,
       );
       return;
@@ -497,11 +479,9 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
     try {
       final result = await Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => _BarcodeScannerPage(),
-        ),
+        MaterialPageRoute(builder: (context) => _BarcodeScannerPage()),
       );
-      
+
       if (result != null && result is String && result.isNotEmpty) {
         setState(() {
           _serialNumberController.text = result;
@@ -512,10 +492,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
         );
       }
     } catch (e) {
-      _showSnackBar(
-        message: 'Error scanning barcode: $e',
-        isError: true,
-      );
+      _showSnackBar(message: 'Error scanning barcode: $e', isError: true);
     }
   }
 
@@ -523,7 +500,8 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
   Future<void> _loadCurrentTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      currentTheme =
+          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     });
   }
 
@@ -546,7 +524,8 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        if (responseData['status'] == 'success' && responseData['data'] != null) {
+        if (responseData['status'] == 'success' &&
+            responseData['data'] != null) {
           final List<dynamic> groupsJson = responseData['data'];
           setState(() {
             _groups = groupsJson.map((json) => Group.fromJson(json)).toList();
@@ -564,7 +543,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
 
   Future<void> _loadMerchants() async {
     if (_selectedGroup == null) return;
-    
+
     setState(() => _isLoadingMerchants = true);
 
     try {
@@ -572,7 +551,9 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
       final token = prefs.getString('access_token');
       final companyId = CompanyConfig.getCompanyId();
 
-      final url = AppConfig.api('/api/iomerchant/company/$companyId/group/${_selectedGroup!.id}');
+      final url = AppConfig.api(
+        '/api/iomerchant/company/$companyId/group/${_selectedGroup!.id}',
+      );
       final response = await http.get(
         Uri.parse(url.toString()),
         headers: {
@@ -583,10 +564,13 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        if (responseData['status'] == 'success' && responseData['data'] != null) {
+        if (responseData['status'] == 'success' &&
+            responseData['data'] != null) {
           final List<dynamic> merchantsJson = responseData['data'];
           setState(() {
-            _merchants = merchantsJson.map((json) => Merchant.fromJson(json)).toList();
+            _merchants = merchantsJson
+                .map((json) => Merchant.fromJson(json))
+                .toList();
           });
         } else {
           setState(() => _merchants = []);
@@ -604,7 +588,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
 
   Future<void> _loadStores() async {
     if (_selectedMerchant == null) return;
-    
+
     setState(() => _isLoadingStores = true);
 
     try {
@@ -612,7 +596,9 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
       final token = prefs.getString('access_token');
       final companyId = CompanyConfig.getCompanyId();
 
-      final url = AppConfig.api('/api/ioterminal/company/$companyId/merchant/${_selectedMerchant!.merchantId}');
+      final url = AppConfig.api(
+        '/api/ioterminal/company/$companyId/merchant/${_selectedMerchant!.merchantId}',
+      );
       final response = await http.get(
         Uri.parse(url.toString()),
         headers: {
@@ -623,7 +609,8 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        if (responseData['status'] == 'success' && responseData['data'] != null) {
+        if (responseData['status'] == 'success' &&
+            responseData['data'] != null) {
           final List<dynamic> storesJson = responseData['data'];
           setState(() {
             _stores = storesJson.map((json) => Store.fromJson(json)).toList();
@@ -646,7 +633,8 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
   Future<void> _selectExpireDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedExpireDate ?? DateTime.now().add(const Duration(days: 365)),
+      initialDate:
+          _selectedExpireDate ?? DateTime.now().add(const Duration(days: 365)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 3650)), // 10 years
       builder: (context, child) {
@@ -671,9 +659,12 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
   // API Operations with new fields
   Future<void> _createTerminal() async {
     FocusScope.of(context).unfocus();
-    
+
     if (!_formKey.currentState!.validate()) {
-      _showSnackBar(message: 'Please fill in all required fields', isError: true);
+      _showSnackBar(
+        message: 'Please fill in all required fields',
+        isError: true,
+      );
       return;
     }
 
@@ -693,10 +684,12 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
       if (savedPhone?.isNotEmpty == true) {
         terminalData['phone'] = savedPhone!;
       }
-      
+
       if (_selectedGroup != null) terminalData['group_id'] = _selectedGroup!.id;
-      if (_selectedMerchant != null) terminalData['merchant_id'] = _selectedMerchant!.merchantId;
-      if (_selectedStore != null) terminalData['store_id'] = _selectedStore!.storeId;
+      if (_selectedMerchant != null)
+        terminalData['merchant_id'] = _selectedMerchant!.merchantId;
+      if (_selectedStore != null)
+        terminalData['store_id'] = _selectedStore!.storeId;
       if (_base64Image != null) terminalData['image'] = _base64Image!;
 
       // NEW: Add the three new fields
@@ -707,7 +700,9 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
         terminalData['sim_number'] = _simNumberController.text.trim();
       }
       if (_selectedExpireDate != null) {
-        terminalData['expire_date'] = _selectedExpireDate!.toIso8601String().split('T')[0];
+        terminalData['expire_date'] = _selectedExpireDate!
+            .toIso8601String()
+            .split('T')[0];
       }
 
       final userId = prefs.getInt('user_id');
@@ -718,7 +713,8 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
       print('🌐 API URL: $apiUrl');
       print('📤 REQUEST HEADERS:');
       print('   Content-Type: application/json');
-      if (token != null) print('   Authorization: Bearer ${token.substring(0, 20)}...');
+      if (token != null)
+        print('   Authorization: Bearer ${token.substring(0, 20)}...');
       print('📦 REQUEST BODY:');
       print(const JsonEncoder.withIndent('  ').convert(terminalData));
       print('⏱️ Sending request at: ${DateTime.now().toIso8601String()}');
@@ -735,7 +731,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
       print('📥 RESPONSE STATUS: ${response.statusCode}');
       print('📥 RESPONSE HEADERS: ${response.headers}');
       print('📥 RESPONSE BODY:');
-      
+
       try {
         final responseJson = jsonDecode(response.body);
         print(const JsonEncoder.withIndent('  ').convert(responseJson));
@@ -753,7 +749,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
           return;
         }
       }
-      
+
       print('❌ Request failed with status: ${response.statusCode}');
       _handleErrorResponse(response);
     } catch (e) {
@@ -777,22 +773,25 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
   void _handleErrorResponse(http.Response response) {
     final errorData = jsonDecode(response.body);
     String errorMessage;
-    
+
     switch (response.statusCode) {
       case 409:
-        errorMessage = 'Terminal already exists: ${errorData['details'] ?? errorData['message']}';
+        errorMessage =
+            'Terminal already exists: ${errorData['details'] ?? errorData['message']}';
         break;
       case 400:
         if (errorData['message'] is List) {
-          errorMessage = 'Validation error: ${(errorData['message'] as List).join(', ')}';
+          errorMessage =
+              'Validation error: ${(errorData['message'] as List).join(', ')}';
         } else {
           errorMessage = 'Validation error: ${errorData['message']}';
         }
         break;
       default:
-        errorMessage = errorData['message'] ?? 'Server error: ${response.statusCode}';
+        errorMessage =
+            errorData['message'] ?? 'Server error: ${response.statusCode}';
     }
-    
+
     throw Exception(errorMessage);
   }
 
@@ -814,7 +813,9 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Terminal "${_terminalNameController.text}" created successfully!'),
+            Text(
+              'Terminal "${_terminalNameController.text}" created successfully!',
+            ),
             const SizedBox(height: 8),
             if (terminalCode != 'N/A') ...[
               Container(
@@ -825,8 +826,11 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
                   border: Border.all(color: Colors.green[200]!),
                 ),
                 child: Text(
-                  'Terminal Code: $terminalCode', 
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                  'Terminal Code: $terminalCode',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -840,7 +844,9 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
               const SizedBox(height: 4),
             ],
             if (_selectedExpireDate != null) ...[
-              Text('Expires: ${_selectedExpireDate!.day}/${_selectedExpireDate!.month}/${_selectedExpireDate!.year}'),
+              Text(
+                'Expires: ${_selectedExpireDate!.day}/${_selectedExpireDate!.month}/${_selectedExpireDate!.year}',
+              ),
               const SizedBox(height: 4),
             ],
             if (_selectedGroup != null) ...[
@@ -924,11 +930,17 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          prefixIcon: Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
+          prefixIcon: Icon(
+            icon,
+            color: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+              width: 2,
+            ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -943,15 +955,19 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
                   padding: const EdgeInsets.all(12),
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getPrimaryColor(currentTheme)),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      ThemeConfig.getPrimaryColor(currentTheme),
+                    ),
                   ),
                 )
               : null,
         ),
-        items: items.map((item) => DropdownMenuItem<T>(
-          value: item,
-          child: itemBuilder(item),
-        )).toList(),
+        items: items
+            .map(
+              (item) =>
+                  DropdownMenuItem<T>(value: item, child: itemBuilder(item)),
+            )
+            .toList(),
         onChanged: isEnabled && !isLoading ? onChanged : null,
       ),
     );
@@ -1014,15 +1030,23 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
         keyboardType: keyboardType,
         validator: validator,
         textInputAction: textInputAction ?? TextInputAction.next,
-        onFieldSubmitted: onFieldSubmitted != null ? (_) => onFieldSubmitted() : null,
+        onFieldSubmitted: onFieldSubmitted != null
+            ? (_) => onFieldSubmitted()
+            : null,
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          prefixIcon: Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
+          prefixIcon: Icon(
+            icon,
+            color: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+              width: 2,
+            ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -1045,7 +1069,9 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
         keyboardType: TextInputType.text,
         textInputAction: TextInputAction.next,
         validator: (value) {
-          if (value != null && value.trim().isNotEmpty && value.trim().length < 3) {
+          if (value != null &&
+              value.trim().isNotEmpty &&
+              value.trim().length < 3) {
             return 'Serial number must be at least 3 characters';
           }
           return null;
@@ -1054,7 +1080,10 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
         decoration: InputDecoration(
           labelText: 'Serial Number',
           hintText: 'Enter or scan device serial number',
-          prefixIcon: Icon(Icons.memory, color: ThemeConfig.getPrimaryColor(currentTheme)),
+          prefixIcon: Icon(
+            Icons.memory,
+            color: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1078,10 +1107,14 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
                 ),
             ],
           ),
+
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+              width: 2,
+            ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -1110,12 +1143,21 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
           decoration: InputDecoration(
             labelText: label,
             hintText: hint ?? 'Select date',
-            prefixIcon: Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
-            suffixIcon: Icon(Icons.calendar_today, color: ThemeConfig.getPrimaryColor(currentTheme)),
+            prefixIcon: Icon(
+              icon,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+            suffixIcon: Icon(
+              Icons.calendar_today,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
+              borderSide: BorderSide(
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+                width: 2,
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -1125,9 +1167,9 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
             fillColor: Colors.grey[50],
           ),
           child: Text(
-            selectedDate != null 
-              ? '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'
-              : hint ?? 'Select date',
+            selectedDate != null
+                ? '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'
+                : hint ?? 'Select date',
             style: TextStyle(
               color: selectedDate != null ? Colors.black87 : Colors.grey[600],
             ),
@@ -1155,7 +1197,11 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
               Row(
                 children: [
                   if (icon != null) ...[
-                    Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme), size: 24),
+                    Icon(
+                      icon,
+                      color: ThemeConfig.getPrimaryColor(currentTheme),
+                      size: 24,
+                    ),
                     const SizedBox(width: 12),
                   ],
                   Text(
@@ -1225,7 +1271,9 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
       children: [
         _buildDropdown<Group>(
           label: 'Group',
-          hint: _isLoadingGroups ? 'Loading groups...' : 'Select a group (optional)',
+          hint: _isLoadingGroups
+              ? 'Loading groups...'
+              : 'Select a group (optional)',
           icon: Icons.group,
           value: _selectedGroup,
           items: _groups,
@@ -1254,8 +1302,8 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
           hint: _selectedGroup == null
               ? 'Select a group first'
               : _isLoadingMerchants
-                  ? 'Loading merchants...'
-                  : 'Select a merchant (optional)',
+              ? 'Loading merchants...'
+              : 'Select a merchant (optional)',
           icon: Icons.business,
           value: _selectedMerchant,
           items: _merchants,
@@ -1283,8 +1331,8 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
           hint: _selectedMerchant == null
               ? 'Select a merchant first'
               : _isLoadingStores
-                  ? 'Loading stores...'
-                  : 'Select a store (optional)',
+              ? 'Loading stores...'
+              : 'Select a store (optional)',
           icon: Icons.store,
           value: _selectedStore,
           items: _stores,
@@ -1365,27 +1413,37 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _selectedExpireDate!.isBefore(DateTime.now().add(const Duration(days: 30)))
-                ? Colors.orange[50]
-                : Colors.green[50],
+              color:
+                  _selectedExpireDate!.isBefore(
+                    DateTime.now().add(const Duration(days: 30)),
+                  )
+                  ? Colors.orange[50]
+                  : Colors.green[50],
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: _selectedExpireDate!.isBefore(DateTime.now().add(const Duration(days: 30)))
-                  ? Colors.orange[200]!
-                  : Colors.green[200]!,
+                color:
+                    _selectedExpireDate!.isBefore(
+                      DateTime.now().add(const Duration(days: 30)),
+                    )
+                    ? Colors.orange[200]!
+                    : Colors.green[200]!,
               ),
             ),
             child: Row(
               children: [
                 Icon(
                   _selectedExpireDate!.isBefore(DateTime.now())
-                    ? Icons.error
-                    : _selectedExpireDate!.isBefore(DateTime.now().add(const Duration(days: 30)))
+                      ? Icons.error
+                      : _selectedExpireDate!.isBefore(
+                          DateTime.now().add(const Duration(days: 30)),
+                        )
                       ? Icons.warning
                       : Icons.check_circle,
                   color: _selectedExpireDate!.isBefore(DateTime.now())
-                    ? Colors.red
-                    : _selectedExpireDate!.isBefore(DateTime.now().add(const Duration(days: 30)))
+                      ? Colors.red
+                      : _selectedExpireDate!.isBefore(
+                          DateTime.now().add(const Duration(days: 30)),
+                        )
                       ? Colors.orange
                       : Colors.green,
                   size: 20,
@@ -1394,15 +1452,19 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
                 Expanded(
                   child: Text(
                     _selectedExpireDate!.isBefore(DateTime.now())
-                      ? 'Warning: This date is in the past'
-                      : _selectedExpireDate!.isBefore(DateTime.now().add(const Duration(days: 30)))
+                        ? 'Warning: This date is in the past'
+                        : _selectedExpireDate!.isBefore(
+                            DateTime.now().add(const Duration(days: 30)),
+                          )
                         ? 'Warning: Expires within 30 days'
                         : 'Valid expiry date',
                     style: TextStyle(
                       fontSize: 12,
                       color: _selectedExpireDate!.isBefore(DateTime.now())
-                        ? Colors.red[700]
-                        : _selectedExpireDate!.isBefore(DateTime.now().add(const Duration(days: 30)))
+                          ? Colors.red[700]
+                          : _selectedExpireDate!.isBefore(
+                              DateTime.now().add(const Duration(days: 30)),
+                            )
                           ? Colors.orange[700]
                           : Colors.green[700],
                       fontWeight: FontWeight.w500,
@@ -1450,7 +1512,9 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
         key: _formKey,
         child: Center(
           child: Container(
-            constraints: BoxConstraints(maxWidth: isWideScreen ? 800 : double.infinity),
+            constraints: BoxConstraints(
+              maxWidth: isWideScreen ? 800 : double.infinity,
+            ),
             child: SingleChildScrollView(
               padding: EdgeInsets.symmetric(
                 horizontal: horizontalPadding,
@@ -1461,7 +1525,7 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
                 children: [
                   // Terminal Image Section
                   _buildImageSection(),
-                  
+
                   SizedBox(height: 20),
 
                   // Basic Information
@@ -1482,13 +1546,19 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _createTerminal,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                          foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                          backgroundColor: ThemeConfig.getPrimaryColor(
+                            currentTheme,
+                          ),
+                          foregroundColor: ThemeConfig.getButtonTextColor(
+                            currentTheme,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
                           elevation: 4,
-                          shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+                          shadowColor: ThemeConfig.getPrimaryColor(
+                            currentTheme,
+                          ).withOpacity(0.3),
                         ),
                         child: _isLoading
                             ? Row(
@@ -1500,14 +1570,19 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                        ThemeConfig.getButtonTextColor(currentTheme),
+                                        ThemeConfig.getButtonTextColor(
+                                          currentTheme,
+                                        ),
                                       ),
                                     ),
                                   ),
                                   SizedBox(width: 16),
                                   Text(
                                     'Creating Terminal...',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ],
                               )
@@ -1518,7 +1593,10 @@ class _TerminalAddPageState extends State<TerminalAddPage> with TickerProviderSt
                                   SizedBox(width: 12),
                                   Text(
                                     'Create Terminal',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -1549,7 +1627,7 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
     facing: CameraFacing.back,
     torchEnabled: false,
   );
-  
+
   bool _isScanning = true;
   String? _scannedCode;
 
@@ -1563,7 +1641,7 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
 
   void _onDetect(BarcodeCapture capture) {
     if (!_isScanning) return;
-    
+
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isNotEmpty) {
       final barcode = barcodes.first;
@@ -1572,9 +1650,9 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
           _isScanning = false;
           _scannedCode = barcode.rawValue;
         });
-        
+
         HapticFeedback.mediumImpact();
-        
+
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
             Navigator.pop(context, _scannedCode);
@@ -1611,13 +1689,10 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
       ),
       body: Stack(
         children: [
-          MobileScanner(
-            controller: cameraController,
-            onDetect: _onDetect,
-          ),
-          
+          MobileScanner(controller: cameraController, onDetect: _onDetect),
+
           _buildScanningOverlay(),
-          
+
           Positioned(
             bottom: 100,
             left: 0,
@@ -1659,7 +1734,7 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
               ),
             ),
           ),
-          
+
           Positioned(
             bottom: 30,
             left: 0,
@@ -1674,7 +1749,10 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
                 ),
                 style: TextButton.styleFrom(
                   backgroundColor: Colors.black.withOpacity(0.7),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
                   ),
@@ -1688,10 +1766,7 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
   }
 
   Widget _buildScanningOverlay() {
-    return CustomPaint(
-      painter: ScannerOverlayPainter(),
-      child: Container(),
-    );
+    return CustomPaint(painter: ScannerOverlayPainter(), child: Container());
   }
 }
 
@@ -1700,29 +1775,31 @@ class ScannerOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()..color = Colors.black.withOpacity(0.5);
-    
+
     final double frameWidth = size.width * 0.7;
     final double frameHeight = frameWidth * 0.6;
     final double left = (size.width - frameWidth) / 2;
     final double top = (size.height - frameHeight) / 2;
     final Rect frameRect = Rect.fromLTWH(left, top, frameWidth, frameHeight);
-    
+
     canvas.drawPath(
       Path.combine(
         PathOperation.difference,
         Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
-        Path()..addRRect(RRect.fromRectAndRadius(frameRect, const Radius.circular(12))),
+        Path()..addRRect(
+          RRect.fromRectAndRadius(frameRect, const Radius.circular(12)),
+        ),
       ),
       paint,
     );
-    
+
     final Paint cornerPaint = Paint()
       ..color = Colors.white
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke;
-    
+
     final double cornerLength = 30;
-    
+
     // Draw corner guides
     canvas.drawPath(
       Path()
@@ -1731,7 +1808,7 @@ class ScannerOverlayPainter extends CustomPainter {
         ..lineTo(left + cornerLength, top),
       cornerPaint,
     );
-    
+
     canvas.drawPath(
       Path()
         ..moveTo(left + frameWidth - cornerLength, top)
@@ -1739,7 +1816,7 @@ class ScannerOverlayPainter extends CustomPainter {
         ..lineTo(left + frameWidth, top + cornerLength),
       cornerPaint,
     );
-    
+
     canvas.drawPath(
       Path()
         ..moveTo(left, top + frameHeight - cornerLength)
@@ -1747,7 +1824,7 @@ class ScannerOverlayPainter extends CustomPainter {
         ..lineTo(left + cornerLength, top + frameHeight),
       cornerPaint,
     );
-    
+
     canvas.drawPath(
       Path()
         ..moveTo(left + frameWidth - cornerLength, top + frameHeight)

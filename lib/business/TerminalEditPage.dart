@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -54,21 +57,13 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
     _simNumberController = TextEditingController(text: widget.TerminalData['sim_number'] ?? '');
     _currentImageUrl = widget.TerminalData['image_url'];
     
-    // Parse expire date if it exists
     if (widget.TerminalData['expire_date'] != null && widget.TerminalData['expire_date'].toString().isNotEmpty) {
       try {
         _selectedExpireDate = DateTime.parse(widget.TerminalData['expire_date']);
       } catch (e) {
-        print('Error parsing expire date: $e');
+        _selectedExpireDate = null;
       }
     }
-    
-    print('🔧 DEBUG: Initialized edit form with Terminal: ${widget.TerminalData['terminal_name']}');
-    print('🔧 DEBUG: Terminal ID: ${widget.TerminalData['terminal_id']}');
-    print('🔧 DEBUG: Company ID: ${widget.TerminalData['company_id']}');
-    print('🔧 DEBUG: Serial Number: ${widget.TerminalData['serial_number']}');
-    print('🔧 DEBUG: SIM Number: ${widget.TerminalData['sim_number']}');
-    print('🔧 DEBUG: Expire Date: ${widget.TerminalData['expire_date']}');
   }
 
   @override
@@ -80,12 +75,73 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
     super.dispose();
   }
 
+  Future<void> _scanBarcode() async {
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Barcode scanning is not available on web. Please enter manually.'),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => _BarcodeScannerPage(),
+        ),
+      );
+      
+      if (result != null && result is String && result.isNotEmpty) {
+        setState(() {
+          _serialNumberController.text = result;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Serial number scanned successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Error scanning barcode: $e'),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Future<void> _selectExpireDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedExpireDate ?? DateTime.now().add(Duration(days: 365)),
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(Duration(days: 3650)), // 10 years from now
+      lastDate: DateTime.now().add(Duration(days: 3650)),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -110,7 +166,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
 
   Future<void> _pickImage() async {
     try {
-      // Show image source selection dialog
       final ImageSource? source = await showModalBottomSheet<ImageSource>(
         context: context,
         shape: RoundedRectangleBorder(
@@ -175,11 +230,8 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
           _imageFile = imageFile;
           _base64Image = 'data:image/jpeg;base64,$base64String';
         });
-
-        print('📷 DEBUG: New image selected for Terminal update');
       }
     } catch (e) {
-      print('❌ DEBUG: Error picking image: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -247,13 +299,11 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
       final terminalId = widget.TerminalData['terminal_id'];
 
       final url = AppConfig.api('/api/ioterminal/$terminalId');
-      print('🌐 DEBUG: Updating Terminal at: $url');
 
       final terminalData = <String, dynamic>{
         'company_id': CompanyConfig.getCompanyId(),
       };
       
-      // Only include fields that have values
       if (_terminalNameController.text.trim().isNotEmpty) {
         terminalData['terminal_name'] = _terminalNameController.text.trim();
       }
@@ -271,14 +321,12 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
       }
       
       if (_selectedExpireDate != null) {
-        terminalData['expire_date'] = _selectedExpireDate!.toIso8601String().split('T')[0]; // YYYY-MM-DD format
+        terminalData['expire_date'] = _selectedExpireDate!.toIso8601String().split('T')[0];
       }
       
       if (_base64Image != null) {
         terminalData['image'] = _base64Image;
       }
-
-      print('📝 DEBUG: Update data: ${terminalData.toString()}');
 
       final response = await http.put(
         Uri.parse(url.toString()),
@@ -288,9 +336,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
         },
         body: jsonEncode(terminalData),
       );
-
-      print('📡 DEBUG: Update Response Status: ${response.statusCode}');
-      print('📝 DEBUG: Update Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
@@ -307,7 +352,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context, true); // Return true to indicate success
+          Navigator.pop(context, true);
         } else {
           throw Exception(responseData['message'] ?? 'Unknown error');
         }
@@ -316,7 +361,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
         throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ DEBUG: Error updating Terminal: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -337,7 +381,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
   }
 
   Future<void> _deleteTerminal() async {
-    // Show confirmation dialog
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -384,7 +427,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
       final terminalId = widget.TerminalData['terminal_id'];
 
       final url = AppConfig.api('/api/ioterminal/$terminalId');
-      print('🗑️ DEBUG: Deleting Terminal at: $url');
 
       final response = await http.delete(
         Uri.parse(url.toString()),
@@ -393,9 +435,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
           if (token != null) 'Authorization': 'Bearer $token',
         },
       );
-
-      print('📡 DEBUG: Delete Response Status: ${response.statusCode}');
-      print('📝 DEBUG: Delete Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
@@ -412,7 +451,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
               backgroundColor: Colors.red,
             ),
           );
-          Navigator.pop(context, 'deleted'); // Return 'deleted' to indicate deletion
+          Navigator.pop(context, 'deleted');
         } else {
           throw Exception(responseData['message'] ?? 'Unknown error');
         }
@@ -421,7 +460,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
         throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ DEBUG: Error deleting Terminal: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -644,12 +682,10 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Terminal Image Section
               _buildImageSection(),
               
               SizedBox(height: 20),
 
-              // Terminal Information
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -680,7 +716,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                       ),
                       SizedBox(height: 20),
                       
-                      // Terminal Name Field
                       TextFormField(
                         controller: _terminalNameController,
                         decoration: InputDecoration(
@@ -717,7 +752,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                       
                       SizedBox(height: 16),
                       
-                      // Phone Field
                       TextFormField(
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
@@ -747,7 +781,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                         ),
                         validator: (value) {
                           if (value != null && value.isNotEmpty) {
-                            // Basic phone validation
                             if (!RegExp(r'^[\+]?[1-9][\d]{0,15}$').hasMatch(value)) {
                               return 'Please enter a valid phone number';
                             }
@@ -758,15 +791,37 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                       
                       SizedBox(height: 16),
                       
-                      // Serial Number Field
                       TextFormField(
                         controller: _serialNumberController,
                         decoration: InputDecoration(
                           labelText: 'Serial Number',
-                          hintText: 'Enter serial number',
+                          hintText: 'Enter or scan device serial number',
                           prefixIcon: Icon(
-                            Icons.confirmation_number,
+                            Icons.memory,
                             color: ThemeConfig.getPrimaryColor(currentTheme),
+                          ),
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_serialNumberController.text.isNotEmpty)
+                                IconButton(
+                                  icon: Icon(Icons.clear, color: Colors.grey[600]),
+                                  onPressed: () {
+                                    setState(() {
+                                      _serialNumberController.clear();
+                                    });
+                                  },
+                                ),
+                              if (!kIsWeb)
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.qr_code_scanner,
+                                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                                  ),
+                                  onPressed: _scanBarcode,
+                                  tooltip: 'Scan Barcode',
+                                ),
+                            ],
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -785,11 +840,16 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                           filled: true,
                           fillColor: Colors.grey[50],
                         ),
+                        validator: (value) {
+                          if (value != null && value.trim().isNotEmpty && value.trim().length < 3) {
+                            return 'Serial number must be at least 3 characters';
+                          }
+                          return null;
+                        },
                       ),
                       
                       SizedBox(height: 16),
                       
-                      // SIM Number Field
                       TextFormField(
                         controller: _simNumberController,
                         decoration: InputDecoration(
@@ -818,7 +878,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                         ),
                         validator: (value) {
                           if (value != null && value.isNotEmpty) {
-                            // Basic SIM number validation (at least 8 alphanumeric characters)
                             if (!RegExp(r'^[0-9A-F]{8,}$', caseSensitive: false).hasMatch(value)) {
                               return 'SIM number must be at least 8 characters';
                             }
@@ -829,7 +888,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                       
                       SizedBox(height: 16),
                       
-                      // Expire Date Field
                       GestureDetector(
                         onTap: _selectExpireDate,
                         child: Container(
@@ -875,7 +933,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                       
                       SizedBox(height: 16),
                       
-                      // Display read-only company ID
                       Container(
                         padding: EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -908,7 +965,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
 
               SizedBox(height: 30),
 
-              // Update Button
               Container(
                 height: 56,
                 child: ElevatedButton(
@@ -964,4 +1020,225 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
       ),
     );
   }
+}
+
+class _BarcodeScannerPage extends StatefulWidget {
+  @override
+  State<_BarcodeScannerPage> createState() => _BarcodeScannerPageState();
+}
+
+class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
+  MobileScannerController cameraController = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    facing: CameraFacing.back,
+    torchEnabled: false,
+  );
+  
+  bool _isScanning = true;
+  String? _scannedCode;
+
+  bool get _isTorchOn => cameraController.torchEnabled;
+
+  @override
+  void dispose() {
+    cameraController.dispose();
+    super.dispose();
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (!_isScanning) return;
+    
+    final List<Barcode> barcodes = capture.barcodes;
+    if (barcodes.isNotEmpty) {
+      final barcode = barcodes.first;
+      if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+        setState(() {
+          _isScanning = false;
+          _scannedCode = barcode.rawValue;
+        });
+        
+        HapticFeedback.mediumImpact();
+        
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            Navigator.pop(context, _scannedCode);
+          }
+        });
+      }
+    }
+  }
+
+  void _toggleTorch() {
+    cameraController.toggleTorch();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text(
+          'Scan Serial Number',
+          style: TextStyle(color: Colors.white),
+        ),
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _isTorchOn ? Icons.flash_on : Icons.flash_off,
+              color: _isTorchOn ? Colors.yellow : Colors.grey,
+            ),
+            onPressed: _toggleTorch,
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: cameraController,
+            onDetect: _onDetect,
+          ),
+          
+          _buildScanningOverlay(),
+          
+          Positioned(
+            bottom: 100,
+            left: 0,
+            right: 0,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.qr_code_scanner,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Position the barcode within the frame',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _isScanning ? 'Scanning...' : 'Code detected!',
+                    style: TextStyle(
+                      color: _isScanning ? Colors.orange : Colors.green,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          Positioned(
+            bottom: 30,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: TextButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.keyboard, color: Colors.white),
+                label: const Text(
+                  'Enter Manually',
+                  style: TextStyle(color: Colors.white),
+                ),
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.black.withOpacity(0.7),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScanningOverlay() {
+    return CustomPaint(
+      painter: ScannerOverlayPainter(),
+      child: Container(),
+    );
+  }
+}
+
+class ScannerOverlayPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()..color = Colors.black.withOpacity(0.5);
+    
+    final double frameWidth = size.width * 0.7;
+    final double frameHeight = frameWidth * 0.6;
+    final double left = (size.width - frameWidth) / 2;
+    final double top = (size.height - frameHeight) / 2;
+    final Rect frameRect = Rect.fromLTWH(left, top, frameWidth, frameHeight);
+    
+    canvas.drawPath(
+      Path.combine(
+        PathOperation.difference,
+        Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
+        Path()..addRRect(RRect.fromRectAndRadius(frameRect, const Radius.circular(12))),
+      ),
+      paint,
+    );
+    
+    final Paint cornerPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke;
+    
+    final double cornerLength = 30;
+    
+    canvas.drawPath(
+      Path()
+        ..moveTo(left, top + cornerLength)
+        ..lineTo(left, top)
+        ..lineTo(left + cornerLength, top),
+      cornerPaint,
+    );
+    
+    canvas.drawPath(
+      Path()
+        ..moveTo(left + frameWidth - cornerLength, top)
+        ..lineTo(left + frameWidth, top)
+        ..lineTo(left + frameWidth, top + cornerLength),
+      cornerPaint,
+    );
+    
+    canvas.drawPath(
+      Path()
+        ..moveTo(left, top + frameHeight - cornerLength)
+        ..lineTo(left, top + frameHeight)
+        ..lineTo(left + cornerLength, top + frameHeight),
+      cornerPaint,
+    );
+    
+    canvas.drawPath(
+      Path()
+        ..moveTo(left + frameWidth - cornerLength, top + frameHeight)
+        ..lineTo(left + frameWidth, top + frameHeight)
+        ..lineTo(left + frameWidth, top + frameHeight - cornerLength),
+      cornerPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
