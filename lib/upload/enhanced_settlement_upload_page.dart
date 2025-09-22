@@ -12,31 +12,33 @@ import 'package:universal_html/html.dart' as html;
 import 'package:excel/excel.dart' as excel_pkg;
 import 'package:csv/csv.dart';
 
-class SettlementUploadPage extends StatefulWidget {
-  const SettlementUploadPage({Key? key}) : super(key: key);
+class EnhancedSettlementUploadPage extends StatefulWidget {
+  const EnhancedSettlementUploadPage({Key? key}) : super(key: key);
 
   @override
-  State<SettlementUploadPage> createState() => _SettlementUploadPageState();
+  State<EnhancedSettlementUploadPage> createState() => _EnhancedSettlementUploadPageState();
 }
 
-class _SettlementUploadPageState extends State<SettlementUploadPage> with TickerProviderStateMixin {
+class _EnhancedSettlementUploadPageState extends State<EnhancedSettlementUploadPage> with TickerProviderStateMixin {
   // File handling
+  PlatformFile? _selectedFile;
   Uint8List? _fileBytes;
   String? _fileName;
   List<Map<String, dynamic>>? _parsedData;
   
-  // State management
+  // Loading states
   bool _isParsing = false;
   bool _isUploading = false;
   bool _isConverting = false;
-  String _fileType = 'settlement';
+  
   String currentTheme = ThemeConfig.defaultTheme;
+  String _fileType = 'settlement'; // 'settlement' or 'psp'
   
   // Animation
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   
-  // Upload tracking
+  // Upload progress
   double _uploadProgress = 0.0;
   int _successCount = 0;
   int _errorCount = 0;
@@ -44,24 +46,24 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
 
   // PSP to Settlement field mapping
   static const Map<String, String> _pspFieldMapping = {
-    'company_id': '',
     'transaction_time': 'Merchant Txn Time',
-    'payment_time': 'Txn Pay Time',
+    'payment_time': 'Txn Pay Time', 
+    'terminal_settlement_time': 'PSP Settlement Date',
     'order_number': 'Merchant Txn ID',
-    'psp_order_number': 'PSP Txn ID',
+    'psp_order_number': 'System Txn ID',
     'original_order_number': 'Original Merchant Txn ID',
-    'original_psp_order_number': 'Original PSP Txn ID',
+    'original_psp_order_number': 'Original System Txn ID',
     'transaction_amount': 'Merchant Txn Amt',
     'tips_amount': 'Tips Amount',
-    'transaction_currency': 'Merchant Txn Curr',
-    'merchant_settlement_amount': 'Merchant Sttl Amt',
-    'merchant_settlement_currency': 'Merchant Sttl Curr',
-    'mdr_amount': 'MDR Amount',
-    'net_merchant_settlement_amount': 'Net Merchant Sttl Amt',
-    'brand_settlement_amount': 'Merchant Sttl Amt',
-    'brand_settlement_currency': 'Merchant Sttl Curr',
+    'merchant_settlement_amount': 'PSP Sttl Amt',
+    'mdr_amount': 'PSP Discount Amt',
+    'net_merchant_settlement_amount': 'PSP Net Sttl Amt',
+    'brand_settlement_amount': 'PSP Sttl Amt',
     'interchange_fee_amount': 'PSP Interchange Fee',
-    'net_brand_settlement_amount': 'Net Merchant Sttl Amt',
+    'net_brand_settlement_amount': 'PSP Net Sttl Amt',
+    'transaction_currency': 'Merchant Txn Curr',
+    'merchant_settlement_currency': 'PSP Sttl Curr',
+    'brand_settlement_currency': 'PSP Sttl Curr',
     'reconciliation_flag': 'Txn Status',
     'transaction_type': 'Txn Type',
     'psp_name': 'PSP Name',
@@ -77,55 +79,13 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'store_id': 'Store ID',
     'store_name': 'Store Name',
     'terminal_id': 'Terminal ID',
-    'terminal_settlement_time': '',
-    'batch_number': '',
-    'terminal_trace_number': '',
-    'remark': 'Metadata',
-    'source_filename': '',
-    'merchant_nation': 'Merchant Nation',
-    'merchant_city': 'Merchant City',
-    'system_transaction_time': 'System Txn Time',
-    'api_type': 'API Type',
-    'payment_method_variant': 'Payment Method Variant',
-    'funding_type': 'Funding Type',
-    'product_id': 'Product ID',
-    'product_type_id': 'Product Type ID',
-    'issuer_country': 'Issuer Country',
-    'merchant_order_reference': 'Merchant Order Reference',
-    'system_transaction_id': 'System Txn ID',
-    'original_system_transaction_id': 'Original System Txn ID',
-    'merchant_local_amount': 'Merchant Local Amt',
-    'local_tips_amount': 'Local Tips Amt',
-    'local_surcharge_fee_amount': 'Local Surcharge Fee Amt',
-    'local_capture_amount': 'Local Capture Amt',
-    'merchant_local_currency': 'Merchant Local Curr',
-    'rate_local_to_transaction': 'Rate of Local to Txn',
-    'surcharge_fee_amount': 'Surcharge Fee Amt',
-    'merchant_capture_amount': 'Merchant Capture Amt',
-    'merchant_discount_amount': 'Merchant Discount Amt',
-    'rate_transaction_to_settlement': 'Rate from Merchant Txn to Sttl',
-    'mdr_rules': 'MDR Rules',
-    'psp_scheme_fee': 'PSP Scheme Fee',
-    'acquirer_service_fee': 'Acquirer Service Fee',
-    'transaction_service_fee': 'Txn Service Fee',
-    'vat_amount': 'VAT Amount',
-    'wht_amount': 'WHT Amount',
-    'user_billing_amount': 'User Billing Amt',
-    'user_billing_currency': 'User Billing Curr',
-    'eci': 'ECI',
-    'transaction_initiation_mode': 'Txn Initiation Mode',
-    'linkpay_order_id': 'LinkPay Order ID',
-    'transaction_status': 'Txn Status',
-    'system_result_code': 'System Result Code',
-    'psp_result_code': 'PSP Result Code',
-    'settlement_account_name': 'Settlement Account Name',
-    'settlement_account_number': 'Settlement Account Number',
-    'metadata': 'Metadata',
+    'batch_number': '', // Will be generated
+    'terminal_trace_number': '', // Will be generated
+    'remark': 'PSP ARN'
   };
 
-  // Settlement column mapping
-  static const Map<String, String> _columnMapping = {
-    'company_id': 'Company ID',
+  // Column mapping for settlement files (from your original code)
+  static const Map<String, String> _settlementColumnMapping = {
     'transaction_time': 'Transaction Time',
     'payment_time': 'Payment Time',
     'order_number': 'Order Number',
@@ -140,7 +100,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'mdr_amount': 'MDR Amount',
     'net_merchant_settlement_amount': 'Net Merchant Settlement Amount',
     'brand_settlement_amount': 'Brand Settlement Amount',
-    'brand_settlement_currency': 'Brand Settlement Currency',
+    'brand_settlement_currency': 'Brand  Settlement Currency',
     'interchange_fee_amount': 'Interchange Fee Amount',
     'net_brand_settlement_amount': 'Net Brand Settlement Amount',
     'reconciliation_flag': 'Reconciliation Flag',
@@ -150,7 +110,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'card_number': 'Card Number',
     'authorization_code': 'Authorization Code',
     'mcc': 'MCC',
-    'crossborder_flag': 'Crossborder Flag',
+    'crossborder_flag': 'Crossboarder Flag',
     'group_id': 'Group ID',
     'group_name': 'Group Name',
     'merchant_id': 'Merchant ID',
@@ -161,54 +121,23 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'terminal_settlement_time': 'Terminal Settlement Time',
     'batch_number': 'Batch Number',
     'terminal_trace_number': 'Terminal Trace Number',
-    'remark': 'Remark',
-    'source_filename': 'Source Filename',
-    'merchant_nation': 'Merchant Nation',
-    'merchant_city': 'Merchant City',
-    'system_transaction_time': 'System Transaction Time',
-    'api_type': 'API Type',
-    'payment_method_variant': 'Payment Method Variant',
-    'funding_type': 'Funding Type',
-    'product_id': 'Product ID',
-    'product_type_id': 'Product Type ID',
-    'issuer_country': 'Issuer Country',
-    'merchant_order_reference': 'Merchant Order Reference',
-    'system_transaction_id': 'System Transaction ID',
-    'original_system_transaction_id': 'Original System Transaction ID',
-    'merchant_local_amount': 'Merchant Local Amount',
-    'local_tips_amount': 'Local Tips Amount',
-    'local_surcharge_fee_amount': 'Local Surcharge Fee Amount',
-    'local_capture_amount': 'Local Capture Amount',
-    'merchant_local_currency': 'Merchant Local Currency',
-    'rate_local_to_transaction': 'Rate Local to Transaction',
-    'surcharge_fee_amount': 'Surcharge Fee Amount',
-    'merchant_capture_amount': 'Merchant Capture Amount',
-    'merchant_discount_amount': 'Merchant Discount Amount',
-    'rate_transaction_to_settlement': 'Rate Transaction to Settlement',
-    'mdr_rules': 'MDR Rules',
-    'psp_scheme_fee': 'PSP Scheme Fee',
-    'acquirer_service_fee': 'Acquirer Service Fee',
-    'transaction_service_fee': 'Transaction Service Fee',
-    'vat_amount': 'VAT Amount',
-    'wht_amount': 'WHT Amount',
-    'user_billing_amount': 'User Billing Amount',
-    'user_billing_currency': 'User Billing Currency',
-    'eci': 'ECI',
-    'transaction_initiation_mode': 'Transaction Initiation Mode',
-    'linkpay_order_id': 'LinkPay Order ID',
-    'transaction_status': 'Transaction Status',
-    'system_result_code': 'System Result Code',
-    'psp_result_code': 'PSP Result Code',
-    'settlement_account_name': 'Settlement Account Name',
-    'settlement_account_number': 'Settlement Account Number',
-    'metadata': 'Metadata',
+    'remark': 'Remark'
   };
 
   static const List<String> _requiredColumns = [
-    'company_id', 'transaction_time', 'order_number', 'transaction_amount',
-    'transaction_currency', 'merchant_settlement_amount', 'merchant_settlement_currency',
+    'transaction_time', 'payment_time', 'order_number', 'psp_order_number',
+    'transaction_amount', 'transaction_currency', 'merchant_settlement_amount',
+    'merchant_settlement_currency', 'mdr_amount', 'net_merchant_settlement_amount',
     'reconciliation_flag', 'transaction_type', 'psp_name', 'payment_brand',
-    'merchant_id', 'merchant_name', 'store_id', 'store_name', 'terminal_id'
+    'card_number', 'authorization_code', 'mcc', 'group_id',
+    'group_name', 'merchant_id', 'merchant_name', 'store_id', 'store_name',
+    'terminal_id', 'terminal_settlement_time', 'batch_number', 'terminal_trace_number'
+  ];
+
+  static const List<String> _optionalColumns = [
+    'crossborder_flag', 'original_order_number', 'original_psp_order_number',
+    'tips_amount', 'brand_settlement_amount', 'brand_settlement_currency',
+    'interchange_fee_amount', 'net_brand_settlement_amount', 'remark'
   ];
 
   @override
@@ -242,25 +171,26 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     });
   }
 
-  List<String> _cleanHeaders(List<String> headers) {
-    return headers.map((header) => header
-        .replaceAll('\uFEFF', '')
-        .replaceAll('ï»¿', '')
-        .replaceAll('\u00EF\u00BB\u00BF', '')
-        .trim()).toList();
-  }
-
+  // File type detection
   String _detectFileType(List<String> headers) {
+    // Check for PSP specific headers
     List<String> pspHeaders = ['Merchant Txn Time', 'PSP Name', 'PSP Sttl Amt', 'System Txn ID'];
     int pspMatches = pspHeaders.where((header) => headers.contains(header)).length;
     
+    // Check for settlement specific headers
     List<String> settlementHeaders = ['Transaction Time', 'Payment Time', 'Order Number'];
-    // ignore: unused_local_variable
     int settlementMatches = settlementHeaders.where((header) => headers.contains(header)).length;
     
-    return pspMatches >= 3 ? 'psp' : 'settlement';
+    if (pspMatches >= 3) {
+      return 'psp';
+    } else if (settlementMatches >= 2) {
+      return 'settlement';
+    } else {
+      return 'settlement'; // Default to settlement
+    }
   }
 
+  // File picking methods
   Future<void> _pickFile() async {
     try {
       _resetState();
@@ -305,6 +235,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     if (result != null && result.files.isNotEmpty) {
       final file = result.files.first;
       if (!_isValidFileType(file.name)) return;
+      
       await _processFile(file.name, file.bytes!);
     }
   }
@@ -317,6 +248,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       _showSnackBar('Please select a valid file (.xlsx, .xls, or .csv)', isError: true);
       return false;
     }
+    
     return true;
   }
 
@@ -347,6 +279,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   Future<void> _parseCsvFile() async {
     try {
       String csvString = String.fromCharCodes(_fileBytes!);
+      
       List<List<dynamic>> csvTable = const CsvToListConverter(
         fieldDelimiter: ',',
         textDelimiter: '"',
@@ -384,10 +317,11 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       throw Exception('File is empty or invalid');
     }
 
-    List<String> rawHeaders = tableData.first.map((cell) => cell.toString()).toList();
-    List<String> headers = _cleanHeaders(rawHeaders);
+    List<String> headers = tableData.first.map((cell) => cell.toString().trim()).toList();
     
+    // Detect file type
     _fileType = _detectFileType(headers);
+    print('🔍 Detected file type: $_fileType');
     
     if (_fileType == 'psp') {
       await _processPSPData(tableData);
@@ -397,13 +331,14 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   }
 
   Future<void> _processPSPData(List<List<dynamic>> tableData) async {
-    List<String> headers = _cleanHeaders(tableData.first.map((cell) => cell.toString()).toList());
+    List<String> headers = tableData.first.map((cell) => cell.toString().trim()).toList();
     List<Map<String, dynamic>> pspData = [];
     
     for (int i = 1; i < tableData.length; i++) {
       var row = tableData[i];
       if (_isEmptyRow(row)) continue;
       
+      // Skip end marker rows
       if (row.isNotEmpty && row[0].toString().contains('***END***')) continue;
 
       Map<String, dynamic> rowData = {};
@@ -421,6 +356,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       }
     }
 
+    print('📊 Found ${pspData.length} PSP records, converting to settlement format...');
     await _convertPSPToSettlement(pspData);
   }
 
@@ -436,23 +372,25 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         Map<String, dynamic> pspRow = pspData[i];
         Map<String, dynamic> settlementRow = {};
         
-        // Initialize with defaults
-        for (String field in _columnMapping.keys) {
-          settlementRow[field] = _getDefaultValue(field);
-        }
-        
-        // Map PSP fields to settlement fields
+        // Map each settlement field
         _pspFieldMapping.forEach((settlementField, pspField) {
-          if (pspField.isNotEmpty && pspRow.containsKey(pspField)) {
+          if (pspField.isEmpty) {
+            // Generate default values
+            if (settlementField == 'batch_number') {
+              settlementRow[settlementField] = 1;
+            } else if (settlementField == 'terminal_trace_number') {
+              settlementRow[settlementField] = i + 1;
+            } else {
+              settlementRow[settlementField] = null;
+            }
+          } else if (pspRow.containsKey(pspField) && pspRow[pspField] != null) {
             var value = pspRow[pspField];
-            settlementRow[settlementField] = _convertValue(settlementField, value);
+            value = _convertPSPValue(settlementField, value);
+            settlementRow[settlementField] = value;
+          } else {
+            settlementRow[settlementField] = _getDefaultValue(settlementField, i);
           }
         });
-        
-        // Set computed fields
-        settlementRow['batch_number'] = 1;
-        settlementRow['terminal_trace_number'] = i + 1;
-        settlementRow['source_filename'] = _fileName ?? 'psp_conversion';
         
         convertedData.add(settlementRow);
       }
@@ -461,8 +399,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         _parsedData = convertedData;
       });
 
-      _showSnackBar('PSP file converted successfully! Found ${convertedData.length} records.', 
-                   isError: false);
+      _showSnackBar('PSP file converted successfully! Found ${convertedData.length} records.', isError: false);
     } catch (e) {
       _showSnackBar('Error converting PSP data: $e', isError: true);
     } finally {
@@ -472,8 +409,74 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     }
   }
 
+  dynamic _convertPSPValue(String fieldName, dynamic value) {
+    if (value == null) return null;
+    
+    String valueStr = value.toString().trim();
+    if (valueStr.isEmpty) return null;
+
+    // Date/time fields
+    if (fieldName.contains('time')) {
+      try {
+        DateTime dateTime = DateTime.parse(valueStr);
+        String isoString = dateTime.toUtc().toIso8601String();
+        if (!isoString.endsWith('Z')) {
+          isoString = isoString + 'Z';
+        }
+        return isoString;
+      } catch (e) {
+        return valueStr;
+      }
+    }
+
+    // Special field conversions
+    switch (fieldName) {
+      case 'reconciliation_flag':
+        return valueStr.toLowerCase() == 'success' ? 'Reconciled' : 'Unreconciled';
+      
+      case 'psp_order_number':
+        if (valueStr.length > 10) {
+          return valueStr.split('').fold(0, (hash, char) => 
+            ((hash << 5) - hash + char.codeUnitAt(0)) & 0xFFFFFFFF).abs();
+        }
+        return int.tryParse(valueStr) ?? valueStr;
+      
+      case 'order_number':
+      case 'authorization_code':
+      case 'mcc':
+      case 'terminal_id':
+      case 'batch_number':
+      case 'terminal_trace_number':
+        return int.tryParse(valueStr) ?? valueStr;
+      
+      default:
+        if (fieldName.contains('amount')) {
+          double? doubleValue = double.tryParse(valueStr);
+          return doubleValue != null ? double.parse(doubleValue.toStringAsFixed(2)) : 0.0;
+        }
+        return valueStr;
+    }
+  }
+
+  dynamic _getDefaultValue(String fieldName, int index) {
+    switch (fieldName) {
+      case 'batch_number':
+        return 1;
+      case 'terminal_trace_number':
+        return index + 1;
+      case 'tips_amount':
+      case 'mdr_amount':
+        return 0.0;
+      case 'crossborder_flag':
+        return 'Domestic';
+      default:
+        return null;
+    }
+  }
+
   Future<void> _processSettlementData(List<List<dynamic>> tableData) async {
     List<String> headers = tableData.first.map((cell) => cell.toString().trim()).toList();
+    
     Map<String, String> headerToApiField = _createHeaderMapping(headers);
     
     List<String> missingColumns = _validateRequiredColumns(headerToApiField);
@@ -489,19 +492,25 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
 
       Map<String, dynamic> rowData = {};
       
-      // Set defaults for all fields
-      for (String field in _columnMapping.keys) {
-        rowData[field] = _getDefaultValue(field);
+      // Set default values for optional columns
+      for (String optionalColumn in _optionalColumns) {
+        rowData[optionalColumn] = _getDefaultValueForOptional(optionalColumn);
       }
       
       // Process actual data
       for (int j = 0; j < headers.length && j < row.length; j++) {
         String header = headers[j];
         String apiField = headerToApiField[header] ?? _normalizeColumnName(header);
-        var convertedValue = _convertValue(apiField, row[j]);
-        if (convertedValue != null) {
-          rowData[apiField] = convertedValue;
-        }
+        var convertedValue = _convertCellValue(apiField, row[j]);
+        rowData[apiField] = convertedValue;
+      }
+      
+      // Handle crossborder flag typo
+      if (rowData.containsKey('crossboarder_flag') && rowData.containsKey('crossborder_flag')) {
+        rowData.remove('crossboarder_flag');
+      } else if (rowData.containsKey('crossboarder_flag')) {
+        rowData['crossborder_flag'] = rowData['crossboarder_flag'];
+        rowData.remove('crossboarder_flag');
       }
       
       parsedData.add(rowData);
@@ -511,31 +520,39 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       _parsedData = parsedData;
     });
 
-    _showSnackBar('Settlement file parsed successfully! Found ${parsedData.length} records.', 
-                 isError: false);
+    _showSnackBar('Settlement file parsed successfully! Found ${parsedData.length} records.', isError: false);
   }
 
   Map<String, String> _createHeaderMapping(List<String> headers) {
     Map<String, String> headerToApiField = {};
     
     for (String header in headers) {
-      // Check for exact match first
-      for (String apiField in _columnMapping.keys) {
-        String expectedHeader = _columnMapping[apiField]!;
-        if (header.trim() == expectedHeader.trim()) {
-          headerToApiField[header] = apiField;
-          break;
-        }
-      }
+      bool mapped = false;
       
-      // Fallback to normalized matching
-      if (!headerToApiField.containsKey(header)) {
-        for (String apiField in _columnMapping.keys) {
+      // Exact matches for settlement headers
+      Map<String, String> exactMatches = {
+        'Crossboarder Flag': 'crossborder_flag',
+        'Brand  Settlement Currency': 'brand_settlement_currency',
+      };
+      
+      exactMatches.addAll(Map.fromEntries(
+        _settlementColumnMapping.entries.map((e) => MapEntry(e.value, e.key))
+      ));
+      
+      if (exactMatches.containsKey(header)) {
+        headerToApiField[header] = exactMatches[header]!;
+        mapped = true;
+      } else {
+        // Normalized matching
+        for (String apiField in _settlementColumnMapping.keys) {
+          String expectedHeader = _settlementColumnMapping[apiField]!;
           String normalizedHeader = _normalizeColumnName(header);
+          String normalizedExpected = _normalizeColumnName(expectedHeader);
           String normalizedApiField = _normalizeColumnName(apiField);
           
-          if (normalizedHeader == normalizedApiField) {
+          if (normalizedHeader == normalizedExpected || normalizedHeader == normalizedApiField) {
             headerToApiField[header] = apiField;
+            mapped = true;
             break;
           }
         }
@@ -550,8 +567,8 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     
     for (String apiField in _requiredColumns) {
       if (!headerToApiField.containsValue(apiField)) {
-        String expectedHeader = _columnMapping[apiField] ?? apiField;
-        missingColumns.add(expectedHeader);
+        String expectedHeader = _settlementColumnMapping[apiField] ?? apiField;
+        missingColumns.add('$expectedHeader (or $apiField)');
       }
     }
     
@@ -570,157 +587,84 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         .replaceAll('-', '_')
         .replaceAll(RegExp(r'[^\w]'), '_')
         .replaceAll(RegExp(r'_+'), '_')
-        .replaceAll(RegExp(r'^_|_$'), '');
+        .replaceAll(RegExp(r'^_|_'), '');
   }
 
-  dynamic _convertValue(String columnName, dynamic value) {
+  dynamic _convertCellValue(String columnName, dynamic value) {
     if (value == null) return null;
     
     String valueStr = value.toString().trim();
     if (valueStr.isEmpty) return null;
 
-    // Date/time conversion
     const dateTimeColumns = {
-      'transaction_time', 'payment_time', 'terminal_settlement_time', 'system_transaction_time'
+      'transaction_time', 'payment_time', 'terminal_settlement_time'
     };
     
     if (dateTimeColumns.contains(columnName)) {
       try {
-        DateTime dateTime = DateTime.parse(valueStr);
-        return dateTime.toUtc().toIso8601String();
+        DateTime dateTime;
+        
+        if (valueStr.contains('UTC +')) {
+          String cleanDate = valueStr.replaceAll(' UTC +07:00', '+07:00').replaceAll(' ', 'T');
+          dateTime = DateTime.parse(cleanDate);
+        } else if (valueStr.contains('T')) {
+          dateTime = DateTime.parse(valueStr);
+        } else {
+          dateTime = DateTime.parse(valueStr);
+        }
+        
+        String isoString = dateTime.toUtc().toIso8601String();
+        if (!isoString.endsWith('Z')) {
+          isoString = isoString + 'Z';
+        }
+        
+        return isoString;
       } catch (e) {
         return valueStr;
       }
     }
 
-    // Type-specific conversions
-    const integerColumns = {
-      'company_id', 'authorization_code', 'mcc', 'terminal_id', 
+    const numericIntColumns = {
+      'company_id', 'order_number', 'psp_order_number', 'original_order_number',
+      'original_psp_order_number', 'authorization_code', 'mcc', 'terminal_id',
       'batch_number', 'terminal_trace_number'
     };
     
-    // Amount fields that must be numbers (not null) - API constraint
-    const decimalColumns = {
+    const numericDoubleColumns = {
       'transaction_amount', 'tips_amount', 'merchant_settlement_amount',
       'mdr_amount', 'net_merchant_settlement_amount', 'brand_settlement_amount',
-      'interchange_fee_amount', 'net_brand_settlement_amount',
-      'merchant_capture_amount', 'user_billing_amount'  // These must be numbers per API
+      'interchange_fee_amount', 'net_brand_settlement_amount'
     };
 
-    if (integerColumns.contains(columnName)) {
-      return int.tryParse(valueStr) ?? 0;
-    }
-    
-    if (decimalColumns.contains(columnName)) {
+    if (numericIntColumns.contains(columnName)) {
+      return int.tryParse(valueStr) ?? valueStr;
+    } else if (numericDoubleColumns.contains(columnName)) {
       double? doubleValue = double.tryParse(valueStr);
-      if (doubleValue != null) {
-        return double.parse(doubleValue.toStringAsFixed(2));
-      }
-      return 0.0; // Return 0.0 instead of null for API compliance
-    }
-    
-    // Enum validation
-    if (columnName == 'reconciliation_flag') {
-      const validValues = ['Balancing', 'Matched', 'Unmatched', 'Pending', 'Failed', 'Reconciled'];
-      return validValues.contains(valueStr) ? valueStr : 'Matched';
-    }
-    
-    if (columnName == 'transaction_type') {
-      const validValues = ['PURCHASE', 'REFUND', 'VOID', 'PREAUTH', 'CAPTURE'];
-      String upperValue = valueStr.toUpperCase();
-      return validValues.contains(upperValue) ? upperValue : 'PURCHASE';
-    }
-    
-    if (columnName == 'crossborder_flag') {
-      return (valueStr.toLowerCase() == 'international' || valueStr.toLowerCase() == 'crossborder') 
-          ? 'International' : 'Domestic';
+      return doubleValue != null ? double.parse(doubleValue.toStringAsFixed(2)) : valueStr;
     }
     
     return valueStr;
   }
 
-  dynamic _getDefaultValue(String columnName) {
+  dynamic _getDefaultValueForOptional(String columnName) {
     switch (columnName) {
-      case 'company_id':
-        return CompanyConfig.getCompanyId();
       case 'crossborder_flag':
         return 'Domestic';
-      case 'reconciliation_flag':
-        return 'Matched';
-      case 'transaction_type':
-        return 'PURCHASE';
-      case 'funding_type':
-        return 'Debit';
-      case 'transaction_status':
-        return 'Success';
-      case 'order_number':
-        return '92025082815352484721885';
       case 'original_order_number':
-        return '4bc95ee7ce524907a61e311d322b6703';
-      case 'authorization_code':
-        return 980812;
-      case 'mcc':
-        return 744;
-      case 'terminal_id':
-        return 3020002;
-      case 'transaction_amount':
-      case 'merchant_settlement_amount':
-      case 'net_merchant_settlement_amount':
-        return -1.0;
-      case 'source_filename':
-        return _fileName ?? 'manual_upload';
-      case 'merchant_nation':
-      case 'issuer_country':
-        return 'LAO';
-      case 'merchant_city':
-        return 'Vientiane';
-      case 'transaction_initiation_mode':
-        return 'manual';
-      case 'system_result_code':
-        return 'S0000';
-      case 'psp_name':
-        return 'UnionPay';
-      case 'payment_brand':
-        return 'UnionPay';
-      case 'card_number':
-        return '623479******0250';
-      case 'group_id':
-        return 'LDB001';
-      case 'group_name':
-        return 'LDB Merchant';
-      case 'merchant_id':
-        return 'M020HQV00000001';
-      case 'merchant_name':
-        return 'Tomshop';
-      case 'store_id':
-        return 'S020HQV00000002';
-      case 'store_name':
-        return 'TomAuto Settle_02';
-      case 'mdr_rules':
-        return 'Combination';
-      case 'metadata':
-        return 'meta';
-      case 'transaction_currency':
-      case 'merchant_settlement_currency':
+      case 'original_psp_order_number':
+      case 'tips_amount':
+      case 'brand_settlement_amount':
       case 'brand_settlement_currency':
-      case 'merchant_local_currency':
-      case 'user_billing_currency':
-        return 'USD';
-      case 'system_transaction_id':
-        return '95c137158fba48d0a0a6159682896c6e';
-      case 'original_system_transaction_id':
-        return '45a55959fa504be293c73d1bd0f98314';
-      case 'system_transaction_time':
-        return '2025-08-28 08:35:24';
-      // Amount fields that API requires as numbers, not null
-      case 'merchant_capture_amount':
-      case 'user_billing_amount':
-        return 0.0; // Changed from null to 0.0 for API compliance
+      case 'interchange_fee_amount':
+      case 'net_brand_settlement_amount':
+      case 'remark':
+        return null;
       default:
         return null;
     }
   }
 
+  // Upload methods (from your original code)
   Future<void> _uploadData() async {
     if (_parsedData == null || _parsedData!.isEmpty) {
       _showSnackBar('No data to upload. Please select and parse a file first.', isError: true);
@@ -736,7 +680,9 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       
       if (token != null && _isTokenExpired(token)) {
         _showSnackBar('Session expired. Please login again and try uploading.', isError: true);
-        setState(() { _isUploading = false; });
+        setState(() {
+          _isUploading = false;
+        });
         return;
       }
       
@@ -751,7 +697,9 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     } catch (e) {
       _showSnackBar('Error uploading data: $e', isError: true);
     } finally {
-      setState(() { _isUploading = false; });
+      setState(() {
+        _isUploading = false;
+      });
     }
   }
 
@@ -782,26 +730,46 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       Map<String, dynamic> settlementData = Map.from(_parsedData![index]);
       settlementData['company_id'] = companyId;
       
-      Map<String, String> headers = {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
-      
       final response = await http.post(
         Uri.parse(apiUrl),
-        headers: headers,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode(settlementData),
       );
-      
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         _successCount++;
+      } else if (response.statusCode == 401 && index == 0) {
+        // Try without Bearer prefix
+        final retryResponse = await http.post(
+          Uri.parse(apiUrl),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': token,
+          },
+          body: jsonEncode(settlementData),
+        );
+        
+        if (retryResponse.statusCode == 200 || retryResponse.statusCode == 201) {
+          _successCount++;
+        } else {
+          _errorCount++;
+          try {
+            final errorData = jsonDecode(response.body);
+            _errorMessages.add('Row ${index + 1}: ${errorData['message'] ?? 'Unknown error'}');
+          } catch (e) {
+            _errorMessages.add('Row ${index + 1}: HTTP ${response.statusCode} - ${response.body}');
+          }
+        }
       } else {
         _errorCount++;
         try {
           final errorData = jsonDecode(response.body);
           _errorMessages.add('Row ${index + 1}: ${errorData['message'] ?? 'Unknown error'}');
         } catch (e) {
-          _errorMessages.add('Row ${index + 1}: HTTP ${response.statusCode}');
+          _errorMessages.add('Row ${index + 1}: HTTP ${response.statusCode} - ${response.body}');
         }
       }
     } catch (e) {
@@ -810,6 +778,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     }
   }
 
+  // State management methods
   void _resetState() {
     setState(() {
       _isParsing = true;
@@ -835,6 +804,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     });
   }
 
+  // UI helper methods
   void _showSnackBar(String message, {required bool isError}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -852,30 +822,6 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   }
 
   void _showUploadResultDialog() {
-    // Comprehensive console logging for upload results
-    print('=== UPLOAD RESULT DIALOG ===');
-    print('Total records processed: ${_parsedData?.length ?? 0}');
-    print('Successful uploads: $_successCount');
-    print('Failed uploads: $_errorCount');
-    print('Upload success rate: ${_parsedData != null && _parsedData!.isNotEmpty ? ((_successCount / _parsedData!.length) * 100).toStringAsFixed(2) : 0}%');
-    print('Total error messages: ${_errorMessages.length}');
-    
-    if (_errorMessages.isNotEmpty) {
-      print('');
-      print('=== ERROR DETAILS ===');
-      for (int i = 0; i < _errorMessages.length; i++) {
-        print('Error ${i + 1}: ${_errorMessages[i]}');
-      }
-      print('=== END ERROR DETAILS ===');
-    }
-    
-    print('');
-    print('Upload completion status: ${_errorCount == 0 ? 'SUCCESS' : 'PARTIAL_FAILURE'}');
-    print('File name: ${_fileName ?? 'Unknown'}');
-    print('File type: $_fileType');
-    print('Upload progress: ${(_uploadProgress * 100).toStringAsFixed(2)}%');
-    print('=== END UPLOAD RESULT ===');
-    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -898,8 +844,8 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
           children: [
             Text('Upload Summary:'),
             SizedBox(height: 8),
-            Text('Successful: $_successCount records'),
-            Text('Failed: $_errorCount records'),
+            Text('✅ Successful: $_successCount records'),
+            Text('❌ Failed: $_errorCount records'),
             if (_errorMessages.isNotEmpty) ...[
               SizedBox(height: 16),
               Text('Errors:', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -921,10 +867,8 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         actions: [
           TextButton(
             onPressed: () {
-              print('Upload result dialog closed by user');
               Navigator.of(context).pop();
               if (_errorCount == 0) {
-                print('All uploads successful - returning to previous screen');
                 Navigator.of(context).pop(true);
               }
             },
@@ -941,6 +885,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     );
   }
 
+  // UI Widget builders
   Widget _buildFileUploadSection() {
     return Card(
       elevation: 2,
@@ -982,8 +927,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       onTap: (_isParsing || _isConverting) ? null : _pickFile,
       child: Container(
         width: double.infinity,
-        constraints: BoxConstraints(minHeight: 120),
-        padding: EdgeInsets.all(8),
+        height: 120,
         decoration: BoxDecoration(
           color: Colors.grey[50],
           borderRadius: BorderRadius.circular(12),
@@ -1052,7 +996,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(Icons.cloud_upload, size: 48, color: Colors.grey[400]),
-        SizedBox(height: 12),
+        SizedBox(width: 12),
         Text(
           'Click to select file',
           style: TextStyle(

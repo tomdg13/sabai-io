@@ -255,11 +255,11 @@ class _MenuHomePageState extends State<MenuHomePage> {
           onTap: _navigateToProductsPage,
         ),
          _buildGridItem(
-          icon: Icons.inventory,
-          title: SimpleTranslations.get(_langCode, 'Settle'),
-        color: Colors.amber.shade700,
-          onTap: _navigateToSettlementViewPage,
-        ),
+        icon: Icons.attach_money, // Updated for financial/settlement context
+        title: SimpleTranslations.get(_langCode, 'Settle'),
+        color: Colors.indigo, // Matching the "Product" page amber tone
+        onTap: _navigateToSettlementViewPage,
+      ),
       ],
     );
   }
