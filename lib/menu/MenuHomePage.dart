@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:inventory/business/ListTerminalPage.dart';
-import 'package:inventory/menu/StockPage.dart';
-import 'package:inventory/menu/dashboard.dart' show ExpirePage;
+import 'package:inventory/monitor/ProductPage.dart';
+import 'package:inventory/monitor/StockPage.dart';
+import 'package:inventory/monitor/ExpirePage.dart' show ExpirePage;
+import 'package:inventory/monitor/locationPage.dart';
+import 'package:inventory/upload/SettlementViewPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart';
 import '../utils/simple_translations.dart';
@@ -208,6 +211,7 @@ class _MenuHomePageState extends State<MenuHomePage> {
               color: Colors.grey.shade700,
             ),
           ),
+          
         ],
       ),
     );
@@ -243,6 +247,18 @@ class _MenuHomePageState extends State<MenuHomePage> {
           title: SimpleTranslations.get(_langCode, 'location'),
           color: const Color.fromARGB(255, 1, 136, 35),
           onTap: _navigateToLocationPage,
+        ),
+        _buildGridItem(
+          icon: Icons.inventory,
+          title: SimpleTranslations.get(_langCode, 'product'),
+        color: Colors.amber.shade700,
+          onTap: _navigateToProductsPage,
+        ),
+         _buildGridItem(
+          icon: Icons.inventory,
+          title: SimpleTranslations.get(_langCode, 'Settle'),
+        color: Colors.amber.shade700,
+          onTap: _navigateToSettlementViewPage,
         ),
       ],
     );
@@ -329,20 +345,20 @@ class _MenuHomePageState extends State<MenuHomePage> {
   }
 
   void _navigateToLocationPage() {
-    _showSnackBar('${SimpleTranslations.get(_langCode, 'location')} ${SimpleTranslations.get(_langCode, 'coming_soon')}');
-  }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        backgroundColor: Colors.green.shade600,
-      ),
+    Navigator.push(context, MaterialPageRoute(builder: (context) => const LocationPage()),
     );
   }
+
+  void _navigateToProductsPage() {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductPage()),
+    );
+  }
+
+  void _navigateToSettlementViewPage() {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => const SettlementViewPage()),
+    );
+  }
+
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

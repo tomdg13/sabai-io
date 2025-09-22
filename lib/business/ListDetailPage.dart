@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'package:inventory/models/terminal_models.dart';
 import 'package:inventory/services/excel.dart';
@@ -72,86 +73,42 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
   }
 
- // Fetch company logo from API
-// Add this import at the top of your file with other imports
-
 Future<void> _fetchCompanyLogo() async {
-  print('Starting _fetchCompanyLogo()');
-  
-  if (!mounted) {
-    print('Widget not mounted, aborting _fetchCompanyLogo()');
-    return;
-  }
-  
-  // Optional: Set loading state if you have one for logo
-  // setState(() {
-  //   logoLoading = true;
-  //   logoError = null;
-  // });
+  if (!mounted) return;
 
   try {
-    // Get the token from SharedPreferences for authentication
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
     final companyId = CompanyConfig.getCompanyId();
     
-    print('Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
-    print('Company ID: $companyId');
-    
-    if (token == null) {
-      print('No access token available for company logo fetch');
-      return;
-    }
+    if (token == null) return;
 
-    // Build query parameters
     final queryParams = {
       'company_id': companyId.toString(),
     };
     
-    final uri = Uri.parse('https://sabaiapp.com/api/iocompany').replace(queryParameters: queryParams);
-    print('Full URI: $uri');
+    final uri = AppConfig.api('/api/iocompany').replace(queryParameters: queryParams);
     
     final headers = {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     };
-    print('Request headers: $headers');
 
     final response = await http.get(uri, headers: headers);
 
-    print('Company logo API response status: ${response.statusCode}');
-    print('Company logo API response headers: ${response.headers}');
-    print('Company logo API response body: ${response.body}');
-
-    if (!mounted) {
-      print('Widget not mounted after API call, aborting');
-      return;
-    }
+    if (!mounted) return;
 
     if (response.statusCode == 200) {
-      // Check if response is actually JSON
       if (response.body.trim().startsWith('{') || response.body.trim().startsWith('[')) {
         try {
           final responseData = json.decode(response.body);
-          print('Parsed company logo JSON successfully');
-          print('Company API Response structure: ${responseData.keys.toList()}');
           
-          // Check if data array exists and has items
           if (responseData['data'] != null && responseData['data'] is List && responseData['data'].isNotEmpty) {
             final List<dynamic> companyDataList = responseData['data'];
-            print('Company data count: ${companyDataList.length}');
             
-            // Print first company for debugging
-            if (companyDataList.isNotEmpty) {
-              print('First company data: ${companyDataList[0]}');
-            }
-            
-            final companyData = companyDataList[0]; // Get first company from array
+            final companyData = companyDataList[0];
             final logoUrl = companyData['logo_full_url'] as String?;
             final name = companyData['company_name'] as String?;
-            
-            print('Logo URL from API: $logoUrl');
-            print('Company name from API: $name');
             
             if (logoUrl != null && logoUrl.isNotEmpty) {
               if (mounted) {
@@ -161,67 +118,38 @@ Future<void> _fetchCompanyLogo() async {
                 });
               }
               await _downloadLogo(logoUrl);
-              print('Company logo set successfully');
-            } else {
-              print('No logo URL found in API response');
             }
-          } else if (responseData['status'] == 'success') {
-            print('API returned success but no company data found');
-          } else {
-            print('API returned error status: ${responseData['status']}');
-            print('API error message: ${responseData['message']}');
           }
         } catch (jsonError) {
-          print('JSON parsing error for company logo: $jsonError');
-          print('Raw response that failed to parse: ${response.body}');
+          // Continue without logo if parsing fails
         }
-      } else {
-        print('Company API returned HTML instead of JSON.');
-        print('Response preview: ${response.body.length > 200 ? response.body.substring(0, 200) + '...' : response.body}');
       }
-    } else {
-      print('Company logo API HTTP Error ${response.statusCode}');
-      print('Error response body: ${response.body}');
     }
-  } catch (e, stackTrace) {
-    print('Exception caught in _fetchCompanyLogo: $e');
-    print('Stack trace: $stackTrace');
+  } catch (e) {
     // Continue without logo if fetch fails
   }
-  
-  print('Completed _fetchCompanyLogo()');
 }
-  // Download logo image bytes with better error handling
-  Future<void> _downloadLogo(String logoUrl) async {
-    try {
-      print('Downloading logo from: $logoUrl');
-      
-      // Check if URL is absolute or relative
-      Uri logoUri;
-      if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) {
-        logoUri = Uri.parse(logoUrl);
-      } else {
-        // If relative URL, prepend base URL
-        logoUri = Uri.parse('https://sabaiapp.com$logoUrl');
-      }
-      
-      final response = await http.get(logoUri);
-      print('Logo download response status: ${response.statusCode}');
-      
-      if (response.statusCode == 200) {
-        setState(() {
-          logoImageBytes = response.bodyBytes;
-        });
-        print('Logo downloaded successfully: ${logoImageBytes!.length} bytes');
-      } else {
-        print('Failed to download logo: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error downloading logo: $e');
-    }
-  }
-  
 
+Future<void> _downloadLogo(String logoUrl) async {
+  try {
+    Uri logoUri;
+    if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) {
+      logoUri = Uri.parse(logoUrl);
+    } else {
+      logoUri = Uri.parse('${AppConfig.baseUrl}$logoUrl');
+    }
+    
+    final response = await http.get(logoUri);
+    
+    if (response.statusCode == 200) {
+      setState(() {
+        logoImageBytes = response.bodyBytes;
+      });
+    }
+  } catch (e) {
+    // Continue without logo if download fails
+  }
+}
   // Utility Methods
   String _formatExpireDate(dynamic date) {
     if (date == null) return SimpleTranslations.get(_langCode, 'n_a');

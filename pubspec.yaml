@@ -38,6 +38,9 @@ dependencies:
   share_plus: ^11.1.0
   universal_html: ^2.2.4
   signature: ^5.4.0
+  file_picker: ^5.2.11
+  csv: ^5.0.2
+  
   
   
 
@@ -62,9 +65,9 @@ flutter:
         weight: 700
   - family: Saysettha
     fonts:
-      - asset: assets/fonts/Saysettha-Regular.ttf
-      - asset: assets/fonts/Saysettha-Bold.ttf
-        weight: 700
+        - asset: assets/fonts/Saysettha-Regular.ttf
+        - asset: assets/fonts/Saysettha-Bold.ttf
+          weight: 700
   - family: Phetsarath
     fonts:
       - asset: assets/fonts/Phetsarath-Regular.ttf

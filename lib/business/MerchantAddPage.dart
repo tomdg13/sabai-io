@@ -123,43 +123,56 @@ class _MerchantAddPageState extends State<MerchantAddPage> with TickerProviderSt
     }
   }
 
-  Future<void> _loadGroups() async {
-    setState(() => _isLoadingGroups = true);
+Future<void> _loadGroups() async {
+  setState(() => _isLoadingGroups = true);
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
-      final companyId = CompanyConfig.getCompanyId();
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+    final companyId = CompanyConfig.getCompanyId();
 
-      final response = await http.get(
-        Uri.parse('https://sabaiapp.com/api/iogroup?company_id=$companyId'),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
+    final queryParams = {
+      'company_id': companyId.toString(),
+    };
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        
-        if (responseData['status'] == 'success' && responseData['data'] != null) {
-          final List<dynamic> groupsJson = responseData['data'];
-          setState(() {
-            _groups = groupsJson.map((json) => Group.fromJson(json)).toList();
-          });
-        } else {
-          throw Exception('Invalid response format');
+    final uri = AppConfig.api('/api/iogroup').replace(queryParameters: queryParams);
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      if (response.body.trim().startsWith('{') || response.body.trim().startsWith('[')) {
+        try {
+          final responseData = jsonDecode(response.body);
+          
+          if (responseData['status'] == 'success' && responseData['data'] != null) {
+            final List<dynamic> groupsJson = responseData['data'];
+            setState(() {
+              _groups = groupsJson.map((json) => Group.fromJson(json)).toList();
+            });
+          } else {
+            throw Exception('Invalid response format');
+          }
+        } catch (jsonError) {
+          throw Exception('Failed to parse server response');
         }
       } else {
-        throw Exception('Failed to load groups: ${response.statusCode}');
+        throw Exception('Server returned HTML instead of JSON data');
       }
-    } catch (e) {
-      _showSnackBar('Failed to load groups: $e', Colors.orange);
-    } finally {
-      setState(() => _isLoadingGroups = false);
+    } else {
+      throw Exception('Failed to load groups: ${response.statusCode}');
     }
+  } catch (e) {
+    _showSnackBar('Failed to load groups: $e', Colors.orange);
+  } finally {
+    setState(() => _isLoadingGroups = false);
   }
-
+}
   // IMAGE HANDLING
   Future<void> _pickImage() async {
     try {

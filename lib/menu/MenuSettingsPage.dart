@@ -11,6 +11,7 @@ import 'package:inventory/business/TerminalPage.dart';
 import 'package:inventory/business/UserPage.dart';
 import 'package:inventory/business/VendorPage.dart';
 import 'package:inventory/login/login_page.dart' show LoginPage;
+import 'package:inventory/upload/SettlementUploadMenu.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart';
 import '../utils/simple_translations.dart';
@@ -298,6 +299,13 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
 
   List<Widget> _buildBusinessGridItems() {
     return [
+       _buildGridItem(
+        icon: Icons.upload,
+        title: SimpleTranslations.get(_langCode, 'uploadSettle'),
+        color: Colors.green,
+        onTap: _navigateTosettleupload,
+      ),
+      
       _buildGridItem(
         icon: Icons.grass,
         title: SimpleTranslations.get(_langCode, 'Company'),
@@ -359,6 +367,8 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         color: Colors.cyan,
         onTap: _navigateToUserPage,
       ),
+
+     
     ];
   }
 
@@ -653,6 +663,13 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => UserPage()),
+    );
+  }
+
+   void _navigateTosettleupload() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => SettlementUploadPage()),
     );
   }
 

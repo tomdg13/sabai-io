@@ -80,17 +80,6 @@ class _GroupAddPageState extends State<GroupAddPage> with TickerProviderStateMix
     }
   }
 
-  // void _loadUserMobile() async {
-  //   final prefs = await SharedPreferences.getInstance();
-  //   final userMobile = prefs.getString('user');
-  //   if (userMobile != null && userMobile.isNotEmpty) {
-  //     setState(() {
-  //       _mobileController.text = userMobile;
-  //     });
-  //     print('Auto-populated Mobile field with: $userMobile');
-  //   }
-  // }
-
   @override
   void dispose() {
     _groupNameController.dispose();
@@ -408,6 +397,7 @@ class _GroupAddPageState extends State<GroupAddPage> with TickerProviderStateMix
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
       final companyId = CompanyConfig.getCompanyId();
+      print('🔑 Original token: $token');
 
       // Use the main endpoint
       final url = AppConfig.api('/api/iogroup');
