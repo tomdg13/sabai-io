@@ -1,17 +1,270 @@
-
-            import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-// ignore: unused_import
-import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
+import 'package:inventory/upload/SettlementDetailPage.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
+// Data Models
+class SettlementSummary {
+  final double totalAmount;
+  final double totalSettlement;
+  final int purchaseCount;
+  final int refundCount;
+  final int totalCount;
+
+  SettlementSummary({
+    required this.totalAmount,
+    required this.totalSettlement,
+    required this.purchaseCount,
+    required this.refundCount,
+    required this.totalCount,
+  });
+}
+
+class ColumnDefinition {
+  final String key;
+  final String title;
+  final double width;
+  final int defaultOrder;
+
+  const ColumnDefinition({
+    required this.key,
+    required this.title,
+    required this.width,
+    required this.defaultOrder,
+  });
+}
+
+// Updated constants with default ordering
+class SettlementConstants {
+  static const Duration autoRefreshInterval = Duration(minutes: 5);
+  static const Duration animationDuration = Duration(milliseconds: 800);
+  static const Duration slideAnimationDuration = Duration(milliseconds: 600);
+  static const Duration navigationHintDelay = Duration(seconds: 2);
+  
+  static const List<String> transactionTypes = ['All', 'PURCHASE', 'REFUND', 'REVERSAL'];
+  static const List<String> currencies = ['All', 'USD', 'THB', 'EUR', 'GBP', 'LAK'];
+  static const List<String> statuses = ['All', 'Matched', 'Unmatched', 'Pending'];
+  static const List<int> itemsPerPageOptions = [10, 15, 20, 25, 50];
+  
+  static const List<ColumnDefinition> columnDefinitions = [
+    ColumnDefinition(key: 'order_number', title: 'Order Number', width: 120.0, defaultOrder: 0),
+    ColumnDefinition(key: 'system_tx_id', title: 'System TX ID', width: 100.0, defaultOrder: 1),
+    ColumnDefinition(key: 'transaction_time', title: 'Transaction Time', width: 85.0, defaultOrder: 2),
+    ColumnDefinition(key: 'type', title: 'Type', width: 70.0, defaultOrder: 3),
+    ColumnDefinition(key: 'tx_amount', title: 'TX Amount', width: 80.0, defaultOrder: 4),
+    ColumnDefinition(key: 'billing_amount', title: 'Billing Amount', width: 80.0, defaultOrder: 5),
+    ColumnDefinition(key: 'settlement', title: 'Settlement', width: 80.0, defaultOrder: 6),
+    ColumnDefinition(key: 'net_settlement', title: 'Net Settlement', width: 80.0, defaultOrder: 7),
+    ColumnDefinition(key: 'merchant_store', title: 'Merchant/Store', width: 140.0, defaultOrder: 8),
+    ColumnDefinition(key: 'card_info', title: 'Card Info', width: 110.0, defaultOrder: 9),
+    ColumnDefinition(key: 'psp_brand', title: 'PSP/Brand', width: 100.0, defaultOrder: 10),
+    ColumnDefinition(key: 'auth_mode', title: 'Auth/Mode', width: 90.0, defaultOrder: 11),
+    ColumnDefinition(key: 'status', title: 'Status', width: 75.0, defaultOrder: 12),
+    ColumnDefinition(key: 'terminal', title: 'Terminal', width: 85.0, defaultOrder: 13),
+    ColumnDefinition(key: 'fees', title: 'Fees', width: 70.0, defaultOrder: 14),
+    ColumnDefinition(key: 'actions', title: 'Actions', width: 70.0, defaultOrder: 15),
+  ];
+}
+
+// Settlement Service
+class SettlementService {
+  static Future<List<Map<String, dynamic>>> fetchSettlements() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+    final url = AppConfig.api('/api/settlement-details');
+
+    final response = await http.get(
+      Uri.parse(url.toString()),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final responseData = jsonDecode(response.body);
+      if (responseData['status'] == 'success') {
+        final settlements = List<Map<String, dynamic>>.from(responseData['data']);
+        return _sortSettlementsByDate(settlements);
+      } else {
+        throw Exception(responseData['message'] ?? 'Failed to fetch data');
+      }
+    } else {
+      final errorData = jsonDecode(response.body);
+      throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
+    }
+  }
+
+  static List<Map<String, dynamic>> _sortSettlementsByDate(List<Map<String, dynamic>> settlements) {
+    settlements.sort((a, b) {
+      try {
+        final dateTimeA = a['transaction_time']?.toString();
+        final dateTimeB = b['transaction_time']?.toString();
+        
+        if (dateTimeA == null && dateTimeB == null) return 0;
+        if (dateTimeA == null) return 1;
+        if (dateTimeB == null) return -1;
+        
+        return DateTime.parse(dateTimeB).compareTo(DateTime.parse(dateTimeA));
+      } catch (e) {
+        return 0;
+      }
+    });
+    return settlements;
+  }
+}
+
+// Utility Functions
+class SettlementUtils {
+  static String formatDateTime(String? dateTimeStr) {
+    if (dateTimeStr == null) return '-';
+    try {
+      final dateTime = DateTime.parse(dateTimeStr);
+      return DateFormat('MMM dd\nHH:mm').format(dateTime);
+    } catch (e) {
+      return dateTimeStr;
+    }
+  }
+
+  static String formatAmount(dynamic amount, String? currency) {
+    if (amount == null) return '-';
+    final value = double.tryParse(amount.toString()) ?? 0.0;
+    return '${currency ?? 'USD'}\n${value.toStringAsFixed(2)}';
+  }
+
+  static String formatCompactAmount(dynamic amount) {
+    if (amount == null) return '-';
+    final value = double.tryParse(amount.toString()) ?? 0.0;
+    return value.toStringAsFixed(2);
+  }
+
+  static String shortenId(String id) {
+    if (id == '-' || id.length <= 8) return id;
+    return '${id.substring(0, 4)}...${id.substring(id.length - 4)}';
+  }
+
+  static Color getAmountColor(dynamic amount) {
+    if (amount == null) return Colors.grey[600]!;
+    final value = double.tryParse(amount.toString()) ?? 0.0;
+    if (value > 0) return Colors.green[700]!;
+    if (value < 0) return Colors.red[700]!;
+    return Colors.grey[600]!;
+  }
+
+  static String generateCSV(List<Map<String, dynamic>> data) {
+    const headers = [
+      'Order Number', 'Transaction Time', 'Transaction Type', 'Transaction Amount',
+      'Currency', 'Merchant Name', 'Store Name', 'Card Number', 'PSP Name',
+      'Authorization Code', 'Settlement Amount', 'Net Settlement', 'Status',
+      'Terminal ID', 'Batch Number'
+    ];
+    
+    final csvLines = <String>[
+      headers.map((e) => '"$e"').join(','),
+      ...data.map((settlement) => [
+        settlement['order_number'],
+        settlement['transaction_time'],
+        settlement['transaction_type'],
+        settlement['transaction_amount'],
+        settlement['transaction_currency'],
+        settlement['merchant_name'],
+        settlement['store_name'],
+        settlement['card_number'],
+        settlement['psp_name'],
+        settlement['authorization_code'],
+        settlement['merchant_settlement_amount'],
+        settlement['net_merchant_settlement_amount'],
+        settlement['reconciliation_flag'],
+        settlement['terminal_id'],
+        settlement['batch_number']
+      ].map((e) => '"${e?.toString().replaceAll('"', '""') ?? ''}"').join(','))
+    ];
+    
+    return csvLines.join('\n');
+  }
+}
+
+// Filter Manager
+class FilterManager {
+  String searchQuery = '';
+  String selectedTransactionType = 'All';
+  String selectedCurrency = 'All';
+  String selectedStatus = 'All';
+  DateTimeRange? dateRange;
+
+  bool get hasActiveFilters =>
+      searchQuery.isNotEmpty ||
+      selectedTransactionType != 'All' ||
+      selectedCurrency != 'All' ||
+      selectedStatus != 'All' ||
+      dateRange != null;
+
+  List<Map<String, dynamic>> applyFilters(List<Map<String, dynamic>> settlements) {
+    List<Map<String, dynamic>> filtered = List.from(settlements);
+    
+    if (searchQuery.isNotEmpty) {
+      filtered = _applySearchFilter(filtered);
+    }
+    
+    if (selectedTransactionType != 'All') {
+      filtered = filtered.where((s) => s['transaction_type'] == selectedTransactionType).toList();
+    }
+    
+    if (selectedCurrency != 'All') {
+      filtered = filtered.where((s) => s['transaction_currency'] == selectedCurrency).toList();
+    }
+
+    if (selectedStatus != 'All') {
+      filtered = filtered.where((s) => s['reconciliation_flag'] == selectedStatus).toList();
+    }
+    
+    if (dateRange != null) {
+      filtered = _applyDateFilter(filtered);
+    }
+    
+    return filtered;
+  }
+
+  List<Map<String, dynamic>> _applySearchFilter(List<Map<String, dynamic>> data) {
+    final query = searchQuery.toLowerCase();
+    return data.where((settlement) {
+      return [
+        settlement['order_number'],
+        settlement['merchant_name'],
+        settlement['card_number'],
+        settlement['group_name']
+      ].any((field) => field?.toString().toLowerCase().contains(query) == true);
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> _applyDateFilter(List<Map<String, dynamic>> data) {
+    return data.where((settlement) {
+      try {
+        final transactionTime = DateTime.parse(settlement['transaction_time']);
+        return transactionTime.isAfter(dateRange!.start.subtract(const Duration(days: 1))) &&
+               transactionTime.isBefore(dateRange!.end.add(const Duration(days: 1)));
+      } catch (e) {
+        return false;
+      }
+    }).toList();
+  }
+
+  void clearAll() {
+    searchQuery = '';
+    selectedTransactionType = 'All';
+    selectedCurrency = 'All';
+    selectedStatus = 'All';
+    dateRange = null;
+  }
+}
+
+// Main Widget
 class SettlementViewPage extends StatefulWidget {
   const SettlementViewPage({Key? key}) : super(key: key);
 
@@ -19,66 +272,82 @@ class SettlementViewPage extends StatefulWidget {
   State<SettlementViewPage> createState() => _SettlementViewPageState();
 }
 
-class _SettlementViewPageState extends State<SettlementViewPage> with TickerProviderStateMixin {
+class _SettlementViewPageState extends State<SettlementViewPage>
+    with TickerProviderStateMixin {
+  
+  // State Variables
+  Map<String, bool> _columnVisibility = {
+    for (var col in SettlementConstants.columnDefinitions) col.key: true
+  };
+  
+  // NEW: Add column ordering
+  List<String> _columnOrder = [
+    for (var col in SettlementConstants.columnDefinitions) col.key
+  ];
+  
+  final FilterManager _filterManager = FilterManager();
+  final TextEditingController _searchController = TextEditingController();
+  
   List<Map<String, dynamic>> _settlements = [];
   List<Map<String, dynamic>> _filteredSettlements = [];
   Set<String> _selectedItems = {};
+  SettlementSummary _summaryData = SettlementSummary(
+    totalAmount: 0, totalSettlement: 0, purchaseCount: 0, refundCount: 0, totalCount: 0
+  );
+  
+  int _currentPage = 1;
+  int _itemsPerPage = 15;
+  int _totalCount = 0;
+  
   bool _isLoading = false;
   bool _isRefreshing = false;
+  bool _autoRefresh = false;
   String _errorMessage = '';
   String currentTheme = ThemeConfig.defaultTheme;
   
-  // Search and filter
-  final TextEditingController _searchController = TextEditingController();
-  String _selectedTransactionType = 'All';
-  String _selectedCurrency = 'All';
-  String _selectedStatus = 'All';
-  DateTimeRange? _dateRange;
-  
-  // Animation
+  // Animation controllers
   late AnimationController _fadeController;
   late AnimationController _slideController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   
-  // Pagination
-  int _currentPage = 1;
-  int _itemsPerPage = 15;
-  // ignore: unused_field
-  int _totalCount = 0;
-  
-  // Summary data
-  Map<String, double> _summaryData = {};
-  
-  // Auto-refresh
   Timer? _refreshTimer;
-  bool _autoRefresh = false;
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentTheme();
-    _setupAnimations();
-    _fetchSettlements();
-    _loadAutoRefreshPreference();
+    _initializeComponents();
   }
 
   @override
   void dispose() {
+    _disposeComponents();
+    super.dispose();
+  }
+
+  // Initialization & Cleanup
+  void _initializeComponents() {
+    _loadCurrentTheme();
+    _setupAnimations();
+    _fetchSettlements();
+    _loadAutoRefreshPreference();
+    _scheduleNavigationHint();
+  }
+
+  void _disposeComponents() {
     _searchController.dispose();
     _fadeController.dispose();
     _slideController.dispose();
     _refreshTimer?.cancel();
-    super.dispose();
   }
 
   void _setupAnimations() {
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: SettlementConstants.animationDuration,
       vsync: this,
     );
     _slideController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: SettlementConstants.slideAnimationDuration,
       vsync: this,
     );
     
@@ -89,45 +358,104 @@ class _SettlementViewPageState extends State<SettlementViewPage> with TickerProv
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.1),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
+    ).animate(CurvedAnimation(
+        parent: _slideController, curve: Curves.easeOutCubic));
     
     _fadeController.forward();
     _slideController.forward();
   }
 
-  void _loadCurrentTheme() async {
+  void _scheduleNavigationHint() {
+    Timer(SettlementConstants.navigationHintDelay, () {
+      if (mounted && _settlements.isNotEmpty) {
+        _showNavigationHint();
+      }
+    });
+  }
+
+  // Theme and Preferences
+  Future<void> _loadCurrentTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     });
+    await _loadColumnPreferences();
   }
 
-  void _loadAutoRefreshPreference() async {
+  Future<void> _loadColumnPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      // Load visibility preferences
+      for (var col in SettlementConstants.columnDefinitions) {
+        _columnVisibility[col.key] = prefs.getBool('column_${col.key}') ?? true;
+      }
+      
+      // Load column order preferences
+      final savedOrder = prefs.getStringList('column_order');
+      if (savedOrder != null && savedOrder.isNotEmpty) {
+        _columnOrder = savedOrder;
+      } else {
+        // Use default order
+        _columnOrder = SettlementConstants.columnDefinitions
+            .map((col) => col.key)
+            .toList();
+      }
+    });
+  }
+
+  Future<void> _saveColumnPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Save visibility preferences
+    for (var entry in _columnVisibility.entries) {
+      await prefs.setBool('column_${entry.key}', entry.value);
+    }
+    
+    // Save column order
+    await prefs.setStringList('column_order', _columnOrder);
+  }
+
+  void _moveColumn(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+      final item = _columnOrder.removeAt(oldIndex);
+      _columnOrder.insert(newIndex, item);
+    });
+    _saveColumnPreferences();
+  }
+
+  void _resetColumnOrder() {
+    setState(() {
+      _columnOrder = SettlementConstants.columnDefinitions
+          .map((col) => col.key)
+          .toList();
+    });
+    _saveColumnPreferences();
+  }
+
+  Future<void> _loadAutoRefreshPreference() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _autoRefresh = prefs.getBool('settlement_auto_refresh') ?? false;
     });
-    if (_autoRefresh) {
-      _startAutoRefresh();
-    }
+    if (_autoRefresh) _startAutoRefresh();
   }
 
+  // Auto-refresh functionality
   void _startAutoRefresh() {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(Duration(minutes: 5), (timer) {
+    _refreshTimer = Timer.periodic(SettlementConstants.autoRefreshInterval, (timer) {
       if (mounted) _fetchSettlements(isRefresh: true);
     });
   }
 
-  void _stopAutoRefresh() {
-    _refreshTimer?.cancel();
-  }
+  void _stopAutoRefresh() => _refreshTimer?.cancel();
 
-  void _toggleAutoRefresh() async {
+  Future<void> _toggleAutoRefresh() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _autoRefresh = !_autoRefresh;
-    });
+    setState(() => _autoRefresh = !_autoRefresh);
     await prefs.setBool('settlement_auto_refresh', _autoRefresh);
     
     if (_autoRefresh) {
@@ -139,70 +467,51 @@ class _SettlementViewPageState extends State<SettlementViewPage> with TickerProv
     }
   }
 
-  void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
+  // Data Operations
   Future<void> _fetchSettlements({bool isRefresh = false}) async {
-    if (isRefresh) {
-      setState(() => _isRefreshing = true);
-    } else {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = '';
-      });
-    }
+    _setLoadingState(isRefresh);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
-      final url = AppConfig.api('/api/settlement-details');
-
-      final response = await http.get(
-        Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        if (responseData['status'] == 'success') {
-          setState(() {
-            _settlements = List<Map<String, dynamic>>.from(responseData['data']);
-            _totalCount = responseData['count'] ?? _settlements.length;
-            _filteredSettlements = List.from(_settlements);
-          });
-          _calculateSummaryData();
-          _applyFilters();
-        } else {
-          throw Exception(responseData['message'] ?? 'Failed to fetch data');
-        }
-      } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (!isRefresh) {
-        setState(() {
-          _errorMessage = e.toString();
-        });
-      } else {
-        _showSnackBar('Refresh failed: ${e.toString()}', Colors.red);
-      }
-    } finally {
+      final settlements = await SettlementService.fetchSettlements();
       setState(() {
-        _isLoading = false;
-        _isRefreshing = false;
+        _settlements = settlements;
+        _totalCount = settlements.length;
+        _filteredSettlements = List.from(_settlements);
       });
+      
+      _calculateSummaryData();
+      _applyFilters();
+    } catch (e) {
+      _handleApiError(e, isRefresh);
+    } finally {
+      _clearLoadingState();
     }
+  }
+
+  void _setLoadingState(bool isRefresh) {
+    setState(() {
+      if (isRefresh) {
+        _isRefreshing = true;
+      } else {
+        _isLoading = true;
+        _errorMessage = '';
+      }
+    });
+  }
+
+  void _handleApiError(dynamic error, bool isRefresh) {
+    if (!isRefresh) {
+      setState(() => _errorMessage = error.toString());
+    } else {
+      _showSnackBar('Refresh failed: ${error.toString()}', Colors.red);
+    }
+  }
+
+  void _clearLoadingState() {
+    setState(() {
+      _isLoading = false;
+      _isRefreshing = false;
+    });
   }
 
   void _calculateSummaryData() {
@@ -212,323 +521,466 @@ class _SettlementViewPageState extends State<SettlementViewPage> with TickerProv
     int refundCount = 0;
     
     for (var settlement in _filteredSettlements) {
-      double amount = double.tryParse(settlement['transaction_amount']?.toString() ?? '0') ?? 0;
-      double settlementAmount = double.tryParse(settlement['merchant_settlement_amount']?.toString() ?? '0') ?? 0;
+      final amount = double.tryParse(settlement['transaction_amount']?.toString() ?? '0') ?? 0;
+      final settlementAmount = double.tryParse(settlement['merchant_settlement_amount']?.toString() ?? '0') ?? 0;
       
       totalAmount += amount;
       totalSettlement += settlementAmount;
       
-      if (settlement['transaction_type'] == 'PURCHASE') {
-        purchaseCount++;
-      } else if (settlement['transaction_type'] == 'REFUND') {
-        refundCount++;
+      switch (settlement['transaction_type']) {
+        case 'PURCHASE':
+          purchaseCount++;
+          break;
+        case 'REFUND':
+          refundCount++;
+          break;
       }
     }
     
     setState(() {
-      _summaryData = {
-        'totalAmount': totalAmount,
-        'totalSettlement': totalSettlement,
-        'purchaseCount': purchaseCount.toDouble(),
-        'refundCount': refundCount.toDouble(),
-        'totalCount': _filteredSettlements.length.toDouble(),
-      };
+      _summaryData = SettlementSummary(
+        totalAmount: totalAmount,
+        totalSettlement: totalSettlement,
+        purchaseCount: purchaseCount,
+        refundCount: refundCount,
+        totalCount: _filteredSettlements.length,
+      );
     });
   }
 
+  // Filtering
   void _applyFilters() {
-    List<Map<String, dynamic>> filtered = List.from(_settlements);
-    
-    if (_searchController.text.isNotEmpty) {
-      String query = _searchController.text.toLowerCase();
-      filtered = filtered.where((settlement) {
-        return settlement['order_number']?.toString().toLowerCase().contains(query) == true ||
-               settlement['merchant_name']?.toString().toLowerCase().contains(query) == true ||
-               settlement['card_number']?.toString().toLowerCase().contains(query) == true ||
-               settlement['group_name']?.toString().toLowerCase().contains(query) == true;
-      }).toList();
-    }
-    
-    if (_selectedTransactionType != 'All') {
-      filtered = filtered.where((settlement) {
-        return settlement['transaction_type'] == _selectedTransactionType;
-      }).toList();
-    }
-    
-    if (_selectedCurrency != 'All') {
-      filtered = filtered.where((settlement) {
-        return settlement['transaction_currency'] == _selectedCurrency;
-      }).toList();
-    }
-
-    if (_selectedStatus != 'All') {
-      filtered = filtered.where((settlement) {
-        return settlement['reconciliation_flag'] == _selectedStatus;
-      }).toList();
-    }
-    
-    if (_dateRange != null) {
-      filtered = filtered.where((settlement) {
-        try {
-          DateTime transactionTime = DateTime.parse(settlement['transaction_time']);
-          return transactionTime.isAfter(_dateRange!.start.subtract(Duration(days: 1))) &&
-                 transactionTime.isBefore(_dateRange!.end.add(Duration(days: 1)));
-        } catch (e) {
-          return false;
-        }
-      }).toList();
-    }
+    _filterManager.searchQuery = _searchController.text;
+    final filtered = _filterManager.applyFilters(_settlements);
     
     setState(() {
       _filteredSettlements = filtered;
       _currentPage = 1;
       _selectedItems.clear();
     });
+    
     _calculateSummaryData();
   }
 
-  // Bulk operations
-  void _selectAll() {
-    setState(() {
-      if (_selectedItems.length == _getPaginatedData().length) {
-        _selectedItems.clear();
-      } else {
-        _selectedItems = _getPaginatedData().map((item) => item['id'].toString()).toSet();
-      }
-    });
+  void _clearAllFilters() {
+    _filterManager.clearAll();
+    _searchController.clear();
+    _applyFilters();
   }
 
-  void _bulkExport() async {
-    if (_selectedItems.isEmpty) {
-      _showSnackBar('Please select items to export', Colors.orange);
-      return;
-    }
-    
-    List<Map<String, dynamic>> selectedData = _filteredSettlements
-        .where((item) => _selectedItems.contains(item['id'].toString()))
-        .toList();
-    
-    await _exportToCSV(selectedData, 'selected_settlements');
+  // Pagination
+  List<Map<String, dynamic>> _getPaginatedData() {
+    final startIndex = (_currentPage - 1) * _itemsPerPage;
+    final endIndex = (startIndex + _itemsPerPage).clamp(0, _filteredSettlements.length);
+    return _filteredSettlements.sublist(startIndex, endIndex);
   }
 
-  // Export functionality - simplified without external dependencies
-  Future<void> _exportToCSV(List<Map<String, dynamic>> data, String filename) async {
+  int get _totalPages => (_filteredSettlements.length / _itemsPerPage).ceil();
+
+  // Navigation
+  void _navigateToDetail(Map<String, dynamic> settlement) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SettlementDetailPage(
+          settlementId: settlement['id'].toString(),
+          orderNumber: settlement['order_number']?.toString() ?? '',
+        ),
+      ),
+    );
+  }
+
+  // Utility Methods
+  void _showSnackBar(String message, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showNavigationHint() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Double-click any row to view detailed information'),
+        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'Got it',
+          textColor: Colors.white,
+          onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _copyToClipboard(String text, String label) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    _showSnackBar('$label copied to clipboard', Colors.green);
+  }
+
+  // Export functionality
+  Future<void> _exportToCSV() async {
     try {
-      // Create CSV content manually
-      List<String> csvLines = [];
+      final csvContent = SettlementUtils.generateCSV(_filteredSettlements);
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final filename = 'settlements_$timestamp.csv';
       
-      // Headers
-      csvLines.add([
-        'Order Number',
-        'Transaction Time',
-        'Transaction Type',
-        'Transaction Amount',
-        'Currency',
-        'Merchant Name',
-        'Store Name',
-        'Card Number',
-        'PSP Name',
-        'Authorization Code',
-        'Settlement Amount',
-        'Net Settlement',
-        'Status',
-        'Terminal ID',
-        'Batch Number'
-      ].map((e) => '"$e"').join(','));
-
-      // Data rows
-      for (var settlement in data) {
-        csvLines.add([
-          settlement['order_number']?.toString() ?? '',
-          settlement['transaction_time']?.toString() ?? '',
-          settlement['transaction_type']?.toString() ?? '',
-          settlement['transaction_amount']?.toString() ?? '',
-          settlement['transaction_currency']?.toString() ?? '',
-          settlement['merchant_name']?.toString() ?? '',
-          settlement['store_name']?.toString() ?? '',
-          settlement['card_number']?.toString() ?? '',
-          settlement['psp_name']?.toString() ?? '',
-          settlement['authorization_code']?.toString() ?? '',
-          settlement['merchant_settlement_amount']?.toString() ?? '',
-          settlement['net_merchant_settlement_amount']?.toString() ?? '',
-          settlement['reconciliation_flag']?.toString() ?? '',
-          settlement['terminal_id']?.toString() ?? '',
-          settlement['batch_number']?.toString() ?? ''
-        ].map((e) => '"${e.toString().replaceAll('"', '""')}"').join(','));
-      }
-
-      String csvContent = csvLines.join('\n');
-      String timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      String finalFilename = '${filename}_$timestamp.csv';
-      
-      // Show export dialog with CSV content
-      _showExportDialog(csvContent, finalFilename);
-      
+      _showExportDialog(csvContent, filename);
       _showSnackBar('Export completed successfully', Colors.green);
     } catch (e) {
       _showSnackBar('Export failed: $e', Colors.red);
     }
   }
 
-  void _showExportDialog(String csvContent, String filename) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.file_download, color: ThemeConfig.getPrimaryColor(currentTheme)),
-            SizedBox(width: 8),
-            Text('Export Settlement Data'),
-          ],
-        ),
-        content: Container(
-          width: double.maxFinite,
-          constraints: BoxConstraints(maxHeight: 400),
+  // UI Build Methods
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: _buildAppBar(),
+      body: SlideTransition(
+        position: _slideAnimation,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'File: $filename',
-                style: TextStyle(fontWeight: FontWeight.w500),
+              _SummaryCards(summaryData: _summaryData),
+              _FilterSection(
+                filterManager: _filterManager,
+                searchController: _searchController,
+                onFiltersChanged: _applyFilters,
+                onClearFilters: _clearAllFilters,
+                currentTheme: currentTheme,
               ),
-              SizedBox(height: 16),
-              Text(
-                'CSV Data Preview:',
-                style: TextStyle(fontWeight: FontWeight.w500),
-              ),
-              SizedBox(height: 8),
-              Expanded(
-                child: Container(
-                  width: double.maxFinite,
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8),
-                    color: Colors.grey[50],
-                  ),
-                  child: SingleChildScrollView(
-                    child: SelectableText(
-                      csvContent.length > 1000 
-                          ? '${csvContent.substring(0, 1000)}...\n\n[Content truncated for preview]'
-                          : csvContent,
-                      style: TextStyle(fontFamily: 'monospace', fontSize: 11),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 12),
-              Container(
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Copy the data and save it as a .csv file to import into spreadsheet applications.',
-                        style: TextStyle(fontSize: 12, color: Colors.blue[700]),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildTableSection(),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: csvContent));
-              Navigator.of(context).pop();
-              _showSnackBar('CSV data copied to clipboard', Colors.green);
-            },
-            icon: Icon(Icons.copy, size: 16),
-            label: Text('Copy to Clipboard'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-              foregroundColor: Colors.white,
+      ),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      title: Row(
+        children: [
+          const Text('Settlement Details'),
+          if (_isRefreshing) ...[
+            const SizedBox(width: 12),
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
             ),
+          ],
+        ],
+      ),
+      backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+      foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+      elevation: 0,
+      actions: [
+        IconButton(
+          onPressed: _toggleAutoRefresh,
+          icon: Icon(_autoRefresh ? Icons.pause : Icons.play_arrow),
+          tooltip: _autoRefresh ? 'Disable Auto-refresh' : 'Enable Auto-refresh',
+        ),
+        IconButton(
+          onPressed: () => _fetchSettlements(isRefresh: true),
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Refresh',
+        ),
+        _buildPopupMenu(),
+      ],
+    );
+  }
+
+  PopupMenuButton<String> _buildPopupMenu() {
+    return PopupMenuButton<String>(
+      onSelected: _handleMenuSelection,
+      itemBuilder: (context) => [
+        _buildMenuItem('export_all', Icons.download, 'Export All Data'),
+        _buildMenuItem('clear_filters', Icons.clear_all, 'Clear All Filters'),
+        _buildMenuItem('column_settings', Icons.view_column, 'Column Settings'),
+        _buildMenuItem('settings', Icons.settings, 'Settings'),
+      ],
+    );
+  }
+
+  PopupMenuItem<String> _buildMenuItem(String value, IconData icon, String text) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon),
+          const SizedBox(width: 8),
+          Text(text),
+        ],
+      ),
+    );
+  }
+
+  void _handleMenuSelection(String value) {
+    switch (value) {
+      case 'export_all':
+        _exportToCSV();
+        break;
+      case 'clear_filters':
+        _clearAllFilters();
+        break;
+      case 'column_settings':
+        _showColumnSettingsDialog();
+        break;
+      case 'settings':
+        _showSettingsDialog();
+        break;
+    }
+  }
+
+  Widget _buildTableSection() {
+    if (_isLoading) return _buildLoadingWidget();
+    if (_errorMessage.isNotEmpty) return _buildErrorWidget();
+    if (_filteredSettlements.isEmpty) return _buildEmptyWidget();
+    
+    return Expanded(
+      child: Column(
+        children: [
+          _buildActionBar(),
+          _buildResultsInfo(),
+          Expanded(
+            child: _SettlementTable(
+              settlements: _getPaginatedData(),
+              columnVisibility: _columnVisibility,
+              columnOrder: _columnOrder,
+              onNavigateToDetail: _navigateToDetail,
+              onCopyToClipboard: _copyToClipboard,
+              onShowQuickView: _showQuickViewDialog,
+              selectedItems: _selectedItems,
+              onSelectionChanged: (id, selected) {
+                setState(() {
+                  if (selected) {
+                    _selectedItems.add(id);
+                  } else {
+                    _selectedItems.remove(id);
+                  }
+                });
+              },
+              onColumnMoved: _moveColumn,
+              onShowColumnSettings: _showColumnSettingsDialog,
+            ),
+          ),
+          if (_totalPages > 1) _buildPaginationControls(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingWidget() {
+    return Expanded(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: ThemeConfig.getPrimaryColor(currentTheme)),
+            const SizedBox(height: 16),
+            const Text('Loading settlements...'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget() {
+    return Expanded(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            const Text('Error loading settlements:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(_errorMessage, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _fetchSettlements,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyWidget() {
+    return const Expanded(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('No settlements found', style: TextStyle(fontSize: 18)),
+            Text('Try adjusting your search or filters'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          const Spacer(),
+          OutlinedButton.icon(
+            onPressed: _exportToCSV,
+            icon: const Icon(Icons.download, size: 16),
+            label: const Text('Export All'),
           ),
         ],
       ),
     );
   }
 
-  List<Map<String, dynamic>> _getPaginatedData() {
-    int startIndex = (_currentPage - 1) * _itemsPerPage;
-    int endIndex = startIndex + _itemsPerPage;
-    if (endIndex > _filteredSettlements.length) {
-      endIndex = _filteredSettlements.length;
-    }
-    return _filteredSettlements.sublist(startIndex, endIndex);
-  }
-
-  int get _totalPages => (_filteredSettlements.length / _itemsPerPage).ceil();
-
-  String _formatDateTime(String? dateTimeStr) {
-    if (dateTimeStr == null) return '-';
-    try {
-      DateTime dateTime = DateTime.parse(dateTimeStr);
-      return DateFormat('MMM dd\nHH:mm').format(dateTime);
-    } catch (e) {
-      return dateTimeStr;
-    }
-  }
-
-  String _formatAmount(dynamic amount, String? currency) {
-    if (amount == null) return '-';
-    currency = currency ?? 'USD';
-    double value = double.tryParse(amount.toString()) ?? 0.0;
-    return '${currency}\n${value.toStringAsFixed(2)}';
-  }
-
-  Widget _buildSummaryCards() {
+  Widget _buildResultsInfo() {
+    final paginatedData = _getPaginatedData();
+    final startIndex = (_currentPage - 1) * _itemsPerPage + 1;
+    final endIndex = startIndex + paginatedData.length - 1;
+    
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Text(
+            'Showing $startIndex-$endIndex of ${_filteredSettlements.length} transactions',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          const Spacer(),
+          Text(
+            'Page $_currentPage of $_totalPages',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaginationControls() {
+    return _PaginationControls(
+      currentPage: _currentPage,
+      totalPages: _totalPages,
+      onPageChanged: (page) => setState(() => _currentPage = page),
+    );
+  }
+
+  // Dialog Methods
+  void _showQuickViewDialog(Map<String, dynamic> settlement) {
+    showDialog(
+      context: context,
+      builder: (context) => _QuickViewDialog(
+        settlement: settlement,
+        onNavigateToDetail: () {
+          Navigator.of(context).pop();
+          _navigateToDetail(settlement);
+        },
+        currentTheme: currentTheme,
+      ),
+    );
+  }
+
+  void _showExportDialog(String csvContent, String filename) {
+    showDialog(
+      context: context,
+      builder: (context) => _ExportDialog(
+        csvContent: csvContent,
+        filename: filename,
+        currentTheme: currentTheme,
+        onExportComplete: () => _showSnackBar('CSV data copied to clipboard', Colors.green),
+      ),
+    );
+  }
+
+  void _showColumnSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => _ColumnSettingsDialog(
+        columnVisibility: _columnVisibility,
+        columnOrder: _columnOrder,
+        onVisibilityChanged: (key, value) {
+          setState(() => _columnVisibility[key] = value);
+        },
+        onColumnMoved: _moveColumn,
+        onResetOrder: _resetColumnOrder,
+        onSave: () async {
+          await _saveColumnPreferences();
+          Navigator.of(context).pop();
+          _showSnackBar('Column preferences saved', Colors.green);
+        },
+        currentTheme: currentTheme,
+      ),
+    );
+  }
+
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => _SettingsDialog(
+        itemsPerPage: _itemsPerPage,
+        autoRefresh: _autoRefresh,
+        onItemsPerPageChanged: (value) {
+          setState(() {
+            _itemsPerPage = value;
+            _currentPage = 1;
+          });
+          Navigator.of(context).pop();
+        },
+        onAutoRefreshToggle: () {
+          Navigator.of(context).pop();
+          _toggleAutoRefresh();
+        },
+      ),
+    );
+  }
+}
+
+// Separate Widgets for better organization
+class _SummaryCards extends StatelessWidget {
+  final SettlementSummary summaryData;
+
+  const _SummaryCards({required this.summaryData});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          bool isWide = constraints.maxWidth > 800;
+          final isWide = constraints.maxWidth > 800;
+          final cards = [
+            _buildSummaryCard('Total Transactions', summaryData.totalCount.toString(), Icons.receipt_long, Colors.blue),
+            _buildSummaryCard('Total Amount', 'USD ${summaryData.totalAmount.toStringAsFixed(2)}', Icons.attach_money, Colors.green),
+            _buildSummaryCard('Purchases', summaryData.purchaseCount.toString(), Icons.shopping_cart, Colors.orange),
+            _buildSummaryCard('Refunds', summaryData.refundCount.toString(), Icons.refresh, Colors.red),
+          ];
           
           if (isWide) {
             return Row(
-              children: [
-                Expanded(child: _buildSummaryCard('Total Transactions', _summaryData['totalCount']?.toInt().toString() ?? '0', Icons.receipt_long, Colors.blue)),
-                SizedBox(width: 12),
-                Expanded(child: _buildSummaryCard('Total Amount', 'USD ${(_summaryData['totalAmount'] ?? 0).toStringAsFixed(2)}', Icons.attach_money, Colors.green)),
-                SizedBox(width: 12),
-                Expanded(child: _buildSummaryCard('Purchases', _summaryData['purchaseCount']?.toInt().toString() ?? '0', Icons.shopping_cart, Colors.orange)),
-                SizedBox(width: 12),
-                Expanded(child: _buildSummaryCard('Refunds', _summaryData['refundCount']?.toInt().toString() ?? '0', Icons.refresh, Colors.red)),
-              ],
+              children: cards.map((card) => Expanded(child: card)).toList(),
             );
           } else {
             return Column(
               children: [
-                Row(
-                  children: [
-                    Expanded(child: _buildSummaryCard('Total Transactions', _summaryData['totalCount']?.toInt().toString() ?? '0', Icons.receipt_long, Colors.blue)),
-                    SizedBox(width: 12),
-                    Expanded(child: _buildSummaryCard('Total Amount', 'USD ${(_summaryData['totalAmount'] ?? 0).toStringAsFixed(2)}', Icons.attach_money, Colors.green)),
-                  ],
-                ),
-                SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(child: _buildSummaryCard('Purchases', _summaryData['purchaseCount']?.toInt().toString() ?? '0', Icons.shopping_cart, Colors.orange)),
-                    SizedBox(width: 12),
-                    Expanded(child: _buildSummaryCard('Refunds', _summaryData['refundCount']?.toInt().toString() ?? '0', Icons.refresh, Colors.red)),
-                  ],
-                ),
+                Row(children: [Expanded(child: cards[0]), const SizedBox(width: 12), Expanded(child: cards[1])]),
+                const SizedBox(height: 12),
+                Row(children: [Expanded(child: cards[2]), const SizedBox(width: 12), Expanded(child: cards[3])]),
               ],
             );
           }
@@ -539,7 +991,8 @@ class _SettlementViewPageState extends State<SettlementViewPage> with TickerProv
 
   Widget _buildSummaryCard(String title, String value, IconData icon, Color color) {
     return Container(
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -547,7 +1000,7 @@ class _SettlementViewPageState extends State<SettlementViewPage> with TickerProv
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -556,7 +1009,7 @@ class _SettlementViewPageState extends State<SettlementViewPage> with TickerProv
           Row(
             children: [
               Icon(icon, color: color, size: 20),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
@@ -569,7 +1022,7 @@ class _SettlementViewPageState extends State<SettlementViewPage> with TickerProv
               ),
             ],
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
@@ -582,11 +1035,28 @@ class _SettlementViewPageState extends State<SettlementViewPage> with TickerProv
       ),
     );
   }
+}
 
-  Widget _buildCompactFilters() {
+class _FilterSection extends StatelessWidget {
+  final FilterManager filterManager;
+  final TextEditingController searchController;
+  final VoidCallback onFiltersChanged;
+  final VoidCallback onClearFilters;
+  final String currentTheme;
+
+  const _FilterSection({
+    required this.filterManager,
+    required this.searchController,
+    required this.onFiltersChanged,
+    required this.onClearFilters,
+    required this.currentTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(16),
-      margin: EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -594,242 +1064,199 @@ class _SettlementViewPageState extends State<SettlementViewPage> with TickerProv
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         children: [
-          // Search bar
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search by order, merchant, card...',
-              prefixIcon: Icon(Icons.search, size: 20),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: Icon(Icons.clear, size: 18),
-                      onPressed: () {
-                        _searchController.clear();
-                        _applyFilters();
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              isDense: true,
-            ),
-            onChanged: (value) => _applyFilters(),
-          ),
-          
-          SizedBox(height: 12),
-          
-          // Responsive filters layout
-          LayoutBuilder(
-            builder: (context, constraints) {
-              bool isWide = constraints.maxWidth > 700;
-              
-              if (isWide) {
-                return Row(
-                  children: [
-                    Expanded(child: _buildTypeFilter()),
-                    SizedBox(width: 8),
-                    Expanded(child: _buildCurrencyFilter()),
-                    SizedBox(width: 8),
-                    Expanded(child: _buildStatusFilter()),
-                    SizedBox(width: 8),
-                    _buildDateFilter(),
-                  ],
-                );
-              } else {
-                return Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: _buildTypeFilter()),
-                        SizedBox(width: 8),
-                        Expanded(child: _buildCurrencyFilter()),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(child: _buildStatusFilter()),
-                        SizedBox(width: 8),
-                        Expanded(child: _buildDateFilter()),
-                      ],
-                    ),
-                  ],
-                );
-              }
-            },
-          ),
-          
-          // Active filters chips
-          if (_searchController.text.isNotEmpty || _selectedTransactionType != 'All' || _selectedCurrency != 'All' || _selectedStatus != 'All' || _dateRange != null)
-            Container(
-              margin: EdgeInsets.only(top: 12),
-              width: double.infinity,
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: [
-                  if (_searchController.text.isNotEmpty)
-                    _buildFilterChip(
-                      'Search: ${_searchController.text}',
-                      () {
-                        _searchController.clear();
-                        _applyFilters();
-                      },
-                    ),
-                  if (_selectedTransactionType != 'All')
-                    _buildFilterChip(
-                      _selectedTransactionType,
-                      () {
-                        setState(() => _selectedTransactionType = 'All');
-                        _applyFilters();
-                      },
-                    ),
-                  if (_selectedCurrency != 'All')
-                    _buildFilterChip(
-                      _selectedCurrency,
-                      () {
-                        setState(() => _selectedCurrency = 'All');
-                        _applyFilters();
-                      },
-                    ),
-                  if (_selectedStatus != 'All')
-                    _buildFilterChip(
-                      _selectedStatus,
-                      () {
-                        setState(() => _selectedStatus = 'All');
-                        _applyFilters();
-                      },
-                    ),
-                  if (_dateRange != null)
-                    _buildFilterChip(
-                      '${DateFormat('MMM dd').format(_dateRange!.start)}-${DateFormat('MMM dd').format(_dateRange!.end)}',
-                      () {
-                        setState(() => _dateRange = null);
-                        _applyFilters();
-                      },
-                    ),
-                ],
-              ),
-            ),
+          _buildSearchBar(context),
+          const SizedBox(height: 12),
+          _buildFilterControls(context),
+          if (filterManager.hasActiveFilters) ...[
+            const SizedBox(height: 12),
+            _buildActiveFilters(context),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildTypeFilter() {
-    return Container(
-      height: 40,
-      child: DropdownButtonFormField<String>(
-        value: _selectedTransactionType,
-        decoration: InputDecoration(
-          labelText: 'Type',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-          isDense: true,
+  Widget _buildSearchBar(BuildContext context) {
+    return TextField(
+      controller: searchController,
+      decoration: InputDecoration(
+        hintText: 'Search by order, merchant, card...',
+        prefixIcon: const Icon(Icons.search, size: 20),
+        suffixIcon: searchController.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                onPressed: () {
+                  searchController.clear();
+                  onFiltersChanged();
+                },
+              )
+            : null,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
         ),
-        items: ['All', 'PURCHASE', 'REFUND', 'REVERSAL'].map((type) {
-          return DropdownMenuItem(value: type, child: Text(type, style: TextStyle(fontSize: 12)));
-        }).toList(),
-        onChanged: (value) {
-          setState(() => _selectedTransactionType = value!);
-          _applyFilters();
-        },
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        isDense: true,
       ),
+      onChanged: (value) => onFiltersChanged(),
     );
   }
 
-  Widget _buildCurrencyFilter() {
-    return Container(
-      height: 40,
-      child: DropdownButtonFormField<String>(
-        value: _selectedCurrency,
-        decoration: InputDecoration(
-          labelText: 'Currency',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-          isDense: true,
-        ),
-        items: ['All', 'USD', 'THB', 'EUR', 'GBP', 'LAK'].map((currency) {
-          return DropdownMenuItem(value: currency, child: Text(currency, style: TextStyle(fontSize: 12)));
-        }).toList(),
-        onChanged: (value) {
-          setState(() => _selectedCurrency = value!);
-          _applyFilters();
-        },
-      ),
-    );
-  }
-
-  Widget _buildStatusFilter() {
-    return Container(
-      height: 40,
-      child: DropdownButtonFormField<String>(
-        value: _selectedStatus,
-        decoration: InputDecoration(
-          labelText: 'Status',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-          isDense: true,
-        ),
-        items: ['All', 'Matched', 'Unmatched', 'Pending'].map((status) {
-          return DropdownMenuItem(value: status, child: Text(status, style: TextStyle(fontSize: 12)));
-        }).toList(),
-        onChanged: (value) {
-          setState(() => _selectedStatus = value!);
-          _applyFilters();
-        },
-      ),
-    );
-  }
-
-  Widget _buildDateFilter() {
-    return Container(
-      height: 40,
-      child: ElevatedButton.icon(
-        onPressed: () async {
-          DateTimeRange? picked = await showDateRangePicker(
-            context: context,
-            firstDate: DateTime(2020),
-            lastDate: DateTime.now().add(Duration(days: 365)),
-            initialDateRange: _dateRange,
-            builder: (context, child) {
-              return Theme(
-                data: Theme.of(context).copyWith(
-                  colorScheme: Theme.of(context).colorScheme.copyWith(
-                    primary: ThemeConfig.getPrimaryColor(currentTheme),
-                  ),
-                ),
-                child: child!,
-              );
-            },
+  Widget _buildFilterControls(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 700;
+        final filters = [
+          _buildDropdownFilter('Type', filterManager.selectedTransactionType, 
+            SettlementConstants.transactionTypes, 
+            (value) {
+              filterManager.selectedTransactionType = value!;
+              onFiltersChanged();
+            }),
+          _buildDropdownFilter('Currency', filterManager.selectedCurrency, 
+            SettlementConstants.currencies, 
+            (value) {
+              filterManager.selectedCurrency = value!;
+              onFiltersChanged();
+            }),
+          _buildDropdownFilter('Status', filterManager.selectedStatus, 
+            SettlementConstants.statuses, 
+            (value) {
+              filterManager.selectedStatus = value!;
+              onFiltersChanged();
+            }),
+          _buildDateFilter(context),
+        ];
+        
+        if (isWide) {
+          return Row(
+            children: filters.map((filter) => 
+              Expanded(child: filter)
+            ).toList(),
           );
-          if (picked != null) {
-            setState(() => _dateRange = picked);
-            _applyFilters();
-          }
-        },
-        icon: Icon(Icons.date_range, size: 16),
-        label: Text(_dateRange != null ? 'Selected' : 'Date', style: TextStyle(fontSize: 12)),
+        } else {
+          return Column(
+            children: [
+              Row(children: [Expanded(child: filters[0]), const SizedBox(width: 8), Expanded(child: filters[1])]),
+              const SizedBox(height: 8),
+              Row(children: [Expanded(child: filters[2]), const SizedBox(width: 8), Expanded(child: filters[3])]),
+            ],
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildDropdownFilter(String label, String value, List<String> items, ValueChanged<String?> onChanged) {
+    return Container(
+      height: 40,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+          isDense: true,
+        ),
+        items: items.map((item) => DropdownMenuItem(
+          value: item, 
+          child: Text(item, style: const TextStyle(fontSize: 12))
+        )).toList(),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _buildDateFilter(BuildContext context) {
+    return Container(
+      height: 40,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      child: ElevatedButton.icon(
+        onPressed: () => _selectDateRange(context),
+        icon: const Icon(Icons.date_range, size: 16),
+        label: Text(filterManager.dateRange != null ? 'Selected' : 'Date', style: const TextStyle(fontSize: 12)),
         style: ElevatedButton.styleFrom(
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          backgroundColor: _dateRange != null 
-              ? ThemeConfig.getPrimaryColor(currentTheme) 
-              : null,
-          foregroundColor: _dateRange != null 
-              ? Colors.white 
-              : null,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          backgroundColor: filterManager.dateRange != null ? ThemeConfig.getPrimaryColor(currentTheme) : null,
+          foregroundColor: filterManager.dateRange != null ? Colors.white : null,
         ),
       ),
     );
+  }
+
+  Future<void> _selectDateRange(BuildContext context) async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDateRange: filterManager.dateRange,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      filterManager.dateRange = picked;
+      onFiltersChanged();
+    }
+  }
+
+  Widget _buildActiveFilters(BuildContext context) {
+    final chips = <Widget>[];
+    
+    if (filterManager.searchQuery.isNotEmpty) {
+      chips.add(_buildFilterChip('Search: ${filterManager.searchQuery}', () {
+        searchController.clear();
+        filterManager.searchQuery = '';
+        onFiltersChanged();
+      }));
+    }
+    
+    if (filterManager.selectedTransactionType != 'All') {
+      chips.add(_buildFilterChip(filterManager.selectedTransactionType, () {
+        filterManager.selectedTransactionType = 'All';
+        onFiltersChanged();
+      }));
+    }
+    
+    if (filterManager.selectedCurrency != 'All') {
+      chips.add(_buildFilterChip(filterManager.selectedCurrency, () {
+        filterManager.selectedCurrency = 'All';
+        onFiltersChanged();
+      }));
+    }
+    
+    if (filterManager.selectedStatus != 'All') {
+      chips.add(_buildFilterChip(filterManager.selectedStatus, () {
+        filterManager.selectedStatus = 'All';
+        onFiltersChanged();
+      }));
+    }
+    
+    if (filterManager.dateRange != null) {
+      chips.add(_buildFilterChip(
+        '${DateFormat('MMM dd').format(filterManager.dateRange!.start)}-${DateFormat('MMM dd').format(filterManager.dateRange!.end)}',
+        () {
+          filterManager.dateRange = null;
+          onFiltersChanged();
+        },
+      ));
+    }
+    
+    return Wrap(spacing: 6, runSpacing: 4, children: chips);
   }
 
   Widget _buildFilterChip(String label, VoidCallback onDeleted) {
@@ -855,939 +1282,886 @@ class _SettlementViewPageState extends State<SettlementViewPage> with TickerProv
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
+}
 
-  Widget _buildActionBar() {
+// Enhanced Settlement Table with drag-and-drop functionality
+class _SettlementTable extends StatelessWidget {
+  final List<Map<String, dynamic>> settlements;
+  final Map<String, bool> columnVisibility;
+  final List<String> columnOrder;
+  final Function(Map<String, dynamic>) onNavigateToDetail;
+  final Function(String, String) onCopyToClipboard;
+  final Function(Map<String, dynamic>) onShowQuickView;
+  final Set<String> selectedItems;
+  final Function(String, bool) onSelectionChanged;
+  final Function(int, int) onColumnMoved;
+  final VoidCallback onShowColumnSettings;
+
+  const _SettlementTable({
+    required this.settlements,
+    required this.columnVisibility,
+    required this.columnOrder,
+    required this.onNavigateToDetail,
+    required this.onCopyToClipboard,
+    required this.onShowQuickView,
+    required this.selectedItems,
+    required this.onSelectionChanged,
+    required this.onColumnMoved,
+    required this.onShowColumnSettings,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Column header with reorder functionality
+        _buildReorderableHeader(),
+        // Table content
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Container(
+              width: 1500,
+              child: SingleChildScrollView(
+                child: DataTable(
+                  columnSpacing: 8,
+                  dataRowHeight: 56,
+                  headingRowHeight: 48,
+                  headingRowColor: MaterialStateProperty.all(Colors.grey[100]),
+                  border: TableBorder.all(color: Colors.grey[300]!, width: 0.5),
+                  columns: _buildTableColumns(),
+                  rows: _buildTableRows(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReorderableHeader() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      height: 40,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+      ),
       child: Row(
-        children: [
-          // Bulk selection
-          if (_selectedItems.isNotEmpty) ...[
-            Chip(
-              label: Text('${_selectedItems.length} selected'),
-              deleteIcon: Icon(Icons.clear, size: 18),
-              onDeleted: () => setState(() => _selectedItems.clear()),
-            ),
-            SizedBox(width: 8),
-            ElevatedButton.icon(
-              onPressed: _bulkExport,
-              icon: Icon(Icons.file_download, size: 16),
-              label: Text('Export Selected'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                foregroundColor: Colors.white,
-              ),
-            ),
-            SizedBox(width: 8),
-          ],
-          
-          // Select all button
-          TextButton.icon(
-            onPressed: _selectAll,
-            icon: Icon(_selectedItems.length == _getPaginatedData().length ? Icons.deselect : Icons.select_all, size: 16),
-            label: Text(_selectedItems.length == _getPaginatedData().length ? 'Deselect All' : 'Select All'),
-          ),
-          
-          Spacer(),
-          
-          // Export all button
-          OutlinedButton.icon(
-            onPressed: () => _exportToCSV(_filteredSettlements, 'all_settlements'),
-            icon: Icon(Icons.download, size: 16),
-            label: Text('Export All'),
-          ),
-        ],
+        // children: [
+          // Expanded(
+            // child: ReorderableListView(
+            //   scrollDirection: Axis.horizontal,
+            //   onReorder: onColumnMoved,
+            //   children: _getOrderedVisibleColumns().asMap().entries.map((entry) {
+            //     final col = entry.value;
+                // return Container(
+                  // key: ValueKey(col.key),
+                  // width: col.width,
+                  // height: 40,
+                  // padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  // decoration: BoxDecoration(
+                  //   border: Border(right: BorderSide(color: Colors.grey[300]!)),
+                  // ),
+                  // child: Row(
+                    // children: [
+                      // Icon(Icons.drag_handle, size: 16, color: Colors.grey[600]),
+                      // const SizedBox(width: 4),
+                      // Expanded(
+                      //   child: Text(
+                      //     col.title,
+                      //     style: const TextStyle(
+                      //       fontWeight: FontWeight.bold,
+                      //       fontSize: 10,
+                      //     ),
+                      //     overflow: TextOverflow.ellipsis,
+                      //   ),
+                      // ),
+                    // ],
+                  // ),
+                // );
+              // }).toList(),
+        //     ),
+        //   ),
+        //   Container(
+        //     width: 50,
+        //     child: IconButton(
+        //       icon: const Icon(Icons.settings, size: 16),
+        //       onPressed: onShowColumnSettings,
+        //       tooltip: 'Column Settings',
+        //     ),
+        //   ),
+        // ],
       ),
     );
   }
 
-  Widget _buildCompactTable() {
-    if (_isLoading) {
-      return Expanded(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(color: ThemeConfig.getPrimaryColor(currentTheme)),
-              SizedBox(height: 16),
-              Text('Loading settlements...'),
-            ],
-          ),
+  List<ColumnDefinition> _getOrderedVisibleColumns() {
+    final columnMap = {
+      for (var col in SettlementConstants.columnDefinitions) col.key: col
+    };
+    
+    return columnOrder
+        .where((key) => columnVisibility[key] == true && columnMap.containsKey(key))
+        .map((key) => columnMap[key]!)
+        .toList();
+  }
+
+  List<DataColumn> _buildTableColumns() {
+    return _getOrderedVisibleColumns().map((col) => DataColumn(
+      label: Container(
+        width: col.width,
+        child: Text(
+          col.title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
         ),
-      );
+      ),
+      numeric: ['tx_amount', 'billing_amount', 'settlement', 'net_settlement', 'fees'].contains(col.key),
+    )).toList();
+  }
+
+  List<DataRow> _buildTableRows() {
+    return settlements.map((settlement) => DataRow(
+      selected: selectedItems.contains(settlement['id'].toString()),
+      onSelectChanged: (selected) {
+        onSelectionChanged(settlement['id'].toString(), selected ?? false);
+      },
+      cells: _buildTableCells(settlement),
+    )).toList();
+  }
+
+  List<DataCell> _buildTableCells(Map<String, dynamic> settlement) {
+    return _getOrderedVisibleColumns().map((col) => 
+      _buildCellForColumn(col, settlement)
+    ).toList();
+  }
+
+  DataCell _buildCellForColumn(ColumnDefinition col, Map<String, dynamic> settlement) {
+    switch (col.key) {
+      case 'order_number':
+        return _buildClickableCell(col.width, settlement['order_number']?.toString() ?? '', settlement, 
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11));
+      case 'system_tx_id':
+        return _buildClickableCell(col.width, SettlementUtils.shortenId(settlement['system_transaction_id']?.toString() ?? '-'), settlement,
+          style: const TextStyle(fontSize: 9, fontFamily: 'monospace'));
+      case 'transaction_time':
+        return _buildClickableCell(col.width, SettlementUtils.formatDateTime(settlement['transaction_time']), settlement,
+          style: const TextStyle(fontSize: 9), alignment: TextAlign.center);
+      case 'type':
+        return _buildClickableCell(col.width, '', settlement, child: _buildTypeChip(settlement['transaction_type']));
+      case 'tx_amount':
+        return _buildClickableCell(col.width, SettlementUtils.formatAmount(settlement['transaction_amount'], settlement['transaction_currency']), settlement,
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 9, color: SettlementUtils.getAmountColor(settlement['transaction_amount'])), 
+          alignment: TextAlign.right);
+      case 'billing_amount':
+        return _buildClickableCell(col.width, SettlementUtils.formatAmount(settlement['user_billing_amount'], settlement['user_billing_currency']), settlement,
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 9, color: SettlementUtils.getAmountColor(settlement['user_billing_amount'])), 
+          alignment: TextAlign.right);
+      case 'settlement':
+        return _buildClickableCell(col.width, SettlementUtils.formatAmount(settlement['merchant_settlement_amount'], settlement['merchant_settlement_currency']), settlement,
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 9, color: SettlementUtils.getAmountColor(settlement['merchant_settlement_amount'])), 
+          alignment: TextAlign.right);
+      case 'net_settlement':
+        return _buildClickableCell(col.width, SettlementUtils.formatAmount(settlement['net_merchant_settlement_amount'], settlement['merchant_settlement_currency']), settlement,
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 9, color: SettlementUtils.getAmountColor(settlement['net_merchant_settlement_amount'])), 
+          alignment: TextAlign.right);
+      case 'merchant_store':
+        return _buildClickableCell(col.width, '', settlement, child: _buildCompactMerchantInfo(settlement));
+      case 'card_info':
+        return _buildClickableCell(col.width, '', settlement, child: _buildCompactCardInfo(settlement));
+      case 'psp_brand':
+        return _buildClickableCell(col.width, '', settlement, child: _buildCompactPSPInfo(settlement));
+      case 'auth_mode':
+        return _buildClickableCell(col.width, '', settlement, child: _buildAuthModeInfo(settlement));
+      case 'status':
+        return _buildClickableCell(col.width, '', settlement, child: _buildCompactStatusInfo(settlement));
+      case 'terminal':
+        return _buildClickableCell(col.width, '', settlement, child: _buildCompactTerminalInfo(settlement));
+      case 'fees':
+        return _buildClickableCell(col.width, '', settlement, child: _buildCompactFeesInfo(settlement));
+      case 'actions':
+        return _buildActionCell(settlement);
+      default:
+        return _buildClickableCell(col.width, settlement[col.key]?.toString() ?? '-', settlement);
     }
-    
-    if (_errorMessage.isNotEmpty) {
-      return Expanded(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error, size: 64, color: Colors.red),
-              SizedBox(height: 16),
-              Text('Error loading settlements:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              SizedBox(height: 8),
-              Text(_errorMessage, textAlign: TextAlign.center),
-              SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _fetchSettlements,
-                child: Text('Retry'),
-              ),
-            ],
-          ),
+  }
+
+  Widget _buildCompactMerchantInfo(Map<String, dynamic> settlement) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          settlement['merchant_name'] ?? '',
+          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 9),
+          overflow: TextOverflow.ellipsis,
         ),
-      );
-    }
-    
-    if (_filteredSettlements.isEmpty) {
-      return Expanded(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.receipt_long, size: 64, color: Colors.grey),
-              SizedBox(height: 16),
-              Text('No settlements found', style: TextStyle(fontSize: 18)),
-              Text('Try adjusting your search or filters'),
-            ],
-          ),
+        Text(
+          settlement['store_name'] ?? '',
+          style: TextStyle(fontSize: 8, color: Colors.grey[600]),
+          overflow: TextOverflow.ellipsis,
         ),
-      );
-    }
-    
-    List<Map<String, dynamic>> paginatedData = _getPaginatedData();
-    
-    return Expanded(
-      child: Column(
-        children: [
-          // Action bar
-          _buildActionBar(),
-          
-          // Results info
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Text(
-                  'Showing ${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage - 1) * _itemsPerPage + paginatedData.length} of ${_filteredSettlements.length} transactions',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-                Spacer(),
-                Text(
-                  'Page $_currentPage of $_totalPages',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
+        Text(
+          settlement['group_id'] ?? '',
+          style: TextStyle(fontSize: 7, color: Colors.grey[500]),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactCardInfo(Map<String, dynamic> settlement) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          settlement['card_number'] ?? '',
+          style: const TextStyle(fontSize: 8, fontFamily: 'monospace', fontWeight: FontWeight.w500),
+        ),
+        Text(
+          settlement['payment_brand'] ?? '',
+          style: TextStyle(fontSize: 8, color: Colors.grey[600]),
+        ),
+        Text(
+          settlement['funding_type'] ?? '',
+          style: TextStyle(fontSize: 7, color: Colors.grey[500]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactPSPInfo(Map<String, dynamic> settlement) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          settlement['psp_name'] ?? '',
+          style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w500),
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          settlement['payment_brand'] ?? '',
+          style: TextStyle(fontSize: 8, color: Colors.grey[600]),
+        ),
+        Text(
+          'MCC: ${settlement['mcc'] ?? '-'}',
+          style: TextStyle(fontSize: 7, color: Colors.grey[500]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAuthModeInfo(Map<String, dynamic> settlement) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          settlement['authorization_code'] ?? '-',
+          style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w500),
+        ),
+        Text(
+          settlement['transaction_initiation_mode'] ?? '',
+          style: TextStyle(fontSize: 7, color: Colors.grey[600]),
+        ),
+        Text(
+          settlement['system_result_code'] ?? '',
+          style: TextStyle(fontSize: 7, color: Colors.grey[500]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactStatusInfo(Map<String, dynamic> settlement) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+          decoration: BoxDecoration(
+            color: settlement['reconciliation_flag'] == 'Matched' ? Colors.green[100] : Colors.orange[100],
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            settlement['reconciliation_flag'] ?? '',
+            style: TextStyle(
+              fontSize: 7, 
+              fontWeight: FontWeight.bold,
+              color: settlement['reconciliation_flag'] == 'Matched' ? Colors.green[800] : Colors.orange[800],
             ),
           ),
-          
-          // Table
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Container(
-                width: 1500, // Increased width for selection column
-                child: SingleChildScrollView(
-                  child: DataTable(
-                    columnSpacing: 8,
-                    dataRowHeight: 56,
-                    headingRowHeight: 48,
-                    headingRowColor: MaterialStateProperty.all(Colors.grey[100]),
-                    border: TableBorder.all(color: Colors.grey[300]!, width: 0.5),
-                    columns: [
-                      // Selection column
-                      DataColumn(
-                        label: Container(
-                          width: 30,
-                          child: Checkbox(
-                            value: _selectedItems.length == paginatedData.length && paginatedData.isNotEmpty,
-                            tristate: true,
-                            onChanged: (_) => _selectAll(),
-                          ),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 100,
-                          child: Text('Order #', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 80,
-                          child: Text('Date/Time', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 70,
-                          child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 80,
-                          child: Text('Billing Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                        numeric: true,
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 80,
-                          child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                        numeric: true,
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 150,
-                          child: Text('Merchant', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 120,
-                          child: Text('Card', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 100,
-                          child: Text('PSP', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 90,
-                          child: Text('Settlement', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                        numeric: true,
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 80,
-                          child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 100,
-                          child: Text('Terminal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Container(
-                          width: 70,
-                          child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                      ),
-                    ],
-                    rows: paginatedData.map((settlement) => DataRow(
-                      selected: _selectedItems.contains(settlement['id'].toString()),
-                      onSelectChanged: (bool? selected) {
-                        setState(() {
-                          if (selected == true) {
-                            _selectedItems.add(settlement['id'].toString());
-                          } else {
-                            _selectedItems.remove(settlement['id'].toString());
-                          }
-                        });
-                      },
-                      cells: [
-                        // Selection checkbox
-                        DataCell(
-                          Container(
-                            width: 30,
-                            child: Checkbox(
-                              value: _selectedItems.contains(settlement['id'].toString()),
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  if (value == true) {
-                                    _selectedItems.add(settlement['id'].toString());
-                                  } else {
-                                    _selectedItems.remove(settlement['id'].toString());
-                                  }
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                        
-                        // Order Number
-                        DataCell(
-                          Container(
-                            width: 100,
-                            child: Text(
-                              settlement['order_number']?.toString() ?? '',
-                              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                        
-                        // Date/Time
-                        DataCell(
-                          Container(
-                            width: 80,
-                            child: Text(
-                              _formatDateTime(settlement['transaction_time']),
-                              style: TextStyle(fontSize: 10),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                        
-                        // Transaction Type
-                        DataCell(
-                          Container(
-                            width: 70,
-                            child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: settlement['transaction_type'] == 'PURCHASE' 
-                                    ? Colors.green[100] 
-                                    : settlement['transaction_type'] == 'REFUND' 
-                                        ? Colors.orange[100] 
-                                        : Colors.blue[100],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                settlement['transaction_type'] ?? '',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  color: settlement['transaction_type'] == 'PURCHASE' 
-                                      ? Colors.green[800] 
-                                      : settlement['transaction_type'] == 'REFUND' 
-                                          ? Colors.orange[800] 
-                                          : Colors.blue[800],
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Transaction Amount
-                        DataCell(
-                          Container(
-                            width: 80,
-                            child: Text(
-                              _formatAmount(settlement['user_billing_amount'], settlement['user_billing_currency']),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                                color: ThemeConfig.getPrimaryColor(currentTheme),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                        
-                        // Transaction Amount
-                        DataCell(
-                          Container(
-                            width: 80,
-                            child: Text(
-                              _formatAmount(settlement['transaction_amount'], settlement['transaction_currency']),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                                color: ThemeConfig.getPrimaryColor(currentTheme),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                        
-                        
-
-                        // Merchant Info
-                        DataCell(
-                          Container(
-                            width: 150,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  settlement['merchant_name'] ?? '',
-                                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  settlement['store_name'] ?? '',
-                                  style: TextStyle(fontSize: 9, color: Colors.grey[600]),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        
-                        // Card Number
-                        DataCell(
-                          Container(
-                            width: 120,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  settlement['card_number'] ?? '',
-                                  style: TextStyle(fontSize: 10, fontFamily: 'monospace'),
-                                ),
-                                Text(
-                                  settlement['payment_brand'] ?? '',
-                                  style: TextStyle(fontSize: 9, color: Colors.grey[600]),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        
-                        // PSP Info
-                        DataCell(
-                          Container(
-                            width: 100,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  settlement['psp_name'] ?? '',
-                                  style: TextStyle(fontSize: 10),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  'Auth: ${settlement['authorization_code'] ?? ''}',
-                                  style: TextStyle(fontSize: 9, color: Colors.grey[600]),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        
-                        // Settlement Amount
-                        DataCell(
-                          Container(
-                            width: 90,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  _formatAmount(settlement['merchant_settlement_amount'], settlement['merchant_settlement_currency']),
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
-                                  textAlign: TextAlign.center,
-                                ),
-                                Text(
-                                  'Net: ${_formatAmount(settlement['net_merchant_settlement_amount'], settlement['merchant_settlement_currency'])}',
-                                  style: TextStyle(fontSize: 8, color: Colors.grey[600]),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        
-                        // Status
-                        DataCell(
-                          Container(
-                            width: 80,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: settlement['crossborder_flag'] == 'Domestic' ? Colors.blue[100] : Colors.orange[100],
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    settlement['crossborder_flag'] ?? '',
-                                    style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  settlement['reconciliation_flag'] ?? '',
-                                  style: TextStyle(fontSize: 8, color: Colors.grey[600]),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        
-                        // Terminal Info
-                        DataCell(
-                          Container(
-                            width: 100,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Terminal: ${settlement['terminal_id'] ?? ''}',
-                                  style: TextStyle(fontSize: 9),
-                                ),
-                                Text(
-                                  'Batch: ${settlement['batch_number'] ?? ''}',
-                                  style: TextStyle(fontSize: 8, color: Colors.grey[600]),
-                                ),
-                                Text(
-                                  'Trace: ${settlement['terminal_trace_number'] ?? ''}',
-                                  style: TextStyle(fontSize: 8, color: Colors.grey[600]),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        
-                        // Actions
-                        DataCell(
-                          Container(
-                            width: 70,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: Icon(Icons.visibility, size: 16),
-                                  onPressed: () => _showTransactionDetails(settlement),
-                                  tooltip: 'View Details',
-                                  padding: EdgeInsets.zero,
-                                  constraints: BoxConstraints(minWidth: 30, minHeight: 30),
-                                ),
-                                IconButton(
-                                  icon: Icon(Icons.copy, size: 16),
-                                  onPressed: () => _copyTransactionId(settlement['order_number']?.toString() ?? ''),
-                                  tooltip: 'Copy Order',
-                                  padding: EdgeInsets.zero,
-                                  constraints: BoxConstraints(minWidth: 30, minHeight: 30),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    )).toList(),
-                  ),
-                ),
-              ),
-            ),
+        ),
+        const SizedBox(height: 1),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+          decoration: BoxDecoration(
+            color: settlement['crossborder_flag'] == 'Domestic' ? Colors.blue[100] : Colors.purple[100],
+            borderRadius: BorderRadius.circular(3),
           ),
-          
-          // Pagination controls
-          if (_totalPages > 1) _buildPaginationControls(),
-        ],
+          child: Text(
+            settlement['crossborder_flag'] ?? '',
+            style: const TextStyle(fontSize: 6, fontWeight: FontWeight.bold),
+          ),
+        ),
+        Text(
+          settlement['transaction_status'] ?? '',
+          style: TextStyle(fontSize: 6, color: Colors.grey[600]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactTerminalInfo(Map<String, dynamic> settlement) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('T: ${settlement['terminal_id'] ?? '-'}', style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w500)),
+        Text('B: ${settlement['batch_number'] ?? '-'}', style: TextStyle(fontSize: 7, color: Colors.grey[600])),
+        Text('TR: ${settlement['terminal_trace_number'] ?? '-'}', style: TextStyle(fontSize: 7, color: Colors.grey[600])),
+      ],
+    );
+  }
+
+  Widget _buildCompactFeesInfo(Map<String, dynamic> settlement) {
+    final interchangeFee = settlement['interchange_fee_amount'];
+    
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (interchangeFee != null)
+          Text(
+            SettlementUtils.formatCompactAmount(interchangeFee),
+            style: TextStyle(fontSize: 7, color: SettlementUtils.getAmountColor(interchangeFee)),
+          ),
+        Text(
+          settlement['mdr_rules'] ?? '-',
+          style: TextStyle(fontSize: 6, color: Colors.grey[600]),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  DataCell _buildClickableCell(double width, String text, Map<String, dynamic> settlement, {
+    TextStyle? style,
+    TextAlign? alignment,
+    Widget? child,
+  }) {
+    return DataCell(
+      GestureDetector(
+        onDoubleTap: () => onNavigateToDetail(settlement),
+        child: Container(
+          width: width,
+          child: child ?? Text(
+            text,
+            style: style ?? const TextStyle(fontSize: 11),
+            textAlign: alignment,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildPaginationControls() {
+  Widget _buildTypeChip(String? type) {
+    const colors = {
+      'PURCHASE': (Colors.green, Colors.white),
+      'REFUND': (Colors.orange, Colors.white),
+      'REVERSAL': (Colors.red, Colors.white),
+    };
+    final colorPair = colors[type] ?? (Colors.blue, Colors.white);
+    
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: colorPair.$1,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        type ?? '',
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: colorPair.$2,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  DataCell _buildActionCell(Map<String, dynamic> settlement) {
+    return DataCell(
+      Container(
+        width: 70,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.visibility, size: 16),
+              onPressed: () => onShowQuickView(settlement),
+              tooltip: 'Quick View',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+            ),
+            IconButton(
+              icon: const Icon(Icons.copy, size: 16),
+              onPressed: () => onCopyToClipboard(settlement['order_number']?.toString() ?? '', 'Order number'),
+              tooltip: 'Copy Order',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+// Pagination Controls Widget
+class _PaginationControls extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final Function(int) onPageChanged;
+
+  const _PaginationControls({
+    required this.currentPage,
+    required this.totalPages,
+    required this.onPageChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 4,
-            offset: Offset(0, -2),
+            offset: const Offset(0, -2),
           ),
         ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // First page button
-          IconButton(
-            onPressed: _currentPage > 1 ? () => setState(() => _currentPage = 1) : null,
-            icon: Icon(Icons.first_page),
-            tooltip: 'First Page',
-            style: IconButton.styleFrom(
-              backgroundColor: _currentPage > 1 ? null : Colors.grey[100],
-            ),
-          ),
-          
-          // Previous page button
-          IconButton(
-            onPressed: _currentPage > 1 ? () => setState(() => _currentPage--) : null,
-            icon: Icon(Icons.chevron_left),
-            tooltip: 'Previous Page',
-            style: IconButton.styleFrom(
-              backgroundColor: _currentPage > 1 ? null : Colors.grey[100],
-            ),
-          ),
-          
-          SizedBox(width: 8),
-          
-          // Page numbers
-          ...List.generate(
-            _totalPages > 7 ? 7 : _totalPages,
-            (index) {
-              int page;
-              if (_totalPages <= 7) {
-                page = index + 1;
-              } else if (_currentPage <= 4) {
-                page = index + 1;
-              } else if (_currentPage >= _totalPages - 3) {
-                page = _totalPages - 6 + index;
-              } else {
-                page = _currentPage - 3 + index;
-              }
-              
-              if (page < 1 || page > _totalPages) return SizedBox.shrink();
-              
-              return Container(
-                margin: EdgeInsets.symmetric(horizontal: 2),
-                child: InkWell(
-                  onTap: () => setState(() => _currentPage = page),
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: page == _currentPage 
-                          ? ThemeConfig.getPrimaryColor(currentTheme) 
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: page == _currentPage 
-                            ? ThemeConfig.getPrimaryColor(currentTheme) 
-                            : Colors.grey[300]!,
-                      ),
-                    ),
-                    child: Text(
-                      page.toString(),
-                      style: TextStyle(
-                        fontWeight: page == _currentPage ? FontWeight.bold : FontWeight.normal,
-                        color: page == _currentPage 
-                            ? Colors.white 
-                            : Colors.grey[700],
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-          
-          SizedBox(width: 8),
-          
-          // Next page button
-          IconButton(
-            onPressed: _currentPage < _totalPages ? () => setState(() => _currentPage++) : null,
-            icon: Icon(Icons.chevron_right),
-            tooltip: 'Next Page',
-            style: IconButton.styleFrom(
-              backgroundColor: _currentPage < _totalPages ? null : Colors.grey[100],
-            ),
-          ),
-          
-          // Last page button
-          IconButton(
-            onPressed: _currentPage < _totalPages ? () => setState(() => _currentPage = _totalPages) : null,
-            icon: Icon(Icons.last_page),
-            tooltip: 'Last Page',
-            style: IconButton.styleFrom(
-              backgroundColor: _currentPage < _totalPages ? null : Colors.grey[100],
-            ),
-          ),
+          _buildPaginationButton(Icons.first_page, 'First Page', currentPage > 1, () => onPageChanged(1)),
+          _buildPaginationButton(Icons.chevron_left, 'Previous', currentPage > 1, () => onPageChanged(currentPage - 1)),
+          const SizedBox(width: 8),
+          ..._buildPageNumbers(),
+          const SizedBox(width: 8),
+          _buildPaginationButton(Icons.chevron_right, 'Next', currentPage < totalPages, () => onPageChanged(currentPage + 1)),
+          _buildPaginationButton(Icons.last_page, 'Last Page', currentPage < totalPages, () => onPageChanged(totalPages)),
         ],
       ),
     );
   }
 
-  void _showTransactionDetails(Map<String, dynamic> settlement) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Transaction Details - Order #${settlement['order_number'] ?? ''}'),
-        content: Container(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildDetailSection('Transaction Information', [
-                  _buildDetailRow('PSP Order Number', settlement['psp_order_number']?.toString() ?? '-'),
-                  _buildDetailRow('Transaction Time', _formatDateTime(settlement['transaction_time'])),
-                  _buildDetailRow('Payment Time', _formatDateTime(settlement['payment_time'])),
-                  _buildDetailRow('Transaction Type', settlement['transaction_type']?.toString() ?? '-'),
-                  _buildDetailRow('Transaction Amount', _formatAmount(settlement['transaction_amount'], settlement['transaction_currency'])),
-                  _buildDetailRow('Billing Amount', _formatAmount(settlement['user_billing_amount'], settlement['user_billing_currency'])),
-                ]),
-                
-                SizedBox(height: 16),
-                
-                _buildDetailSection('Payment Information', [
-                  _buildDetailRow('PSP Name', settlement['psp_name']?.toString() ?? '-'),
-                  _buildDetailRow('Payment Brand', settlement['payment_brand']?.toString() ?? '-'),
-                  _buildDetailRow('Card Number', settlement['card_number']?.toString() ?? '-'),
-                  _buildDetailRow('Authorization Code', settlement['authorization_code']?.toString() ?? '-'),
-                  _buildDetailRow('MCC', settlement['mcc']?.toString() ?? '-'),
-                  _buildDetailRow('Crossborder Flag', settlement['crossborder_flag']?.toString() ?? '-'),
-                ]),
-                
-                SizedBox(height: 16),
-                
-                _buildDetailSection('Settlement Information', [
-                  _buildDetailRow('Merchant Settlement', _formatAmount(settlement['merchant_settlement_amount'], settlement['merchant_settlement_currency'])),
-                  _buildDetailRow('Net Merchant Settlement', _formatAmount(settlement['net_merchant_settlement_amount'], settlement['merchant_settlement_currency'])),
-                  _buildDetailRow('Reconciliation Flag', settlement['reconciliation_flag']?.toString() ?? '-'),
-                ]),
-                
-                SizedBox(height: 16),
-                
-                _buildDetailSection('Merchant & Terminal Details', [
-                  _buildDetailRow('Group', '${settlement['group_name'] ?? ''} (${settlement['group_id'] ?? ''})'),
-                  _buildDetailRow('Merchant', '${settlement['merchant_name'] ?? ''} (${settlement['merchant_id'] ?? ''})'),
-                  _buildDetailRow('Store', '${settlement['store_name'] ?? ''} (${settlement['store_id'] ?? ''})'),
-                  _buildDetailRow('Terminal ID', settlement['terminal_id']?.toString() ?? '-'),
-                  _buildDetailRow('Terminal Settlement Time', _formatDateTime(settlement['terminal_settlement_time'])),
-                  _buildDetailRow('Batch Number', settlement['batch_number']?.toString() ?? '-'),
-                  _buildDetailRow('Terminal Trace Number', settlement['terminal_trace_number']?.toString() ?? '-'),
-                ]),
-                
-                if (settlement['remark'] != null && settlement['remark'].toString().isNotEmpty) ...[
-                  SizedBox(height: 16),
-                  _buildDetailSection('Additional Information', [
-                    _buildDetailRow('Remark', settlement['remark']?.toString() ?? ''),
-                  ]),
-                ],
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _exportToCSV([settlement], 'transaction_${settlement['order_number']}');
-            },
-            icon: Icon(Icons.download, size: 16),
-            label: Text('Export This'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
+  Widget _buildPaginationButton(IconData icon, String tooltip, bool enabled, VoidCallback onPressed) {
+    return IconButton(
+      onPressed: enabled ? onPressed : null,
+      icon: Icon(icon),
+      tooltip: tooltip,
+      style: IconButton.styleFrom(
+        backgroundColor: enabled ? null : Colors.grey[100],
       ),
     );
   }
 
-  Widget _buildDetailSection(String title, List<Widget> details) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: ThemeConfig.getPrimaryColor(currentTheme),
+  List<Widget> _buildPageNumbers() {
+    final pageCount = totalPages > 7 ? 7 : totalPages;
+    return List.generate(pageCount, (index) {
+      int page;
+      if (totalPages <= 7) {
+        page = index + 1;
+      } else if (currentPage <= 4) {
+        page = index + 1;
+      } else if (currentPage >= totalPages - 3) {
+        page = totalPages - 6 + index;
+      } else {
+        page = currentPage - 3 + index;
+      }
+      
+      if (page < 1 || page > totalPages) return const SizedBox.shrink();
+      
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        child: InkWell(
+          onTap: () => onPageChanged(page),
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: page == currentPage ? Colors.blue : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: page == currentPage ? Colors.blue : Colors.grey[300]!,
+              ),
+            ),
+            child: Text(
+              page.toString(),
+              style: TextStyle(
+                fontWeight: page == currentPage ? FontWeight.bold : FontWeight.normal,
+                color: page == currentPage ? Colors.white : Colors.grey[700],
+                fontSize: 14,
+              ),
+            ),
           ),
         ),
-        SizedBox(height: 8),
-        ...details,
+      );
+    });
+  }
+}
+
+// Dialog Widgets
+class _QuickViewDialog extends StatelessWidget {
+  final Map<String, dynamic> settlement;
+  final VoidCallback onNavigateToDetail;
+  final String currentTheme;
+
+  const _QuickViewDialog({
+    required this.settlement,
+    required this.onNavigateToDetail,
+    required this.currentTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Quick View - Order #${settlement['order_number'] ?? ''}'),
+      content: Container(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailRow('Transaction Type', settlement['transaction_type']?.toString() ?? '-'),
+              _buildDetailRow('Amount', SettlementUtils.formatAmount(settlement['transaction_amount'], settlement['transaction_currency'])),
+              _buildDetailRow('Merchant', settlement['merchant_name']?.toString() ?? '-'),
+              _buildDetailRow('Card Number', settlement['card_number']?.toString() ?? '-'),
+              _buildDetailRow('Authorization', settlement['authorization_code']?.toString() ?? '-'),
+              _buildDetailRow('Status', settlement['reconciliation_flag']?.toString() ?? '-'),
+              _buildDetailRow('Date', SettlementUtils.formatDateTime(settlement['transaction_time'])),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        ElevatedButton(
+          onPressed: onNavigateToDetail,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('View Details'),
+        ),
       ],
     );
   }
 
   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 140,
+            width: 100,
             child: Text(
-              label + ':',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[700],
-              ),
+              '$label:',
+              style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey[700]),
             ),
           ),
           Expanded(
-            child: SelectableText(
-              value,
-              style: TextStyle(fontWeight: FontWeight.w400),
-            ),
+            child: Text(value, style: const TextStyle(fontWeight: FontWeight.w400)),
           ),
         ],
       ),
     );
   }
+}
 
-  void _copyTransactionId(String orderId) async {
-    if (orderId.isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: orderId));
-    _showSnackBar('Order number $orderId copied to clipboard', Colors.green);
-  }
+class _ExportDialog extends StatelessWidget {
+  final String csvContent;
+  final String filename;
+  final String currentTheme;
+  final VoidCallback onExportComplete;
+
+  const _ExportDialog({
+    required this.csvContent,
+    required this.filename,
+    required this.currentTheme,
+    required this.onExportComplete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Text('Settlement Details'),
-            if (_isRefreshing) ...[
-              SizedBox(width: 12),
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ],
-        ),
-        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-        elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: _toggleAutoRefresh,
-            icon: Icon(_autoRefresh ? Icons.pause : Icons.play_arrow),
-            tooltip: _autoRefresh ? 'Disable Auto-refresh' : 'Enable Auto-refresh',
-          ),
-          IconButton(
-            onPressed: () => _fetchSettlements(isRefresh: true),
-            icon: Icon(Icons.refresh),
-            tooltip: 'Refresh',
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              switch (value) {
-                case 'export_all':
-                  _exportToCSV(_filteredSettlements, 'all_settlements');
-                  break;
-                case 'clear_filters':
-                  setState(() {
-                    _searchController.clear();
-                    _selectedTransactionType = 'All';
-                    _selectedCurrency = 'All';
-                    _selectedStatus = 'All';
-                    _dateRange = null;
-                  });
-                  _applyFilters();
-                  break;
-                case 'settings':
-                  _showSettingsDialog();
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'export_all',
-                child: Row(
-                  children: [
-                    Icon(Icons.download),
-                    SizedBox(width: 8),
-                    Text('Export All Data'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'clear_filters',
-                child: Row(
-                  children: [
-                    Icon(Icons.clear_all),
-                    SizedBox(width: 8),
-                    Text('Clear All Filters'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'settings',
-                child: Row(
-                  children: [
-                    Icon(Icons.settings),
-                    SizedBox(width: 8),
-                    Text('Settings'),
-                  ],
-                ),
-              ),
-            ],
-          ),
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.file_download, color: ThemeConfig.getPrimaryColor(currentTheme)),
+          const SizedBox(width: 8),
+          const Text('Export Settlement Data'),
         ],
       ),
-      body: SlideTransition(
-        position: _slideAnimation,
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: Column(
-            children: [
-              _buildSummaryCards(),
-              _buildCompactFilters(),
-              _buildCompactTable(),
-            ],
-          ),
+      content: Container(
+        width: double.maxFinite,
+        constraints: const BoxConstraints(maxHeight: 400),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('File: $filename', style: const TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 16),
+            const Text('CSV Data Preview:', style: TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            Expanded(
+              child: Container(
+                width: double.maxFinite,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.grey[50],
+                ),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    csvContent.length > 1000 
+                        ? '${csvContent.substring(0, 1000)}...\n\n[Content truncated for preview]'
+                        : csvContent,
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Copy the data and save it as a .csv file to import into spreadsheet applications.',
+                      style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        ElevatedButton.icon(
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: csvContent));
+            Navigator.of(context).pop();
+            onExportComplete();
+          },
+          icon: const Icon(Icons.copy, size: 16),
+          label: const Text('Copy to Clipboard'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+            foregroundColor: Colors.white,
+          ),
+        ),
+      ],
     );
   }
+}
 
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Settings'),
-        content: Column(
+// Enhanced Column Settings Dialog with reordering
+class _ColumnSettingsDialog extends StatelessWidget {
+  final Map<String, bool> columnVisibility;
+  final List<String> columnOrder;
+  final Function(String, bool) onVisibilityChanged;
+  final Function(int, int) onColumnMoved;
+  final VoidCallback onResetOrder;
+  final VoidCallback onSave;
+  final String currentTheme;
+
+  const _ColumnSettingsDialog({
+    required this.columnVisibility,
+    required this.columnOrder,
+    required this.onVisibilityChanged,
+    required this.onColumnMoved,
+    required this.onResetOrder,
+    required this.onSave,
+    required this.currentTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          
+        ],
+      ),
+      content: Container(
+        width: double.maxFinite,
+        constraints: const BoxConstraints(maxHeight: 600),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ListTile(
-              leading: Icon(Icons.view_list),
-              title: Text('Items per page'),
-              subtitle: Text('$_itemsPerPage items'),
-              trailing: DropdownButton<int>(
-                value: _itemsPerPage,
-                items: [10, 15, 20, 25, 50].map((count) {
-                  return DropdownMenuItem(
-                    value: count,
-                    child: Text(count.toString()),
+            Text(
+              'Drag to reorder columns, toggle to show/hide:',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: onResetOrder,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Reset Order'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey[100],
+                    foregroundColor: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () {
+                    for (var col in SettlementConstants.columnDefinitions) {
+                      onVisibilityChanged(col.key, true);
+                    }
+                  },
+                  child: Text(
+                    'Show All',
+                    style: TextStyle(color: ThemeConfig.getPrimaryColor(currentTheme)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ReorderableListView(
+                onReorder: onColumnMoved,
+                children: columnOrder.map((key) {
+                  final col = SettlementConstants.columnDefinitions
+                      .firstWhere((c) => c.key == key);
+                  
+                  return Container(
+                    key: ValueKey(key),
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: CheckboxListTile(
+                      
+                      title: Text(col.title, style: const TextStyle(fontSize: 14)),
+                      subtitle: Text('Width: ${col.width.toInt()}px', 
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      value: columnVisibility[col.key] ?? true,
+                      onChanged: (bool? value) {
+                        onVisibilityChanged(col.key, value ?? true);
+                      },
+                      dense: true,
+                      activeColor: ThemeConfig.getPrimaryColor(currentTheme),
+                    ),
                   );
                 }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _itemsPerPage = value!;
-                    _currentPage = 1;
-                  });
-                  Navigator.of(context).pop();
-                },
               ),
-            ),
-            SwitchListTile(
-              secondary: Icon(Icons.refresh),
-              title: Text('Auto-refresh'),
-              subtitle: Text('Refresh data every 5 minutes'),
-              value: _autoRefresh,
-              onChanged: (value) {
-                Navigator.of(context).pop();
-                _toggleAutoRefresh();
-              },
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: onSave,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Apply'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsDialog extends StatelessWidget {
+  final int itemsPerPage;
+  final bool autoRefresh;
+  final Function(int) onItemsPerPageChanged;
+  final VoidCallback onAutoRefreshToggle;
+
+  const _SettingsDialog({
+    required this.itemsPerPage,
+    required this.autoRefresh,
+    required this.onItemsPerPageChanged,
+    required this.onAutoRefreshToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Settings'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.view_list),
+            title: const Text('Items per page'),
+            subtitle: Text('$itemsPerPage items'),
+            trailing: DropdownButton<int>(
+              value: itemsPerPage,
+              items: SettlementConstants.itemsPerPageOptions.map((count) => DropdownMenuItem(
+                value: count,
+                child: Text(count.toString()),
+              )).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  onItemsPerPageChanged(value);
+                }
+              },
+            ),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.refresh),
+            title: const Text('Auto-refresh'),
+            subtitle: const Text('Refresh data every 5 minutes'),
+            value: autoRefresh,
+            onChanged: (value) => onAutoRefreshToggle(),
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 }

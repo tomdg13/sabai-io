@@ -42,85 +42,132 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   int _errorCount = 0;
   List<String> _errorMessages = [];
 
-  // PSP to Settlement field mapping
+  // Enhanced PSP to Settlement field mapping
   static const Map<String, String> _pspFieldMapping = {
-    'company_id': '',
+    // Core Transaction Fields
+    'company_id': '', // Will be set from company config
     'transaction_time': 'Merchant Txn Time',
-    'payment_time': 'Txn Pay Time',
+    'payment_time': 'Txn Pay Time', 
     'order_number': 'Merchant Txn ID',
     'psp_order_number': 'PSP Txn ID',
     'original_order_number': 'Original Merchant Txn ID',
     'original_psp_order_number': 'Original PSP Txn ID',
+    'system_transaction_id': 'System Txn ID',
+    'original_system_transaction_id': 'Original System Txn ID',
+    'system_transaction_time': 'System Txn Time',
+    
+    // Amount Fields
     'transaction_amount': 'Merchant Txn Amt',
     'tips_amount': 'Tips Amount',
     'transaction_currency': 'Merchant Txn Curr',
+    'user_billing_amount': 'User Billing Amt',
+    'user_billing_currency': 'User Billing Curr',
+    'merchant_local_amount': 'Merchant Local Amt',
+    'merchant_local_currency': 'Merchant Local Curr',
+    'merchant_capture_amount': 'Merchant Capture Amt',
+    'local_capture_amount': 'Local Capture Amt',
+    'local_tips_amount': 'Local Tips Amt',
+    'local_surcharge_fee_amount': 'Local Surcharge Fee Amt',
+    'surcharge_fee_amount': 'Surcharge Fee Amt',
+    'merchant_discount_amount': 'Merchant Discount Amt',
+    
+    // Settlement Amount Fields
     'merchant_settlement_amount': 'Merchant Sttl Amt',
     'merchant_settlement_currency': 'Merchant Sttl Curr',
-    'mdr_amount': 'MDR Amount',
     'net_merchant_settlement_amount': 'Net Merchant Sttl Amt',
-    'brand_settlement_amount': 'Merchant Sttl Amt',
-    'brand_settlement_currency': 'Merchant Sttl Curr',
+    'brand_settlement_amount': 'PSP Sttl Amt',
+    'brand_settlement_currency': 'PSP Sttl Curr',
+    'net_brand_settlement_amount': 'Net PSP Sttl Amt',
+    
+    // Fee Fields
+    'mdr_amount': 'MDR Amount',
     'interchange_fee_amount': 'PSP Interchange Fee',
-    'net_brand_settlement_amount': 'Net Merchant Sttl Amt',
+    'psp_scheme_fee': 'PSP Scheme Fee',
+    'acquirer_service_fee': 'Acquirer Service Fee',
+    'transaction_service_fee': 'Txn Service Fee',
+    'vat_amount': 'VAT Amount',
+    'wht_amount': 'WHT Amount',
+    
+    // Rate Fields
+    'rate_local_to_transaction': 'Rate of Local to Txn',
+    'rate_transaction_to_settlement': 'Rate from Merchant Txn to Sttl',
+    
+    // Status and Type Fields
     'reconciliation_flag': 'Txn Status',
     'transaction_type': 'Txn Type',
+    'transaction_status': 'Txn Status',
+    'system_result_code': 'System Result Code',
+    'psp_result_code': 'PSP Result Code',
+    'crossborder_flag': 'Crossborder Flag',
+    
+    // Payment Fields
     'psp_name': 'PSP Name',
     'payment_brand': 'Payment Brand',
     'card_number': 'Card Number',
     'authorization_code': 'PSP Authorization Code',
-    'mcc': 'Store MCC',
-    'crossborder_flag': 'Crossborder Flag',
+    'funding_type': 'Funding Type',
+    'product_id': 'Product ID',
+    'product_type_id': 'Product Type ID',
+    'payment_method_variant': 'Payment Method Variant',
+    'transaction_initiation_mode': 'Txn Initiation Mode',
+    'eci': 'ECI',
+    'linkpay_order_id': 'LinkPay Order ID',
+    
+    // Merchant Hierarchy
     'group_id': 'Group ID',
     'group_name': 'Group Name',
     'merchant_id': 'Merchant ID',
     'merchant_name': 'Merchant Name',
     'store_id': 'Store ID',
     'store_name': 'Store Name',
-    'terminal_id': 'Terminal ID',
-    'terminal_settlement_time': '',
-    'batch_number': '',
-    'terminal_trace_number': '',
-    'remark': 'Metadata',
-    'source_filename': '',
+    'mcc': 'Store MCC',
     'merchant_nation': 'Merchant Nation',
     'merchant_city': 'Merchant City',
-    'system_transaction_time': 'System Txn Time',
-    'api_type': 'API Type',
-    'payment_method_variant': 'Payment Method Variant',
-    'funding_type': 'Funding Type',
-    'product_id': 'Product ID',
-    'product_type_id': 'Product Type ID',
-    'issuer_country': 'Issuer Country',
     'merchant_order_reference': 'Merchant Order Reference',
-    'system_transaction_id': 'System Txn ID',
-    'original_system_transaction_id': 'Original System Txn ID',
-    'merchant_local_amount': 'Merchant Local Amt',
-    'local_tips_amount': 'Local Tips Amt',
-    'local_surcharge_fee_amount': 'Local Surcharge Fee Amt',
-    'local_capture_amount': 'Local Capture Amt',
-    'merchant_local_currency': 'Merchant Local Curr',
-    'rate_local_to_transaction': 'Rate of Local to Txn',
-    'surcharge_fee_amount': 'Surcharge Fee Amt',
-    'merchant_capture_amount': 'Merchant Capture Amt',
-    'merchant_discount_amount': 'Merchant Discount Amt',
-    'rate_transaction_to_settlement': 'Rate from Merchant Txn to Sttl',
+    'issuer_country': 'Issuer Country',
+    
+    // Terminal Fields (may not be in PSP files)
+    'terminal_id': 'Terminal ID',
+    'terminal_settlement_time': 'Terminal Sttl Time',
+    'batch_number': 'Batch Number',
+    'terminal_trace_number': 'Terminal Trace Number',
+    
+    // Additional Fields
     'mdr_rules': 'MDR Rules',
-    'psp_scheme_fee': 'PSP Scheme Fee',
-    'acquirer_service_fee': 'Acquirer Service Fee',
-    'transaction_service_fee': 'Txn Service Fee',
-    'vat_amount': 'VAT Amount',
-    'wht_amount': 'WHT Amount',
-    'user_billing_amount': 'User Billing Amt',
-    'user_billing_currency': 'User Billing Curr',
-    'eci': 'ECI',
-    'transaction_initiation_mode': 'Txn Initiation Mode',
-    'linkpay_order_id': 'LinkPay Order ID',
-    'transaction_status': 'Txn Status',
-    'system_result_code': 'System Result Code',
-    'psp_result_code': 'PSP Result Code',
+    'api_type': 'API Type',
+    'remark': 'Metadata',
+    'metadata': 'Metadata',
+    'source_filename': '', // Will be set from filename
+    
+    // Settlement Account
     'settlement_account_name': 'Settlement Account Name',
     'settlement_account_number': 'Settlement Account Number',
-    'metadata': 'Metadata',
+  };
+
+  // Alternative column names that might appear in PSP files
+  static const Map<String, List<String>> _pspAlternativeColumns = {
+    'Merchant Txn Time': ['Transaction Time', 'Merchant Transaction Time', 'Txn Time'],
+    'Merchant Txn ID': ['Transaction ID', 'Merchant Transaction ID', 'Order ID'],
+    'PSP Txn ID': ['PSP Transaction ID', 'PSP Order ID', 'Payment ID'],
+    'Merchant Txn Amt': ['Transaction Amount', 'Merchant Transaction Amount', 'Amount'],
+    'Merchant Txn Curr': ['Transaction Currency', 'Currency', 'Txn Currency'],
+    'PSP Name': ['Payment Service Provider', 'Provider Name', 'Gateway'],
+    'Payment Brand': ['Card Brand', 'Brand', 'Card Type'],
+    'Card Number': ['Card No', 'PAN', 'Card'],
+    'PSP Authorization Code': ['Auth Code', 'Authorization', 'Approval Code'],
+    'Merchant Sttl Amt': ['Settlement Amount', 'Settlement Amt', 'Sttl Amount'],
+    'Net Merchant Sttl Amt': ['Net Settlement', 'Net Settlement Amount', 'Net Amount'],
+    'PSP Interchange Fee': ['Interchange Fee', 'IC Fee', 'Network Fee'],
+    'Txn Status': ['Transaction Status', 'Status', 'Payment Status'],
+    'Txn Type': ['Transaction Type', 'Type', 'Payment Type'],
+    'Crossborder Flag': ['Cross Border', 'International', 'Border Flag'],
+    'Store MCC': ['MCC', 'Merchant Category Code', 'Category Code'],
+    'Merchant Name': ['Merchant', 'Business Name', 'Store Name'],
+    'Group Name': ['Group', 'Organization', 'Company Name'],
+    'System Txn ID': ['System Transaction ID', 'Internal ID', 'Reference ID'],
+    'User Billing Amt': ['Billing Amount', 'Customer Amount', 'Cardholder Amount'],
+    'Funding Type': ['Card Type', 'Payment Method', 'Fund Source'],
+    'Txn Initiation Mode': ['Initiation Mode', 'Entry Mode', 'Transaction Mode'],
   };
 
   // Settlement column mapping
@@ -250,14 +297,88 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         .trim()).toList();
   }
 
+  // Enhanced PSP column finding method
+  String _findPSPColumn(List<String> headers, String targetColumn) {
+    // First try exact match
+    for (String header in headers) {
+      if (header.trim() == targetColumn.trim()) {
+        return header;
+      }
+    }
+    
+    // Try alternative column names
+    if (_pspAlternativeColumns.containsKey(targetColumn)) {
+      for (String alternative in _pspAlternativeColumns[targetColumn]!) {
+        for (String header in headers) {
+          if (header.trim().toLowerCase() == alternative.toLowerCase()) {
+            return header;
+          }
+        }
+      }
+    }
+    
+    // Try partial matching
+    for (String header in headers) {
+      String normalizedHeader = header.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      String normalizedTarget = targetColumn.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      
+      if (normalizedHeader.contains(normalizedTarget) || normalizedTarget.contains(normalizedHeader)) {
+        return header;
+      }
+    }
+    
+    return '';
+  }
+
+  // Enhanced file type detection
   String _detectFileType(List<String> headers) {
-    List<String> pspHeaders = ['Merchant Txn Time', 'PSP Name', 'PSP Sttl Amt', 'System Txn ID'];
-    int pspMatches = pspHeaders.where((header) => headers.contains(header)).length;
+    // PSP-specific column indicators
+    List<String> pspIndicators = [
+      'PSP Txn ID',
+      'PSP Name', 
+      'PSP Sttl Amt',
+      'System Txn ID',
+      'Merchant Txn Time',
+      'PSP Authorization Code',
+      'PSP Interchange Fee',
+      'Rate of Local to Txn',
+      'Net PSP Sttl Amt'
+    ];
     
-    List<String> settlementHeaders = ['Transaction Time', 'Payment Time', 'Order Number'];
-    // ignore: unused_local_variable
-    int settlementMatches = settlementHeaders.where((header) => headers.contains(header)).length;
+    // Settlement-specific column indicators  
+    List<String> settlementIndicators = [
+      'Transaction Time',
+      'Payment Time', 
+      'Order Number',
+      'Settlement Amount',
+      'Terminal ID',
+      'Batch Number',
+      'Terminal Trace Number'
+    ];
     
+    int pspMatches = 0;
+    int settlementMatches = 0;
+    
+    // Count PSP matches (including alternatives)
+    for (String indicator in pspIndicators) {
+      if (_findPSPColumn(headers, indicator).isNotEmpty) {
+        pspMatches++;
+      }
+    }
+    
+    // Count settlement matches
+    for (String indicator in settlementIndicators) {
+      for (String header in headers) {
+        if (header.toLowerCase().contains(indicator.toLowerCase())) {
+          settlementMatches++;
+          break;
+        }
+      }
+    }
+    
+    print('PSP matches: $pspMatches, Settlement matches: $settlementMatches');
+    
+    // Require at least 3 PSP indicators to classify as PSP
     return pspMatches >= 3 ? 'psp' : 'settlement';
   }
 
@@ -389,6 +510,8 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     
     _fileType = _detectFileType(headers);
     
+    print('Detected file type: $_fileType');
+    
     if (_fileType == 'psp') {
       await _processPSPData(tableData);
     } else {
@@ -396,9 +519,28 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     }
   }
 
+  // Enhanced PSP data processing
   Future<void> _processPSPData(List<List<dynamic>> tableData) async {
     List<String> headers = _cleanHeaders(tableData.first.map((cell) => cell.toString()).toList());
     List<Map<String, dynamic>> pspData = [];
+    
+    // Create mapping of found columns
+    Map<String, String> foundColumns = {};
+    for (String targetColumn in _pspFieldMapping.values) {
+      if (targetColumn.isNotEmpty) {
+        String foundColumn = _findPSPColumn(headers, targetColumn);
+        if (foundColumn.isNotEmpty) {
+          foundColumns[targetColumn] = foundColumn;
+        }
+      }
+    }
+    
+    // Log found column mappings for debugging
+    print('=== PSP COLUMN MAPPING ===');
+    foundColumns.forEach((target, found) {
+      print('$target -> $found');
+    });
+    print('=== END MAPPING ===');
     
     for (int i = 1; i < tableData.length; i++) {
       var row = tableData[i];
@@ -408,13 +550,16 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
 
       Map<String, dynamic> rowData = {};
       
-      for (int j = 0; j < headers.length && j < row.length; j++) {
-        String header = headers[j];
-        var value = row[j];
-        if (value != null && value.toString().isNotEmpty) {
-          rowData[header] = value;
+      // Map data using found columns
+      foundColumns.forEach((targetColumn, foundColumn) {
+        int columnIndex = headers.indexOf(foundColumn);
+        if (columnIndex >= 0 && columnIndex < row.length) {
+          var value = row[columnIndex];
+          if (value != null && value.toString().isNotEmpty) {
+            rowData[targetColumn] = value;
+          }
         }
-      }
+      });
       
       if (rowData.isNotEmpty) {
         pspData.add(rowData);
@@ -604,7 +749,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       'transaction_amount', 'tips_amount', 'merchant_settlement_amount',
       'mdr_amount', 'net_merchant_settlement_amount', 'brand_settlement_amount',
       'interchange_fee_amount', 'net_brand_settlement_amount',
-      'merchant_capture_amount', 'user_billing_amount'  // These must be numbers per API
+      'merchant_capture_amount', 'user_billing_amount'
     };
 
     if (integerColumns.contains(columnName)) {
@@ -712,10 +857,9 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         return '45a55959fa504be293c73d1bd0f98314';
       case 'system_transaction_time':
         return '2025-08-28 08:35:24';
-      // Amount fields that API requires as numbers, not null
       case 'merchant_capture_amount':
       case 'user_billing_amount':
-        return 0.0; // Changed from null to 0.0 for API compliance
+        return 0.0;
       default:
         return null;
     }
@@ -852,7 +996,6 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   }
 
   void _showUploadResultDialog() {
-    // Comprehensive console logging for upload results
     print('=== UPLOAD RESULT DIALOG ===');
     print('Total records processed: ${_parsedData?.length ?? 0}');
     print('Successful uploads: $_successCount');
