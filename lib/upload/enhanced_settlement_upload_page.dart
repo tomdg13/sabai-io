@@ -21,6 +21,7 @@ class EnhancedSettlementUploadPage extends StatefulWidget {
 
 class _EnhancedSettlementUploadPageState extends State<EnhancedSettlementUploadPage> with TickerProviderStateMixin {
   // File handling
+  // ignore: unused_field
   PlatformFile? _selectedFile;
   Uint8List? _fileBytes;
   String? _fileName;
@@ -527,6 +528,7 @@ class _EnhancedSettlementUploadPageState extends State<EnhancedSettlementUploadP
     Map<String, String> headerToApiField = {};
     
     for (String header in headers) {
+      // ignore: unused_local_variable
       bool mapped = false;
       
       // Exact matches for settlement headers

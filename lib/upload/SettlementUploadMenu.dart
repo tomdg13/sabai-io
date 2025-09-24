@@ -42,10 +42,9 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   int _errorCount = 0;
   List<String> _errorMessages = [];
 
-  // Enhanced PSP to Settlement field mapping
+  // PSP to Settlement field mapping
   static const Map<String, String> _pspFieldMapping = {
-    // Core Transaction Fields
-    'company_id': '', // Will be set from company config
+    'company_id': '',
     'transaction_time': 'Merchant Txn Time',
     'payment_time': 'Txn Pay Time', 
     'order_number': 'Merchant Txn ID',
@@ -55,8 +54,6 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'system_transaction_id': 'System Txn ID',
     'original_system_transaction_id': 'Original System Txn ID',
     'system_transaction_time': 'System Txn Time',
-    
-    // Amount Fields
     'transaction_amount': 'Merchant Txn Amt',
     'tips_amount': 'Tips Amount',
     'transaction_currency': 'Merchant Txn Curr',
@@ -70,16 +67,12 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'local_surcharge_fee_amount': 'Local Surcharge Fee Amt',
     'surcharge_fee_amount': 'Surcharge Fee Amt',
     'merchant_discount_amount': 'Merchant Discount Amt',
-    
-    // Settlement Amount Fields
     'merchant_settlement_amount': 'Merchant Sttl Amt',
     'merchant_settlement_currency': 'Merchant Sttl Curr',
     'net_merchant_settlement_amount': 'Net Merchant Sttl Amt',
     'brand_settlement_amount': 'PSP Sttl Amt',
     'brand_settlement_currency': 'PSP Sttl Curr',
     'net_brand_settlement_amount': 'Net PSP Sttl Amt',
-    
-    // Fee Fields
     'mdr_amount': 'MDR Amount',
     'interchange_fee_amount': 'PSP Interchange Fee',
     'psp_scheme_fee': 'PSP Scheme Fee',
@@ -87,20 +80,14 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'transaction_service_fee': 'Txn Service Fee',
     'vat_amount': 'VAT Amount',
     'wht_amount': 'WHT Amount',
-    
-    // Rate Fields
     'rate_local_to_transaction': 'Rate of Local to Txn',
     'rate_transaction_to_settlement': 'Rate from Merchant Txn to Sttl',
-    
-    // Status and Type Fields
     'reconciliation_flag': 'Txn Status',
     'transaction_type': 'Txn Type',
     'transaction_status': 'Txn Status',
     'system_result_code': 'System Result Code',
     'psp_result_code': 'PSP Result Code',
     'crossborder_flag': 'Crossborder Flag',
-    
-    // Payment Fields
     'psp_name': 'PSP Name',
     'payment_brand': 'Payment Brand',
     'card_number': 'Card Number',
@@ -112,8 +99,6 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'transaction_initiation_mode': 'Txn Initiation Mode',
     'eci': 'ECI',
     'linkpay_order_id': 'LinkPay Order ID',
-    
-    // Merchant Hierarchy
     'group_id': 'Group ID',
     'group_name': 'Group Name',
     'merchant_id': 'Merchant ID',
@@ -125,26 +110,21 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'merchant_city': 'Merchant City',
     'merchant_order_reference': 'Merchant Order Reference',
     'issuer_country': 'Issuer Country',
-    
-    // Terminal Fields (may not be in PSP files)
     'terminal_id': 'Terminal ID',
     'terminal_settlement_time': 'Terminal Sttl Time',
     'batch_number': 'Batch Number',
     'terminal_trace_number': 'Terminal Trace Number',
-    
-    // Additional Fields
     'mdr_rules': 'MDR Rules',
     'api_type': 'API Type',
+    'api_code': 'API Code', // Added this line
     'remark': 'Metadata',
     'metadata': 'Metadata',
-    'source_filename': '', // Will be set from filename
-    
-    // Settlement Account
+    'source_filename': '',
     'settlement_account_name': 'Settlement Account Name',
     'settlement_account_number': 'Settlement Account Number',
   };
 
-  // Alternative column names that might appear in PSP files
+  // Alternative column names for PSP files
   static const Map<String, List<String>> _pspAlternativeColumns = {
     'Merchant Txn Time': ['Transaction Time', 'Merchant Transaction Time', 'Txn Time'],
     'Merchant Txn ID': ['Transaction ID', 'Merchant Transaction ID', 'Order ID'],
@@ -168,6 +148,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'User Billing Amt': ['Billing Amount', 'Customer Amount', 'Cardholder Amount'],
     'Funding Type': ['Card Type', 'Payment Method', 'Fund Source'],
     'Txn Initiation Mode': ['Initiation Mode', 'Entry Mode', 'Transaction Mode'],
+    'API Code': ['API Type Code', 'API Version', 'Interface Code', 'Gateway Code'], // Added this line
   };
 
   // Settlement column mapping
@@ -214,6 +195,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'merchant_city': 'Merchant City',
     'system_transaction_time': 'System Transaction Time',
     'api_type': 'API Type',
+    'api_code': 'API Code', // Added this line
     'payment_method_variant': 'Payment Method Variant',
     'funding_type': 'Funding Type',
     'product_id': 'Product ID',
@@ -258,6 +240,8 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     'merchant_id', 'merchant_name', 'store_id', 'store_name', 'terminal_id'
   ];
 
+
+
   @override
   void initState() {
     super.initState();
@@ -297,7 +281,6 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         .trim()).toList();
   }
 
-  // Enhanced PSP column finding method
   String _findPSPColumn(List<String> headers, String targetColumn) {
     // First try exact match
     for (String header in headers) {
@@ -330,56 +313,83 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     return '';
   }
 
-  // Enhanced file type detection
   String _detectFileType(List<String> headers) {
-    // PSP-specific column indicators
+    print('=== FILE TYPE DETECTION ===');
+    print('Headers found: ${headers.length}');
+    print('Headers: $headers');
+    print('');
+    
     List<String> pspIndicators = [
-      'PSP Txn ID',
-      'PSP Name', 
-      'PSP Sttl Amt',
-      'System Txn ID',
-      'Merchant Txn Time',
-      'PSP Authorization Code',
-      'PSP Interchange Fee',
-      'Rate of Local to Txn',
-      'Net PSP Sttl Amt'
+      'PSP Txn ID', 'PSP Name', 'PSP Sttl Amt', 'System Txn ID',
+      'Merchant Txn Time', 'PSP Authorization Code', 'PSP Interchange Fee',
+      'Rate of Local to Txn', 'Net PSP Sttl Amt'
     ];
     
-    // Settlement-specific column indicators  
     List<String> settlementIndicators = [
-      'Transaction Time',
-      'Payment Time', 
-      'Order Number',
-      'Settlement Amount',
-      'Terminal ID',
-      'Batch Number',
-      'Terminal Trace Number'
+      'Transaction Time', 'Payment Time', 'Order Number', 'Settlement Amount',
+      'Terminal ID', 'Batch Number', 'Terminal Trace Number'
     ];
     
     int pspMatches = 0;
     int settlementMatches = 0;
+    List<String> foundPspFields = [];
+    List<String> foundSettlementFields = [];
     
-    // Count PSP matches (including alternatives)
+    print('Checking PSP indicators:');
     for (String indicator in pspIndicators) {
-      if (_findPSPColumn(headers, indicator).isNotEmpty) {
+      String found = _findPSPColumn(headers, indicator);
+      if (found.isNotEmpty) {
         pspMatches++;
+        foundPspFields.add(indicator);
+        print('✓ Found PSP: $indicator -> $found');
+      } else {
+        print('✗ Missing PSP: $indicator');
       }
     }
     
-    // Count settlement matches
+    print('');
+    print('Checking Settlement indicators:');
     for (String indicator in settlementIndicators) {
+      bool found = false;
       for (String header in headers) {
         if (header.toLowerCase().contains(indicator.toLowerCase())) {
           settlementMatches++;
+          foundSettlementFields.add(indicator);
+          found = true;
+          print('✓ Found Settlement: $indicator -> $header');
           break;
         }
       }
+      if (!found) {
+        print('✗ Missing Settlement: $indicator');
+      }
     }
     
-    print('PSP matches: $pspMatches, Settlement matches: $settlementMatches');
+    String detectedType = pspMatches >= 3 ? 'psp' : 'settlement';
     
-    // Require at least 3 PSP indicators to classify as PSP
-    return pspMatches >= 3 ? 'psp' : 'settlement';
+    print('');
+    print('DETECTION RESULTS:');
+    print('PSP matches: $pspMatches/${pspIndicators.length}');
+    print('Settlement matches: $settlementMatches/${settlementIndicators.length}');
+    print('Detected type: $detectedType');
+    print('Found PSP fields: $foundPspFields');
+    print('Found Settlement fields: $foundSettlementFields');
+    print('=== END DETECTION ===');
+    print('');
+    
+    // Show field detection results in SnackBar
+    String message = 'File Type: $detectedType\n';
+    if (detectedType == 'psp') {
+      message += 'PSP fields found (${foundPspFields.length}): ${foundPspFields.take(3).join(', ')}';
+      if (foundPspFields.length > 3) message += '...';
+    } else {
+      message += 'Settlement fields found (${foundSettlementFields.length}): ${foundSettlementFields.take(3).join(', ')}';
+      if (foundSettlementFields.length > 3) message += '...';
+    }
+    
+    _showFieldInfoSnackBar(message);
+    
+    return detectedType;
   }
 
   Future<void> _pickFile() async {
@@ -442,6 +452,10 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   }
 
   Future<void> _processFile(String fileName, Uint8List bytes) async {
+    print('=== FILE PROCESSING START ===');
+    print('File name: $fileName');
+    print('File size: ${bytes.length} bytes');
+    
     setState(() {
       _fileName = fileName;
       _fileBytes = bytes;
@@ -450,6 +464,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
 
     try {
       String extension = fileName.toLowerCase().split('.').last;
+      print('File extension: $extension');
       
       if (extension == 'csv') {
         await _parseCsvFile();
@@ -457,6 +472,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         await _parseExcelFile();
       }
     } catch (e) {
+      print('ERROR in file processing: $e');
       _showSnackBar('Error processing file: $e', isError: true);
     } finally {
       setState(() {
@@ -467,7 +483,11 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
 
   Future<void> _parseCsvFile() async {
     try {
+      print('=== CSV PARSING ===');
       String csvString = String.fromCharCodes(_fileBytes!);
+      print('CSV string length: ${csvString.length}');
+      print('First 200 characters: ${csvString.substring(0, csvString.length > 200 ? 200 : csvString.length)}');
+      
       List<List<dynamic>> csvTable = const CsvToListConverter(
         fieldDelimiter: ',',
         textDelimiter: '"',
@@ -475,8 +495,17 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         shouldParseNumbers: false,
       ).convert(csvString);
       
+      print('CSV rows parsed: ${csvTable.length}');
+      if (csvTable.isNotEmpty) {
+        print('First row (headers): ${csvTable[0]}');
+        if (csvTable.length > 1) {
+          print('Second row sample: ${csvTable[1].take(3).toList()}...');
+        }
+      }
+      
       await _processTableData(csvTable);
     } catch (e) {
+      print('ERROR parsing CSV: $e');
       _showSnackBar('Error parsing CSV file: $e', isError: true);
     }
   }
@@ -510,8 +539,6 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     
     _fileType = _detectFileType(headers);
     
-    print('Detected file type: $_fileType');
-    
     if (_fileType == 'psp') {
       await _processPSPData(tableData);
     } else {
@@ -519,29 +546,49 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     }
   }
 
-  // Enhanced PSP data processing
   Future<void> _processPSPData(List<List<dynamic>> tableData) async {
+    print('=== PSP DATA PROCESSING ===');
     List<String> headers = _cleanHeaders(tableData.first.map((cell) => cell.toString()).toList());
     List<Map<String, dynamic>> pspData = [];
     
-    // Create mapping of found columns
     Map<String, String> foundColumns = {};
+    List<String> mappedFields = [];
+    List<String> missingFields = [];
+    
+    print('Searching for PSP field mappings...');
     for (String targetColumn in _pspFieldMapping.values) {
       if (targetColumn.isNotEmpty) {
         String foundColumn = _findPSPColumn(headers, targetColumn);
         if (foundColumn.isNotEmpty) {
           foundColumns[targetColumn] = foundColumn;
+          mappedFields.add(targetColumn);
+          print('✓ Mapped: $targetColumn -> $foundColumn');
+        } else {
+          missingFields.add(targetColumn);
+          print('✗ Missing: $targetColumn');
         }
       }
     }
     
-    // Log found column mappings for debugging
-    print('=== PSP COLUMN MAPPING ===');
-    foundColumns.forEach((target, found) {
-      print('$target -> $found');
-    });
-    print('=== END MAPPING ===');
+    print('');
+    print('PSP MAPPING SUMMARY:');
+    print('Total expected fields: ${_pspFieldMapping.values.where((v) => v.isNotEmpty).length}');
+    print('Found fields: ${mappedFields.length}');
+    print('Missing fields: ${missingFields.length}');
+    print('Mapped fields: $mappedFields');
+    print('Missing fields: $missingFields');
+    print('');
     
+    // Show column mapping results in SnackBar
+    String mappingMessage = 'PSP Column Mapping:\n';
+    mappingMessage += 'Found: ${mappedFields.length} fields\n';
+    mappingMessage += 'Missing: ${missingFields.length} fields\n';
+    mappingMessage += 'Key fields: ${mappedFields.take(3).join(', ')}';
+    if (mappedFields.length > 3) mappingMessage += '...';
+    
+    _showFieldInfoSnackBar(mappingMessage);
+    
+    print('Processing data rows...');
     for (int i = 1; i < tableData.length; i++) {
       var row = tableData[i];
       if (_isEmptyRow(row)) continue;
@@ -550,7 +597,6 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
 
       Map<String, dynamic> rowData = {};
       
-      // Map data using found columns
       foundColumns.forEach((targetColumn, foundColumn) {
         int columnIndex = headers.indexOf(foundColumn);
         if (columnIndex >= 0 && columnIndex < row.length) {
@@ -563,13 +609,28 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       
       if (rowData.isNotEmpty) {
         pspData.add(rowData);
+        if (pspData.length <= 3) { // Log first 3 rows
+          print('Row ${i} data keys: ${rowData.keys.take(5).toList()}');
+        }
       }
+    }
+
+    print('');
+    print('PSP data processing complete: ${pspData.length} rows processed');
+    
+    if (pspData.isEmpty) {
+      print('ERROR: No PSP data found after processing');
+      _showSnackBar('No valid PSP data found in file. Check if column headers match expected format.', isError: true);
+      return;
     }
 
     await _convertPSPToSettlement(pspData);
   }
 
   Future<void> _convertPSPToSettlement(List<Map<String, dynamic>> pspData) async {
+    print('=== PSP TO SETTLEMENT CONVERSION ===');
+    print('Converting ${pspData.length} PSP records to settlement format...');
+    
     setState(() {
       _isConverting = true;
     });
@@ -587,12 +648,22 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         }
         
         // Map PSP fields to settlement fields
+        int mappedFieldCount = 0;
         _pspFieldMapping.forEach((settlementField, pspField) {
           if (pspField.isNotEmpty && pspRow.containsKey(pspField)) {
             var value = pspRow[pspField];
             settlementRow[settlementField] = _convertValue(settlementField, value);
+            mappedFieldCount++;
+            
+            if (i == 0) { // Log first row conversion details
+              print('Convert: $settlementField = $value (from $pspField)');
+            }
           }
         });
+        
+        if (i == 0) {
+          print('First record mapped $mappedFieldCount fields from PSP to settlement format');
+        }
         
         // Set computed fields
         settlementRow['batch_number'] = 1;
@@ -606,9 +677,16 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         _parsedData = convertedData;
       });
 
+      print('');
+      print('CONVERSION COMPLETE:');
+      print('Converted ${convertedData.length} records from PSP to settlement format');
+      print('Sample converted record fields: ${convertedData.isNotEmpty ? convertedData[0].keys.take(10).toList() : 'None'}');
+      print('=== END CONVERSION ===');
+
       _showSnackBar('PSP file converted successfully! Found ${convertedData.length} records.', 
                    isError: false);
     } catch (e) {
+      print('ERROR in PSP conversion: $e');
       _showSnackBar('Error converting PSP data: $e', isError: true);
     } finally {
       setState(() {
@@ -618,14 +696,62 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   }
 
   Future<void> _processSettlementData(List<List<dynamic>> tableData) async {
+    print('=== SETTLEMENT DATA PROCESSING ===');
     List<String> headers = tableData.first.map((cell) => cell.toString().trim()).toList();
+    print('Settlement headers found: ${headers.length}');
+    print('Headers: $headers');
+    
     Map<String, String> headerToApiField = _createHeaderMapping(headers);
+    
+    List<String> mappedHeaders = [];
+    List<String> unmappedHeaders = [];
+    
+    print('');
+    print('HEADER MAPPING ANALYSIS:');
+    for (String header in headers) {
+      if (headerToApiField.containsKey(header)) {
+        mappedHeaders.add(header);
+        print('✓ Mapped: $header -> ${headerToApiField[header]}');
+      } else {
+        unmappedHeaders.add(header);
+        print('✗ Unmapped: $header');
+      }
+    }
+    
+    print('');
+    print('MAPPING SUMMARY:');
+    print('Total headers: ${headers.length}');
+    print('Mapped headers: ${mappedHeaders.length}');
+    print('Unmapped headers: ${unmappedHeaders.length}');
+    print('Mapped: $mappedHeaders');
+    print('Unmapped: $unmappedHeaders');
+    
+    // Show settlement mapping results in SnackBar
+    String mappingMessage = 'Settlement Column Mapping:\n';
+    mappingMessage += 'Total headers: ${headers.length}\n';
+    mappingMessage += 'Mapped: ${mappedHeaders.length}\n';
+    mappingMessage += 'Unmapped: ${unmappedHeaders.length}\n';
+    mappingMessage += 'Key mapped: ${mappedHeaders.take(3).join(', ')}';
+    if (mappedHeaders.length > 3) mappingMessage += '...';
+    
+    _showFieldInfoSnackBar(mappingMessage);
     
     List<String> missingColumns = _validateRequiredColumns(headerToApiField);
     if (missingColumns.isNotEmpty) {
+      print('');
+      print('ERROR: Missing required columns:');
+      for (String missing in missingColumns) {
+        print('  - $missing');
+      }
+      
+      String errorMessage = 'Missing required columns:\n${missingColumns.take(5).join(', ')}';
+      if (missingColumns.length > 5) errorMessage += '\nand ${missingColumns.length - 5} more...';
+      _showSnackBar(errorMessage, isError: true);
       throw Exception('Missing required columns: ${missingColumns.join(', ')}');
     }
 
+    print('');
+    print('Processing data rows...');
     List<Map<String, dynamic>> parsedData = [];
     
     for (int i = 1; i < tableData.length; i++) {
@@ -634,12 +760,10 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
 
       Map<String, dynamic> rowData = {};
       
-      // Set defaults for all fields
       for (String field in _columnMapping.keys) {
         rowData[field] = _getDefaultValue(field);
       }
       
-      // Process actual data
       for (int j = 0; j < headers.length && j < row.length; j++) {
         String header = headers[j];
         String apiField = headerToApiField[header] ?? _normalizeColumnName(header);
@@ -650,21 +774,46 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       }
       
       parsedData.add(rowData);
+      
+      if (parsedData.length <= 3) { // Log first 3 rows
+        print('Row ${i} sample data: ${rowData.entries.take(5).map((e) => '${e.key}: ${e.value}').join(', ')}');
+      }
     }
 
     setState(() {
       _parsedData = parsedData;
     });
 
+    print('');
+    print('Settlement processing complete: ${parsedData.length} records processed');
+    print('=== END SETTLEMENT PROCESSING ===');
+
     _showSnackBar('Settlement file parsed successfully! Found ${parsedData.length} records.', 
                  isError: false);
+  }
+
+  void _showFieldInfoSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: TextStyle(fontSize: 12),
+        ),
+        backgroundColor: Colors.blue[700],
+        duration: Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
   }
 
   Map<String, String> _createHeaderMapping(List<String> headers) {
     Map<String, String> headerToApiField = {};
     
     for (String header in headers) {
-      // Check for exact match first
       for (String apiField in _columnMapping.keys) {
         String expectedHeader = _columnMapping[apiField]!;
         if (header.trim() == expectedHeader.trim()) {
@@ -673,7 +822,6 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         }
       }
       
-      // Fallback to normalized matching
       if (!headerToApiField.containsKey(header)) {
         for (String apiField in _columnMapping.keys) {
           String normalizedHeader = _normalizeColumnName(header);
@@ -732,28 +880,52 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     if (dateTimeColumns.contains(columnName)) {
       try {
         DateTime dateTime = DateTime.parse(valueStr);
-        return dateTime.toUtc().toIso8601String();
+        return dateTime.toIso8601String(); // Keep as ISO string for MySQL datetime
       } catch (e) {
+        print('Date parsing error for $columnName: $valueStr -> $e');
         return valueStr;
       }
     }
 
-    // Type-specific conversions
+    // Integer columns (based on your DB schema)
     const integerColumns = {
-      'company_id', 'authorization_code', 'mcc', 'terminal_id', 
-      'batch_number', 'terminal_trace_number'
+      'company_id', 'mcc', 'batch_number', 'terminal_trace_number'
     };
     
-    // Amount fields that must be numbers (not null) - API constraint
+    // Bigint columns (based on your DB schema)
+    const bigintColumns = {
+      'psp_order_number', 'original_psp_order_number', 'authorization_code'
+    };
+    
+    // Decimal columns that must be numbers (based on your DB schema)
     const decimalColumns = {
       'transaction_amount', 'tips_amount', 'merchant_settlement_amount',
       'mdr_amount', 'net_merchant_settlement_amount', 'brand_settlement_amount',
       'interchange_fee_amount', 'net_brand_settlement_amount',
-      'merchant_capture_amount', 'user_billing_amount'
+      'merchant_capture_amount', 'user_billing_amount', 'merchant_local_amount',
+      'local_tips_amount', 'local_surcharge_fee_amount', 'local_capture_amount',
+      'surcharge_fee_amount', 'merchant_discount_amount', 'psp_scheme_fee',
+      'acquirer_service_fee', 'transaction_service_fee', 'vat_amount', 'wht_amount',
+      'rate_local_to_transaction', 'rate_transaction_to_settlement'
     };
 
     if (integerColumns.contains(columnName)) {
-      return int.tryParse(valueStr) ?? 0;
+      int? intValue = int.tryParse(valueStr);
+      if (intValue != null) {
+        return intValue;
+      }
+      print('Integer conversion failed for $columnName: $valueStr');
+      return 0;
+    }
+    
+    if (bigintColumns.contains(columnName)) {
+      // Handle bigint values - can be larger than regular int
+      int? bigintValue = int.tryParse(valueStr);
+      if (bigintValue != null) {
+        return bigintValue;
+      }
+      print('Bigint conversion failed for $columnName: $valueStr');
+      return null; // Allow null for optional bigint fields
     }
     
     if (decimalColumns.contains(columnName)) {
@@ -761,13 +933,89 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       if (doubleValue != null) {
         return double.parse(doubleValue.toStringAsFixed(2));
       }
-      return 0.0; // Return 0.0 instead of null for API compliance
+      print('Decimal conversion failed for $columnName: $valueStr');
+      return 0.0; // Return 0.0 for required decimal fields
     }
     
-    // Enum validation
+    // String field length validation based on DB schema
+    const stringLengthLimits = {
+      'order_number': 100,
+      'original_order_number': 100,
+      'transaction_currency': 3,
+      'merchant_settlement_currency': 3,
+      'brand_settlement_currency': 3,
+      'reconciliation_flag': 20,
+      'transaction_type': 20,
+      'psp_name': 50,
+      'payment_brand': 50,
+      'card_number': 20,
+      'crossborder_flag': 20,
+      'group_id': 20,
+      'group_name': 100,
+      'merchant_id': 50,
+      'merchant_name': 100,
+      'store_id': 50,
+      'store_name': 100,
+      'terminal_id': 50,
+      'source_filename': 255,
+      'merchant_nation': 10,
+      'merchant_city': 100,
+      'api_type': 50,
+      'api_code': 50, // Added this line
+      'payment_method_variant': 100,
+      'funding_type': 20,
+      'product_id': 50,
+      'product_type_id': 50,
+      'issuer_country': 10,
+      'merchant_order_reference': 100,
+      'system_transaction_id': 100,
+      'original_system_transaction_id': 100,
+      'merchant_local_currency': 3,
+      'user_billing_currency': 3,
+      'mdr_rules': 100,
+      'eci': 10,
+      'transaction_initiation_mode': 50,
+      'linkpay_order_id': 100,
+      'transaction_status': 50,
+      'system_result_code': 20,
+      'psp_result_code': 20,
+      'settlement_account_name': 200,
+      'settlement_account_number': 100,
+    };
+    
+    // Truncate strings that are too long
+    if (stringLengthLimits.containsKey(columnName)) {
+      int maxLength = stringLengthLimits[columnName]!;
+      if (valueStr.length > maxLength) {
+        String truncated = valueStr.substring(0, maxLength);
+        print('String truncated for $columnName: ${valueStr.length} -> $maxLength chars');
+        return truncated;
+      }
+    }
+    
+    // Enum validation with database-appropriate values
     if (columnName == 'reconciliation_flag') {
-      const validValues = ['Balancing', 'Matched', 'Unmatched', 'Pending', 'Failed', 'Reconciled'];
-      return validValues.contains(valueStr) ? valueStr : 'Matched';
+      const validValues = ['Matched', 'Unmatched', 'Pending', 'Failed', 'Reconciled'];
+      String normalizedValue = valueStr;
+      // Map common PSP status values to DB enum values
+      switch (valueStr.toLowerCase()) {
+        case 'success':
+        case 'completed':
+        case 'settled':
+          normalizedValue = 'Matched';
+          break;
+        case 'failed':
+        case 'error':
+          normalizedValue = 'Failed';
+          break;
+        case 'pending':
+        case 'processing':
+          normalizedValue = 'Pending';
+          break;
+        default:
+          normalizedValue = validValues.contains(valueStr) ? valueStr : 'Matched';
+      }
+      return normalizedValue;
     }
     
     if (columnName == 'transaction_type') {
@@ -779,6 +1027,13 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     if (columnName == 'crossborder_flag') {
       return (valueStr.toLowerCase() == 'international' || valueStr.toLowerCase() == 'crossborder') 
           ? 'International' : 'Domestic';
+    }
+    
+    // Add specific conversion for api_code
+    if (columnName == 'api_code') {
+      const validValues = ['STANDARD_API', 'PREMIUM_API', 'CUSTOM_API'];
+      String upperValue = valueStr.toUpperCase();
+      return validValues.contains(upperValue) ? upperValue : 'STANDARD_API';
     }
     
     return valueStr;
@@ -802,16 +1057,19 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         return '92025082815352484721885';
       case 'original_order_number':
         return '4bc95ee7ce524907a61e311d322b6703';
+      // Changed: authorization_code should be null by default (BIGINT in DB)
       case 'authorization_code':
-        return 980812;
+        return null;
       case 'mcc':
         return 744;
+      // Changed: terminal_id is now a string, default to null
       case 'terminal_id':
-        return 3020002;
+        return null;
+      // Updated: These should have realistic default amounts
       case 'transaction_amount':
       case 'merchant_settlement_amount':
       case 'net_merchant_settlement_amount':
-        return -1.0;
+        return 0.0; // Changed from -1.0 to 0.0 for valid amounts
       case 'source_filename':
         return _fileName ?? 'manual_upload';
       case 'merchant_nation':
@@ -845,6 +1103,8 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         return 'Combination';
       case 'metadata':
         return 'meta';
+      case 'api_code': // Added this case
+        return 'STANDARD_API';
       case 'transaction_currency':
       case 'merchant_settlement_currency':
       case 'brand_settlement_currency':
@@ -856,10 +1116,43 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
       case 'original_system_transaction_id':
         return '45a55959fa504be293c73d1bd0f98314';
       case 'system_transaction_time':
-        return '2025-08-28 08:35:24';
+        return '2025-08-28T08:35:24.000Z'; // ISO format for datetime
+      // All optional decimal fields default to 0.0
+      case 'tips_amount':
+      case 'mdr_amount':
+      case 'brand_settlement_amount':
+      case 'interchange_fee_amount':
+      case 'net_brand_settlement_amount':
       case 'merchant_capture_amount':
       case 'user_billing_amount':
+      case 'merchant_local_amount':
+      case 'local_tips_amount':
+      case 'local_surcharge_fee_amount':
+      case 'local_capture_amount':
+      case 'surcharge_fee_amount':
+      case 'merchant_discount_amount':
+      case 'psp_scheme_fee':
+      case 'acquirer_service_fee':
+      case 'transaction_service_fee':
+      case 'vat_amount':
+      case 'wht_amount':
         return 0.0;
+      // Exchange rate fields
+      case 'rate_local_to_transaction':
+      case 'rate_transaction_to_settlement':
+        return 1.0; // Default to 1:1 exchange rate
+      // Optional bigint fields
+      case 'psp_order_number':
+      case 'original_psp_order_number':
+        return null;
+      // Batch and trace numbers
+      case 'batch_number':
+        return 1;
+      case 'terminal_trace_number':
+        return 1;
+      // Set transaction_time to current time if not provided
+      case 'transaction_time':
+        return DateTime.now().toIso8601String();
       default:
         return null;
     }
@@ -996,29 +1289,6 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   }
 
   void _showUploadResultDialog() {
-    print('=== UPLOAD RESULT DIALOG ===');
-    print('Total records processed: ${_parsedData?.length ?? 0}');
-    print('Successful uploads: $_successCount');
-    print('Failed uploads: $_errorCount');
-    print('Upload success rate: ${_parsedData != null && _parsedData!.isNotEmpty ? ((_successCount / _parsedData!.length) * 100).toStringAsFixed(2) : 0}%');
-    print('Total error messages: ${_errorMessages.length}');
-    
-    if (_errorMessages.isNotEmpty) {
-      print('');
-      print('=== ERROR DETAILS ===');
-      for (int i = 0; i < _errorMessages.length; i++) {
-        print('Error ${i + 1}: ${_errorMessages[i]}');
-      }
-      print('=== END ERROR DETAILS ===');
-    }
-    
-    print('');
-    print('Upload completion status: ${_errorCount == 0 ? 'SUCCESS' : 'PARTIAL_FAILURE'}');
-    print('File name: ${_fileName ?? 'Unknown'}');
-    print('File type: $_fileType');
-    print('Upload progress: ${(_uploadProgress * 100).toStringAsFixed(2)}%');
-    print('=== END UPLOAD RESULT ===');
-    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1064,10 +1334,8 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         actions: [
           TextButton(
             onPressed: () {
-              print('Upload result dialog closed by user');
               Navigator.of(context).pop();
               if (_errorCount == 0) {
-                print('All uploads successful - returning to previous screen');
                 Navigator.of(context).pop(true);
               }
             },
@@ -1410,7 +1678,7 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text('Smart Settlement Upload'),
+        title: Text('Settlement Upload'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         elevation: 0,

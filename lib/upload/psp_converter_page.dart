@@ -18,6 +18,7 @@ class PSPConverterPage extends StatefulWidget {
 
 class _PSPConverterPageState extends State<PSPConverterPage> with TickerProviderStateMixin {
   // File handling
+  // ignore: unused_field
   PlatformFile? _selectedFile;
   Uint8List? _fileBytes;
   String? _fileName;

@@ -275,14 +275,44 @@ class SettlementViewPage extends StatefulWidget {
 class _SettlementViewPageState extends State<SettlementViewPage>
     with TickerProviderStateMixin {
   
-  // State Variables
+  // State Variables - Initialize with only selected columns visible by default
   Map<String, bool> _columnVisibility = {
-    for (var col in SettlementConstants.columnDefinitions) col.key: true
+    'order_number': true,     // Show by default
+    'system_tx_id': false,
+    'transaction_time': true,  // Show by default
+    'type': true,             // Show by default (transaction_type)
+    'tx_amount': true,        // Show by default (transaction_amount)
+    'billing_amount': true,   // Show by default
+    'settlement': false,
+    'net_settlement': false,
+    'merchant_store': false,
+    'card_info': true,        // Show by default (card_number)
+    'psp_brand': false,
+    'auth_mode': true,        // Show by default (authorization_code)
+    'status': false,
+    'terminal': false,
+    'fees': true,            // Show by default
+    'actions': false,
   };
   
-  // NEW: Add column ordering
+  // NEW: Add column ordering - reorder to put default columns first
   List<String> _columnOrder = [
-    for (var col in SettlementConstants.columnDefinitions) col.key
+    'order_number',      // Order Number
+    'type',              // transaction_type
+    'transaction_time',  // Transaction Time  
+    'auth_mode',         // authorization_code
+    'card_info',         // card_number
+    'tx_amount',         // transaction_amount
+    'billing_amount',    // Billing Amount
+    'fees',              // Fees
+    'system_tx_id',
+    'settlement',
+    'net_settlement',
+    'merchant_store',
+    'psp_brand',
+    'status',
+    'terminal',
+    'actions',
   ];
   
   final FilterManager _filterManager = FilterManager();
@@ -297,6 +327,7 @@ class _SettlementViewPageState extends State<SettlementViewPage>
   
   int _currentPage = 1;
   int _itemsPerPage = 15;
+  // ignore: unused_field
   int _totalCount = 0;
   
   bool _isLoading = false;
@@ -384,21 +415,32 @@ class _SettlementViewPageState extends State<SettlementViewPage>
 
   Future<void> _loadColumnPreferences() async {
     final prefs = await SharedPreferences.getInstance();
+    
+    // Check if this is the first time loading (no saved preferences exist)
+    final hasExistingPrefs = prefs.containsKey('column_preferences_initialized');
+    
     setState(() {
-      // Load visibility preferences
-      for (var col in SettlementConstants.columnDefinitions) {
-        _columnVisibility[col.key] = prefs.getBool('column_${col.key}') ?? true;
-      }
-      
-      // Load column order preferences
-      final savedOrder = prefs.getStringList('column_order');
-      if (savedOrder != null && savedOrder.isNotEmpty) {
-        _columnOrder = savedOrder;
+      if (!hasExistingPrefs) {
+        // First time - use our default visibility settings (already set in initialization)
+        // Save the flag to indicate preferences have been initialized
+        prefs.setBool('column_preferences_initialized', true);
+        
+        // Save the default preferences
+        for (var entry in _columnVisibility.entries) {
+          prefs.setBool('column_${entry.key}', entry.value);
+        }
+        prefs.setStringList('column_order', _columnOrder);
       } else {
-        // Use default order
-        _columnOrder = SettlementConstants.columnDefinitions
-            .map((col) => col.key)
-            .toList();
+        // Load existing preferences
+        for (var col in SettlementConstants.columnDefinitions) {
+          _columnVisibility[col.key] = prefs.getBool('column_${col.key}') ?? false;
+        }
+        
+        // Load column order preferences
+        final savedOrder = prefs.getStringList('column_order');
+        if (savedOrder != null && savedOrder.isNotEmpty) {
+          _columnOrder = savedOrder;
+        }
       }
     });
   }
@@ -708,6 +750,7 @@ class _SettlementViewPageState extends State<SettlementViewPage>
         _buildMenuItem('export_all', Icons.download, 'Export All Data'),
         _buildMenuItem('clear_filters', Icons.clear_all, 'Clear All Filters'),
         _buildMenuItem('column_settings', Icons.view_column, 'Column Settings'),
+        _buildMenuItem('reset_defaults', Icons.restore, 'Reset Column Defaults'),
         _buildMenuItem('settings', Icons.settings, 'Settings'),
       ],
     );
@@ -726,6 +769,24 @@ class _SettlementViewPageState extends State<SettlementViewPage>
     );
   }
 
+  // Add this method to reset to new defaults
+  Future<void> _resetToNewDefaults() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Clear only column-related preferences
+    final keys = prefs.getKeys().where((key) => 
+      key.startsWith('column_') || key == 'column_preferences_initialized'
+    ).toList();
+    
+    for (final key in keys) {
+      await prefs.remove(key);
+    }
+    
+    // Reload with new defaults
+    await _loadColumnPreferences();
+    
+    _showSnackBar('Column settings reset to new defaults', Colors.green);
+  }
+
   void _handleMenuSelection(String value) {
     switch (value) {
       case 'export_all':
@@ -736,6 +797,9 @@ class _SettlementViewPageState extends State<SettlementViewPage>
         break;
       case 'column_settings':
         _showColumnSettingsDialog();
+        break;
+      case 'reset_defaults':
+        _resetToNewDefaults();
         break;
       case 'settings':
         _showSettingsDialog();
@@ -1314,8 +1378,6 @@ class _SettlementTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Column header with reorder functionality
-        _buildReorderableHeader(),
         // Table content
         Expanded(
           child: SingleChildScrollView(
@@ -1340,61 +1402,7 @@ class _SettlementTable extends StatelessWidget {
     );
   }
 
-  Widget _buildReorderableHeader() {
-    return Container(
-      height: 40,
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-      ),
-      child: Row(
-        // children: [
-          // Expanded(
-            // child: ReorderableListView(
-            //   scrollDirection: Axis.horizontal,
-            //   onReorder: onColumnMoved,
-            //   children: _getOrderedVisibleColumns().asMap().entries.map((entry) {
-            //     final col = entry.value;
-                // return Container(
-                  // key: ValueKey(col.key),
-                  // width: col.width,
-                  // height: 40,
-                  // padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  // decoration: BoxDecoration(
-                  //   border: Border(right: BorderSide(color: Colors.grey[300]!)),
-                  // ),
-                  // child: Row(
-                    // children: [
-                      // Icon(Icons.drag_handle, size: 16, color: Colors.grey[600]),
-                      // const SizedBox(width: 4),
-                      // Expanded(
-                      //   child: Text(
-                      //     col.title,
-                      //     style: const TextStyle(
-                      //       fontWeight: FontWeight.bold,
-                      //       fontSize: 10,
-                      //     ),
-                      //     overflow: TextOverflow.ellipsis,
-                      //   ),
-                      // ),
-                    // ],
-                  // ),
-                // );
-              // }).toList(),
-        //     ),
-        //   ),
-        //   Container(
-        //     width: 50,
-        //     child: IconButton(
-        //       icon: const Icon(Icons.settings, size: 16),
-        //       onPressed: onShowColumnSettings,
-        //       tooltip: 'Column Settings',
-        //     ),
-        //   ),
-        // ],
-      ),
-    );
-  }
+
 
   List<ColumnDefinition> _getOrderedVisibleColumns() {
     final columnMap = {
@@ -1411,9 +1419,92 @@ class _SettlementTable extends StatelessWidget {
     return _getOrderedVisibleColumns().map((col) => DataColumn(
       label: Container(
         width: col.width,
-        child: Text(
-          col.title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+        child: Draggable<String>(
+          data: col.key,
+          feedback: Material(
+            elevation: 4,
+            child: Container(
+              width: col.width,
+              height: 48,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.blue[100],
+                border: Border.all(color: Colors.blue[300]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.drag_handle, size: 16, color: Colors.blue[700]),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      col.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        color: Colors.blue[700],
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          childWhenDragging: Container(
+            width: col.width,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            child: Row(
+              children: [
+                Icon(Icons.drag_handle, size: 16, color: Colors.grey[400]),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    col.title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      color: Colors.grey[400],
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          child: DragTarget<String>(
+            onAccept: (draggedKey) {
+              final draggedIndex = columnOrder.indexOf(draggedKey);
+              final targetIndex = columnOrder.indexOf(col.key);
+              if (draggedIndex != -1 && targetIndex != -1) {
+                onColumnMoved(draggedIndex, targetIndex);
+              }
+            },
+            builder: (context, candidateData, rejectedData) {
+              return Container(
+                width: col.width,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                decoration: BoxDecoration(
+                  color: candidateData.isNotEmpty ? Colors.blue[50] : Colors.transparent,
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.drag_handle, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        col.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
       numeric: ['tx_amount', 'billing_amount', 'settlement', 'net_settlement', 'fees'].contains(col.key),
@@ -1478,7 +1569,9 @@ class _SettlementTable extends StatelessWidget {
       case 'terminal':
         return _buildClickableCell(col.width, '', settlement, child: _buildCompactTerminalInfo(settlement));
       case 'fees':
-        return _buildClickableCell(col.width, '', settlement, child: _buildCompactFeesInfo(settlement));
+        return _buildClickableCell(col.width, SettlementUtils.formatAmount(settlement['interchange_fee_amount'], settlement['transaction_currency']), settlement,
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 9, color: SettlementUtils.getAmountColor(settlement['interchange_fee_amount'])), 
+          alignment: TextAlign.right);
       case 'actions':
         return _buildActionCell(settlement);
       default:
@@ -1625,6 +1718,7 @@ class _SettlementTable extends StatelessWidget {
     );
   }
 
+  // ignore: unused_element
   Widget _buildCompactFeesInfo(Map<String, dynamic> settlement) {
     final interchangeFee = settlement['interchange_fee_amount'];
     
@@ -1721,6 +1815,7 @@ class _SettlementTable extends StatelessWidget {
   }
 }
 
+//------------------------------------------------------------
 
 // Pagination Controls Widget
 class _PaginationControls extends StatelessWidget {
@@ -1993,7 +2088,7 @@ class _ExportDialog extends StatelessWidget {
 }
 
 // Enhanced Column Settings Dialog with reordering
-class _ColumnSettingsDialog extends StatelessWidget {
+class _ColumnSettingsDialog extends StatefulWidget {
   final Map<String, bool> columnVisibility;
   final List<String> columnOrder;
   final Function(String, bool) onVisibilityChanged;
@@ -2013,11 +2108,28 @@ class _ColumnSettingsDialog extends StatelessWidget {
   });
 
   @override
+  State<_ColumnSettingsDialog> createState() => _ColumnSettingsDialogState();
+}
+
+class _ColumnSettingsDialogState extends State<_ColumnSettingsDialog> {
+  late Map<String, bool> _localVisibility;
+  late List<String> _localOrder;
+
+  @override
+  void initState() {
+    super.initState();
+    _localVisibility = Map.from(widget.columnVisibility);
+    _localOrder = List.from(widget.columnOrder);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Row(
         children: [
-          
+          Icon(Icons.view_column, color: ThemeConfig.getPrimaryColor(widget.currentTheme)),
+          const SizedBox(width: 8),
+          const Text('Column Settings'),
         ],
       ),
       content: Container(
@@ -2035,7 +2147,14 @@ class _ColumnSettingsDialog extends StatelessWidget {
             Row(
               children: [
                 ElevatedButton.icon(
-                  onPressed: onResetOrder,
+                  onPressed: () {
+                    setState(() {
+                      _localOrder = SettlementConstants.columnDefinitions
+                          .map((col) => col.key)
+                          .toList();
+                    });
+                    widget.onResetOrder();
+                  },
                   icon: const Icon(Icons.refresh, size: 16),
                   label: const Text('Reset Order'),
                   style: ElevatedButton.styleFrom(
@@ -2046,13 +2165,16 @@ class _ColumnSettingsDialog extends StatelessWidget {
                 const SizedBox(width: 8),
                 TextButton(
                   onPressed: () {
-                    for (var col in SettlementConstants.columnDefinitions) {
-                      onVisibilityChanged(col.key, true);
-                    }
+                    setState(() {
+                      for (var col in SettlementConstants.columnDefinitions) {
+                        _localVisibility[col.key] = true;
+                        widget.onVisibilityChanged(col.key, true);
+                      }
+                    });
                   },
                   child: Text(
                     'Show All',
-                    style: TextStyle(color: ThemeConfig.getPrimaryColor(currentTheme)),
+                    style: TextStyle(color: ThemeConfig.getPrimaryColor(widget.currentTheme)),
                   ),
                 ),
               ],
@@ -2060,8 +2182,17 @@ class _ColumnSettingsDialog extends StatelessWidget {
             const SizedBox(height: 16),
             Expanded(
               child: ReorderableListView(
-                onReorder: onColumnMoved,
-                children: columnOrder.map((key) {
+                onReorder: (oldIndex, newIndex) {
+                  setState(() {
+                    if (newIndex > oldIndex) {
+                      newIndex -= 1;
+                    }
+                    final item = _localOrder.removeAt(oldIndex);
+                    _localOrder.insert(newIndex, item);
+                  });
+                  widget.onColumnMoved(oldIndex, newIndex);
+                },
+                children: _localOrder.map((key) {
                   final col = SettlementConstants.columnDefinitions
                       .firstWhere((c) => c.key == key);
                   
@@ -2074,16 +2205,22 @@ class _ColumnSettingsDialog extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: CheckboxListTile(
-                      
+                      secondary: Icon(
+                        Icons.drag_handle,
+                        color: Colors.grey[600],
+                      ),
                       title: Text(col.title, style: const TextStyle(fontSize: 14)),
                       subtitle: Text('Width: ${col.width.toInt()}px', 
                         style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                      value: columnVisibility[col.key] ?? true,
+                      value: _localVisibility[col.key] ?? true,
                       onChanged: (bool? value) {
-                        onVisibilityChanged(col.key, value ?? true);
+                        setState(() {
+                          _localVisibility[col.key] = value ?? true;
+                          widget.onVisibilityChanged(col.key, value ?? true);
+                        });
                       },
                       dense: true,
-                      activeColor: ThemeConfig.getPrimaryColor(currentTheme),
+                      activeColor: ThemeConfig.getPrimaryColor(widget.currentTheme),
                     ),
                   );
                 }).toList(),
@@ -2098,9 +2235,9 @@ class _ColumnSettingsDialog extends StatelessWidget {
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: onSave,
+          onPressed: widget.onSave,
           style: ElevatedButton.styleFrom(
-            backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+            backgroundColor: ThemeConfig.getPrimaryColor(widget.currentTheme),
             foregroundColor: Colors.white,
           ),
           child: const Text('Apply'),
