@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // For kIsWeb
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
@@ -8,7 +8,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
 
 class StoreEditPage extends StatefulWidget {
   final Map<String, dynamic> storeData;
@@ -19,7 +18,7 @@ class StoreEditPage extends StatefulWidget {
   State<StoreEditPage> createState() => _StoreEditPageState();
 }
 
-class _StoreEditPageState extends State<StoreEditPage> {
+class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _storeNameController;
   late final TextEditingController _storeCodeController;
@@ -40,20 +39,45 @@ class _StoreEditPageState extends State<StoreEditPage> {
   late final TextEditingController _visaPercentageController;
   late final TextEditingController _masterPercentageController;
   late final TextEditingController _accountController;
+  late final TextEditingController _account2Controller;
+  late final TextEditingController _webController;
+  late final TextEditingController _email1Controller;
+  late final TextEditingController _email2Controller;
+  late final TextEditingController _email3Controller;
+  late final TextEditingController _email4Controller;
+  late final TextEditingController _email5Controller;
+  late final TextEditingController _storeModeController;
 
   String? _base64Image;
   String? _currentImageUrl;
   File? _imageFile;
-  Uint8List? _webImageBytes; // For web platform
+  Uint8List? _webImageBytes;
   bool _isLoading = false;
   bool _isDeleting = false;
   String currentTheme = ThemeConfig.defaultTheme;
+  String? _storeMode;
+
+  // Animation Controllers
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentTheme();
     _initializeControllers();
+    _setupAnimations();
+  }
+
+  void _setupAnimations() {
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
+    );
+    _fadeController.forward();
   }
 
   void _loadCurrentTheme() async {
@@ -66,10 +90,8 @@ class _StoreEditPageState extends State<StoreEditPage> {
   }
 
   void _initializeControllers() {
-    // Fixed: Use 'store_name' instead of 'store'
     _storeNameController = TextEditingController(text: widget.storeData['store_name'] ?? '');
     _currentImageUrl = widget.storeData['image_url'];
-
     _storeCodeController = TextEditingController(text: widget.storeData['store_code'] ?? '');
     _storeManagerController = TextEditingController(text: widget.storeData['store_manager'] ?? '');
     _emailController = TextEditingController(text: widget.storeData['email'] ?? '');
@@ -88,10 +110,21 @@ class _StoreEditPageState extends State<StoreEditPage> {
     _visaPercentageController = TextEditingController(text: widget.storeData['visa_percentage']?.toString() ?? '');
     _masterPercentageController = TextEditingController(text: widget.storeData['master_percentage']?.toString() ?? '');
     _accountController = TextEditingController(text: widget.storeData['account'] ?? '');
+    _account2Controller = TextEditingController(text: widget.storeData['account2'] ?? '');
+    _webController = TextEditingController(text: widget.storeData['web'] ?? '');
+    _email1Controller = TextEditingController(text: widget.storeData['email1'] ?? '');
+    _email2Controller = TextEditingController(text: widget.storeData['email2'] ?? '');
+    _email3Controller = TextEditingController(text: widget.storeData['email3'] ?? '');
+    _email4Controller = TextEditingController(text: widget.storeData['email4'] ?? '');
+    _email5Controller = TextEditingController(text: widget.storeData['email5'] ?? '');
+    
+    // Initialize store mode
+    _storeMode = widget.storeData['store_mode'];
+    _storeModeController = TextEditingController(text: widget.storeData['store_mode'] ?? '');
     
     print('🔧 DEBUG: Initialized edit form with store: ${widget.storeData['store_name']}');
     print('🔧 DEBUG: Store ID: ${widget.storeData['store_id']}');
-    print('🔧 DEBUG: Company ID: ${widget.storeData['company_id']}');
+    print('🔧 DEBUG: Store Mode: $_storeMode');
   }
 
   @override
@@ -115,102 +148,124 @@ class _StoreEditPageState extends State<StoreEditPage> {
     _visaPercentageController.dispose();
     _masterPercentageController.dispose();
     _accountController.dispose();
+    _account2Controller.dispose();
+    _webController.dispose();
+    _email1Controller.dispose();
+    _email2Controller.dispose();
+    _email3Controller.dispose();
+    _email4Controller.dispose();
+    _email5Controller.dispose();
+    _storeModeController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
   Future<void> _pickImage() async {
     try {
-      // Show image source selection dialog
-      final ImageSource? source = await showModalBottomSheet<ImageSource>(
-        context: context,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (context) => Container(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              SizedBox(height: 20),
-              Text(
-                'Select Image Source',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildImageSourceOption(
-                    icon: Icons.photo_library,
-                    label: 'Gallery',
-                    onTap: () => Navigator.pop(context, ImageSource.gallery),
-                  ),
-                  if (!kIsWeb) // Camera not available on web
-                    _buildImageSourceOption(
-                      icon: Icons.photo_camera,
-                      label: 'Camera',
-                      onTap: () => Navigator.pop(context, ImageSource.camera),
-                    ),
-                ],
-              ),
-              SizedBox(height: 20),
-            ],
-          ),
-        ),
-      );
-
-      if (source == null) return;
-
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: source,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
-      );
-
-      if (image != null) {
-        final Uint8List imageBytes = await image.readAsBytes();
-        final String base64String = base64Encode(imageBytes);
-        
-        setState(() {
-          if (kIsWeb) {
-            _webImageBytes = imageBytes;
-            _imageFile = null;
-          } else {
-            _imageFile = File(image.path);
-            _webImageBytes = null;
-          }
-          _base64Image = 'data:image/jpeg;base64,$base64String';
-        });
-
-        print('📷 DEBUG: New image selected for store update');
+      if (kIsWeb) {
+        await _pickImageWeb();
+      } else {
+        await _pickImageMobile();
       }
     } catch (e) {
-      print('❌ DEBUG: Error picking image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
+      _showSnackBar(message: 'Error selecting image: $e', isError: true);
+    }
+  }
+
+  Future<void> _pickImageWeb() async {
+    // Web image picking implementation
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+
+    if (image != null && mounted) {
+      final Uint8List imageBytes = await image.readAsBytes();
+      final String base64String = base64Encode(imageBytes);
+      
+      setState(() {
+        _webImageBytes = imageBytes;
+        _base64Image = 'data:image/jpeg;base64,$base64String';
+      });
+      
+      _showSnackBar(message: 'Image selected successfully', isError: false);
+    }
+  }
+
+  Future<void> _pickImageMobile() async {
+    final source = await _showImageSourceDialog();
+    if (source == null) return;
+
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: source,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+
+    if (image != null && mounted) {
+      final File imageFile = File(image.path);
+      final Uint8List imageBytes = await imageFile.readAsBytes();
+      final String base64String = base64Encode(imageBytes);
+      
+      setState(() {
+        _imageFile = imageFile;
+        _base64Image = 'data:image/jpeg;base64,$base64String';
+      });
+      
+      _showSnackBar(message: 'Image selected successfully', isError: false);
+    }
+  }
+
+  Future<ImageSource?> _showImageSourceDialog() async {
+    return await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Select Image Source',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Icon(Icons.error, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(child: Text('Error selecting image: $e')),
+                _buildImageSourceOption(
+                  icon: Icons.photo_library,
+                  label: 'Gallery',
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+                _buildImageSourceOption(
+                  icon: Icons.photo_camera,
+                  label: 'Camera',
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
               ],
             ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+            SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildImageSourceOption({
@@ -231,452 +286,53 @@ class _StoreEditPageState extends State<StoreEditPage> {
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 32,
-              color: ThemeConfig.getPrimaryColor(currentTheme),
-            ),
+            Icon(icon, size: 32, color: ThemeConfig.getPrimaryColor(currentTheme)),
             SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: ThemeConfig.getPrimaryColor(currentTheme),
-              ),
-            ),
+            Text(label, style: TextStyle(
+              fontWeight: FontWeight.w500,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            )),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _updateStore() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
-      final storeId = widget.storeData['store_id'];
-
-      final url = AppConfig.api('/api/iostore/$storeId');
-      print('🌐 DEBUG: Updating store at: $url');
-
-      final storeData = <String, dynamic>{
-        'company_id': CompanyConfig.getCompanyId(),
-      };
-      
-      // Only include fields that have values
-      if (_storeNameController.text.trim().isNotEmpty) {
-        storeData['store_name'] = _storeNameController.text.trim();
-      }
-      
-      if (_base64Image != null) {
-        storeData['image'] = _base64Image;
-      }
-      
-      if (_storeCodeController.text.trim().isNotEmpty) {
-        storeData['store_code'] = _storeCodeController.text.trim();
-      }
-      if (_storeManagerController.text.trim().isNotEmpty) {
-        storeData['store_manager'] = _storeManagerController.text.trim();
-      }
-      if (_emailController.text.trim().isNotEmpty) {
-        storeData['email'] = _emailController.text.trim();
-      }
-      if (_phoneController.text.trim().isNotEmpty) {
-        storeData['phone'] = _phoneController.text.trim();
-      }
-      if (_addressController.text.trim().isNotEmpty) {
-        storeData['address'] = _addressController.text.trim();
-      }
-      if (_cityController.text.trim().isNotEmpty) {
-        storeData['city'] = _cityController.text.trim();
-      }
-      if (_stateController.text.trim().isNotEmpty) {
-        storeData['state'] = _stateController.text.trim();
-      }
-      if (_countryController.text.trim().isNotEmpty) {
-        storeData['country'] = _countryController.text.trim();
-      }
-      if (_postalCodeController.text.trim().isNotEmpty) {
-        storeData['postal_code'] = _postalCodeController.text.trim();
-      }
-      if (_storeTypeController.text.trim().isNotEmpty) {
-        storeData['store_type'] = _storeTypeController.text.trim();
-      }
-      if (_statusController.text.trim().isNotEmpty) {
-        storeData['status'] = _statusController.text.trim();
-      }
-      if (_openingHoursController.text.trim().isNotEmpty) {
-        storeData['opening_hours'] = _openingHoursController.text.trim();
-      }
-      if (_squareFootageController.text.trim().isNotEmpty) {
-        storeData['square_footage'] = int.tryParse(_squareFootageController.text.trim());
-      }
-      if (_notesController.text.trim().isNotEmpty) {
-        storeData['notes'] = _notesController.text.trim();
-      }
-      if (_upiPercentageController.text.trim().isNotEmpty) {
-        storeData['upi_percentage'] = double.tryParse(_upiPercentageController.text.trim());
-      }
-      if (_visaPercentageController.text.trim().isNotEmpty) {
-        storeData['visa_percentage'] = double.tryParse(_visaPercentageController.text.trim());
-      }
-      if (_masterPercentageController.text.trim().isNotEmpty) {
-        storeData['master_percentage'] = double.tryParse(_masterPercentageController.text.trim());
-      }
-      if (_accountController.text.trim().isNotEmpty) {
-        storeData['account'] = _accountController.text.trim();
-      }
-
-      print('📝 DEBUG: Update data: ${storeData.toString()}');
-
-      final response = await http.put(
-        Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(storeData),
-      );
-
-      print('📡 DEBUG: Update Response Status: ${response.statusCode}');
-      print('📝 DEBUG: Update Response Body: ${response.body}');
-
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        if (responseData['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text('Store updated successfully!'),
-                ],
-              ),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pop(context, true);
-        } else {
-          throw Exception(responseData['message'] ?? 'Unknown error');
-        }
-      } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('❌ DEBUG: Error updating store: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.error, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(child: Text('Error updating store: $e')),
-              ],
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _deleteStore() async {
-    // Show confirmation dialog
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Icon(Icons.warning, color: Colors.red, size: 28),
-              SizedBox(width: 12),
-              Text('Delete Store'),
-            ],
-          ),
-          content: Text('Are you sure you want to delete "${_storeNameController.text}"? This action cannot be undone.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                'Cancel',
-                style: TextStyle(color: Colors.grey[600]),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              child: Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirm != true) return;
-
-    if (!mounted) return;
-
-    setState(() {
-      _isDeleting = true;
-    });
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
-      final storeId = widget.storeData['store_id'];
-
-      final url = AppConfig.api('/api/iostore/$storeId');
-      print('🗑️ DEBUG: Deleting store at: $url');
-
-      final response = await http.delete(
-        Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-
-      print('📡 DEBUG: Delete Response Status: ${response.statusCode}');
-      print('📝 DEBUG: Delete Response Body: ${response.body}');
-
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        if (responseData['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text('Store deleted successfully!'),
-                ],
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-          Navigator.pop(context, 'deleted');
-        } else {
-          throw Exception(responseData['message'] ?? 'Unknown error');
-        }
-      } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('❌ DEBUG: Error deleting store: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.error, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(child: Text('Error deleting store: $e')),
-              ],
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isDeleting = false;
-        });
-      }
-    }
-  }
-
-  Widget _buildImageSection() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.image,
-                  color: ThemeConfig.getPrimaryColor(currentTheme),
-                  size: 24,
-                ),
-                SizedBox(width: 12),
-                Text(
-                  'Store Image',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: ThemeConfig.getPrimaryColor(currentTheme),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            Center(
-              child: GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  width: 180,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: (_imageFile != null || _webImageBytes != null)
-                          ? ThemeConfig.getPrimaryColor(currentTheme)
-                          : Colors.grey[300]!,
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: _buildImageContent(),
-                ),
-              ),
-            ),
-            SizedBox(height: 12),
-            Text(
-              'Tap to change image',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageContent() {
+  Widget _buildImageDisplay() {
     if (kIsWeb && _webImageBytes != null) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Stack(
-          children: [
-            Image.memory(
-              _webImageBytes!,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  Icons.edit,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-            ),
-          ],
+        borderRadius: BorderRadius.circular(16),
+        child: Image.memory(
+          _webImageBytes!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          cacheWidth: 400,
         ),
       );
     } else if (!kIsWeb && _imageFile != null) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Stack(
-          children: [
-            Image.file(
-              _imageFile!,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  Icons.edit,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-            ),
-          ],
+        borderRadius: BorderRadius.circular(16),
+        child: Image.file(
+          _imageFile!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          cacheWidth: 400,
         ),
       );
     } else if (_currentImageUrl != null && _currentImageUrl!.isNotEmpty) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Stack(
-          children: [
-            Image.network(
-              _currentImageUrl!,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              errorBuilder: (context, error, stackTrace) {
-                return _buildImagePlaceholder();
-              },
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  Icons.edit,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-            ),
-          ],
+        borderRadius: BorderRadius.circular(16),
+        child: Image.network(
+          _currentImageUrl!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          cacheWidth: 400,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildImagePlaceholder();
+          },
         ),
       );
     } else {
@@ -688,89 +344,425 @@ class _StoreEditPageState extends State<StoreEditPage> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(
-          Icons.add_a_photo,
-          size: 48,
-          color: ThemeConfig.getPrimaryColor(currentTheme),
-        ),
+        Icon(Icons.add_a_photo, size: 48, color: ThemeConfig.getPrimaryColor(currentTheme)),
         SizedBox(height: 12),
-        Text(
-          'Tap to add image',
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+        Text('Tap to add image', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+        Text('Recommended: 800x800px', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
       ],
     );
   }
 
-  Widget _buildResponsiveLayout(Widget child) {
-    if (kIsWeb) {
-      return Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 800),
-          child: child,
-        ),
-      );
+  Future<void> _updateStore() async {
+    FocusScope.of(context).unfocus();
+    
+    if (!_formKey.currentState!.validate()) {
+      _showSnackBar(message: 'Please fix the form errors', isError: true);
+      return;
     }
-    return child;
+
+    // Validate online store requirements
+    if (_storeMode == 'online' || _storeMode == 'hybrid') {
+      if (_webController.text.trim().isEmpty) {
+        _showSnackBar(message: 'Website is required for online stores', isError: true);
+        return;
+      }
+
+      bool hasEmail = _email1Controller.text.trim().isNotEmpty ||
+                     _email2Controller.text.trim().isNotEmpty ||
+                     _email3Controller.text.trim().isNotEmpty ||
+                     _email4Controller.text.trim().isNotEmpty ||
+                     _email5Controller.text.trim().isNotEmpty;
+
+      if (!hasEmail) {
+        _showSnackBar(message: 'At least one email is required for online stores', isError: true);
+        return;
+      }
+    }
+
+    if (mounted) setState(() => _isLoading = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final storeId = widget.storeData['store_id'];
+
+      final url = AppConfig.api('/api/iostore/$storeId');
+      
+      final storeData = {
+        'company_id': CompanyConfig.getCompanyId(),
+        'store_name': _storeNameController.text.trim(),
+        'store_code': _getTextOrNull(_storeCodeController),
+        'store_manager': _getTextOrNull(_storeManagerController),
+        'email': _getTextOrNull(_emailController),
+        'phone': _getTextOrNull(_phoneController),
+        'address': _getTextOrNull(_addressController),
+        'city': _getTextOrNull(_cityController),
+        'state': _getTextOrNull(_stateController),
+        'country': _getTextOrNull(_countryController),
+        'postal_code': _getTextOrNull(_postalCodeController),
+        'store_type': _getTextOrNull(_storeTypeController),
+        'status': _getTextOrNull(_statusController),
+        'opening_hours': _getTextOrNull(_openingHoursController),
+        'square_footage': _parseIntOrNull(_squareFootageController),
+        'notes': _getTextOrNull(_notesController),
+        'upi_percentage': _parseDoubleOrNull(_upiPercentageController),
+        'visa_percentage': _parseDoubleOrNull(_visaPercentageController),
+        'master_percentage': _parseDoubleOrNull(_masterPercentageController),
+        'account': _getTextOrNull(_accountController),
+        'account2': _getTextOrNull(_account2Controller),
+        'store_mode': _storeMode,
+        'web': _getTextOrNull(_webController),
+        'email1': _getTextOrNull(_email1Controller),
+        'email2': _getTextOrNull(_email2Controller),
+        'email3': _getTextOrNull(_email3Controller),
+        'email4': _getTextOrNull(_email4Controller),
+        'email5': _getTextOrNull(_email5Controller),
+      };
+
+      if (_base64Image != null) {
+        storeData['image'] = _base64Image!;
+      }
+
+      final response = await http.put(
+        Uri.parse(url.toString()),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(storeData),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['status'] == 'success') {
+          _showSuccessDialog();
+        } else {
+          throw Exception(responseData['message'] ?? 'Unknown error');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) _showErrorDialog(e.toString());
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  Widget _buildFormField({
+  Future<void> _deleteStore() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red, size: 28),
+            SizedBox(width: 12),
+            Text('Delete Store'),
+          ],
+        ),
+        content: Text('Are you sure you want to delete "${_storeNameController.text}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    if (mounted) setState(() => _isDeleting = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final storeId = widget.storeData['store_id'];
+
+      final url = AppConfig.api('/api/iostore/$storeId');
+
+      final response = await http.delete(
+        Uri.parse(url.toString()),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['status'] == 'success') {
+          _showSnackBar(message: 'Store deleted successfully!', isError: false);
+          Navigator.pop(context, 'deleted');
+        } else {
+          throw Exception(responseData['message'] ?? 'Unknown error');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) _showErrorDialog(e.toString());
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
+    }
+  }
+
+  // Utility methods
+  String? _getTextOrNull(TextEditingController controller) {
+    final text = controller.text.trim();
+    return text.isEmpty ? null : text;
+  }
+
+  double? _parseDoubleOrNull(TextEditingController controller) {
+    final text = controller.text.trim();
+    return text.isEmpty ? null : double.tryParse(text);
+  }
+
+  int? _parseIntOrNull(TextEditingController controller) {
+    final text = controller.text.trim();
+    return text.isEmpty ? null : int.tryParse(text);
+  }
+
+  void _showSnackBar({required String message, required bool isError}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showSuccessDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 28),
+            SizedBox(width: 12),
+            Text('Success!'),
+          ],
+        ),
+        content: Text('Store "${_storeNameController.text}" has been updated successfully!'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop(true);
+            },
+            child: Text('OK', style: TextStyle(color: ThemeConfig.getPrimaryColor(currentTheme))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showErrorDialog(String error) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.error, color: Colors.red, size: 28),
+            SizedBox(width: 12),
+            Text('Error'),
+          ],
+        ),
+        content: Text('Failed to update store:\n$error'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Try Again', style: TextStyle(color: ThemeConfig.getPrimaryColor(currentTheme))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField({
     required TextEditingController controller,
     required String label,
     required IconData icon,
-    String? hint,
     TextInputType? keyboardType,
-    int maxLines = 1,
     String? Function(String?)? validator,
+    int maxLines = 1,
+    String? hint,
+    bool enabled = true,
   }) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 16),
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
         maxLines: maxLines,
+        validator: validator,
+        enabled: enabled,
         decoration: InputDecoration(
           labelText: label,
-          hintText: hint ?? 'Enter $label',
-          prefixIcon: Icon(
-            icon,
-            color: ThemeConfig.getPrimaryColor(currentTheme),
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          hintText: hint,
+          prefixIcon: Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: ThemeConfig.getPrimaryColor(currentTheme),
-              width: 2,
-            ),
+            borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: Colors.grey[300]!),
           ),
           filled: true,
-          fillColor: Colors.grey[50],
+          fillColor: Colors.white,
         ),
-        validator: validator,
       ),
     );
+  }
+
+  Widget _buildStoreModeRadio() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        children: [
+          RadioListTile<String>(
+            title: Text('Online'),
+            value: 'online',
+            groupValue: _storeMode,
+            onChanged: (String? value) {
+              setState(() {
+                _storeMode = value;
+              });
+            },
+            activeColor: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
+          Divider(height: 1),
+          RadioListTile<String>(
+            title: Text('Offline'),
+            value: 'offline',
+            groupValue: _storeMode,
+            onChanged: (String? value) {
+              setState(() {
+                _storeMode = value;
+              });
+            },
+            activeColor: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
+          Divider(height: 1),
+          RadioListTile<String>(
+            title: Text('Online + Offline'),
+            value: 'hybrid',
+            groupValue: _storeMode,
+            onChanged: (String? value) {
+              setState(() {
+                _storeMode = value;
+              });
+            },
+            activeColor: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required List<Widget> children,
+    IconData? icon,
+  }) {
+    return Card(
+      margin: EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (icon != null)
+              Row(
+                children: [
+                  Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
+                  SizedBox(width: 8),
+                  Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              )
+            else
+              Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            SizedBox(height: 16),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResponsiveRow(List<Widget> children) {
+    final isWideScreen = MediaQuery.of(context).size.width > 600;
+    
+    if (isWideScreen && children.length == 2) {
+      return Row(
+        children: [
+          Expanded(child: children[0]),
+          SizedBox(width: 16),
+          Expanded(child: children[1]),
+        ],
+      );
+    }
+    return Column(children: children);
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isWideScreen = screenWidth > 600;
+    final maxWidth = isWideScreen ? 800.0 : double.infinity;
+    final imageSize = isWideScreen ? 160.0 : 140.0;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text('Edit Store'),
+        title: _isLoading 
+            ? Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2, 
+                      valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getButtonTextColor(currentTheme)),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Text('Updating Store...'),
+                ],
+              )
+            : Text('Edit Store'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         elevation: 0,
@@ -791,536 +783,378 @@ class _StoreEditPageState extends State<StoreEditPage> {
                 : Icon(Icons.delete, color: Colors.red),
             tooltip: 'Delete Store',
           ),
-          if (_isLoading)
-            Container(
-              margin: EdgeInsets.all(16),
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  ThemeConfig.getButtonTextColor(currentTheme),
-                ),
-              ),
-            ),
         ],
       ),
-      body: _buildResponsiveLayout(
-        Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Store Image Section
-                _buildImageSection(),
-                
-                SizedBox(height: 20),
-
-                // Store Information
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+      body: Form(
+        key: _formKey,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // Store Image
+                  _buildSectionCard(
+                    title: 'Store Image (Optional)',
+                    icon: Icons.image,
+                    children: [
+                      Center(
+                        child: GestureDetector(
+                          onTap: _pickImage,
+                          child: Container(
+                            width: imageSize,
+                            height: imageSize,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey[300]!),
+                            ),
+                            child: _buildImageDisplay(),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.store,
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              size: 24,
-                            ),
-                            SizedBox(width: 12),
-                            Text(
-                              'Store Information',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: ThemeConfig.getPrimaryColor(currentTheme),
-                              ),
-                            ),
-                          ],
+
+                  // Store Information
+                  _buildSectionCard(
+                    title: 'Store Information',
+                    icon: Icons.store,
+                    children: [
+                      _buildTextField(
+                        controller: _storeNameController,
+                        label: 'Store Name *',
+                        icon: Icons.store,
+                        hint: 'Enter store name',
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Store name is required';
+                          }
+                          if (value.trim().length < 2) {
+                            return 'Store name must be at least 2 characters';
+                          }
+                          return null;
+                        },
+                      ),
+                      _buildResponsiveRow([
+                        _buildTextField(
+                          controller: _storeCodeController,
+                          label: 'Store Code',
+                          icon: Icons.qr_code,
+                          hint: 'Enter store code',
                         ),
-                        SizedBox(height: 20),
-                        
-                        // Basic Information
-                        _buildFormField(
-                          controller: _storeNameController,
-                          label: 'Store Name *',
-                          icon: Icons.store,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Store name is required';
-                            }
-                            return null;
-                          },
+                        _buildTextField(
+                          controller: _storeManagerController,
+                          label: 'Store Manager',
+                          icon: Icons.person,
+                          hint: 'Enter manager name',
                         ),
+                      ]),
+                    ],
+                  ),
 
-                        if (isWideScreen) ...[
-                          // Two-column layout for wide screens
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _storeCodeController,
-                                  label: 'Store Code',
-                                  icon: Icons.qr_code,
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _storeManagerController,
-                                  label: 'Store Manager',
-                                  icon: Icons.person,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _emailController,
-                                  label: 'Email',
-                                  icon: Icons.email,
-                                  keyboardType: TextInputType.emailAddress,
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _phoneController,
-                                  label: 'Phone',
-                                  icon: Icons.phone,
-                                  keyboardType: TextInputType.phone,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ] else ...[
-                          // Single-column layout for mobile
-                          _buildFormField(
-                            controller: _storeCodeController,
-                            label: 'Store Code',
-                            icon: Icons.qr_code,
-                          ),
-                          _buildFormField(
-                            controller: _storeManagerController,
-                            label: 'Store Manager',
-                            icon: Icons.person,
-                          ),
-                          _buildFormField(
-                            controller: _emailController,
-                            label: 'Email',
-                            icon: Icons.email,
-                            keyboardType: TextInputType.emailAddress,
-                          ),
-                          _buildFormField(
-                            controller: _phoneController,
-                            label: 'Phone',
-                            icon: Icons.phone,
-                            keyboardType: TextInputType.phone,
-                          ),
-                        ],
-
-                        // Address Information
-                        _buildFormField(
-                          controller: _addressController,
-                          label: 'Address',
-                          icon: Icons.home,
-                          maxLines: 2,
-                        ),
-
-                        if (isWideScreen) ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _cityController,
-                                  label: 'City',
-                                  icon: Icons.location_city,
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _stateController,
-                                  label: 'State',
-                                  icon: Icons.map,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _countryController,
-                                  label: 'Country',
-                                  icon: Icons.public,
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _postalCodeController,
-                                  label: 'Postal Code',
-                                  icon: Icons.local_post_office,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ] else ...[
-                          _buildFormField(
-                            controller: _cityController,
-                            label: 'City',
-                            icon: Icons.location_city,
-                          ),
-                          _buildFormField(
-                            controller: _stateController,
-                            label: 'State',
-                            icon: Icons.map,
-                          ),
-                          _buildFormField(
-                            controller: _countryController,
-                            label: 'Country',
-                            icon: Icons.public,
-                          ),
-                          _buildFormField(
-                            controller: _postalCodeController,
-                            label: 'Postal Code',
-                            icon: Icons.local_post_office,
-                          ),
-                        ],
-
-                        // Store Details
-                        if (isWideScreen) ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _storeTypeController,
-                                  label: 'Store Type',
-                                  icon: Icons.category,
-                                  hint: 'e.g., retail, warehouse',
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _statusController,
-                                  label: 'Status',
-                                  icon: Icons.info,
-                                  hint: 'e.g., active, inactive',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ] else ...[
-                          _buildFormField(
-                            controller: _storeTypeController,
-                            label: 'Store Type',
-                            icon: Icons.category,
-                            hint: 'e.g., retail, warehouse',
-                          ),
-                          _buildFormField(
-                            controller: _statusController,
-                            label: 'Status',
-                            icon: Icons.info,
-                            hint: 'e.g., active, inactive',
-                          ),
-                        ],
-
-                        _buildFormField(
-                          controller: _openingHoursController,
-                          label: 'Opening Hours',
-                          icon: Icons.access_time,
-                          hint: 'e.g., Mon-Fri: 9AM-6PM',
-                        ),
-
-                        _buildFormField(
-                          controller: _squareFootageController,
-                          label: 'Square Footage',
-                          icon: Icons.square_foot,
-                          keyboardType: TextInputType.number,
-                          hint: 'Store size in sq ft',
+                  // Contact Information
+                  _buildSectionCard(
+                    title: 'Contact Information',
+                    icon: Icons.contact_phone,
+                    children: [
+                      _buildResponsiveRow([
+                        _buildTextField(
+                          controller: _emailController,
+                          label: 'Email',
+                          icon: Icons.email,
+                          keyboardType: TextInputType.emailAddress,
+                          hint: 'Enter email address',
                           validator: (value) {
                             if (value != null && value.trim().isNotEmpty) {
-                              final num = int.tryParse(value.trim());
-                              if (num == null || num <= 0) {
-                                return 'Please enter a valid positive number';
+                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}').hasMatch(value)) {
+                                return 'Please enter a valid email address';
                               }
                             }
                             return null;
                           },
                         ),
-
-                        _buildFormField(
-                          controller: _notesController,
-                          label: 'Notes',
-                          icon: Icons.note,
-                          maxLines: 3,
-                          hint: 'Additional notes',
+                        _buildTextField(
+                          controller: _phoneController,
+                          label: 'Phone',
+                          icon: Icons.phone,
+                          keyboardType: TextInputType.phone,
+                          hint: 'Enter phone number',
                         ),
-
-                        // Company ID (Read-only)
-                        Container(
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey[300]!),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.business,
-                                color: Colors.grey[600],
-                              ),
-                              SizedBox(width: 12),
-                              Text(
-                                'Company ID: ${CompanyConfig.getCompanyId()}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                      ]),
+                    ],
                   ),
-                ),
 
-                SizedBox(height: 20),
-
-                // Payment Information Card
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.payment,
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              size: 24,
-                            ),
-                            SizedBox(width: 12),
-                            Text(
-                              'Payment Information',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: ThemeConfig.getPrimaryColor(currentTheme),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 20),
-
-                        if (isWideScreen) ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _upiPercentageController,
-                                  label: 'UPI Percentage',
-                                  icon: Icons.payment,
-                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                  hint: 'e.g., 2.5',
-                                  validator: (value) {
-                                    if (value != null && value.trim().isNotEmpty) {
-                                      final num = double.tryParse(value.trim());
-                                      if (num == null || num < 0) {
-                                        return 'Please enter a valid non-negative number';
-                                      }
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _visaPercentageController,
-                                  label: 'Visa Percentage',
-                                  icon: Icons.credit_card,
-                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                  hint: 'e.g., 2.5',
-                                  validator: (value) {
-                                    if (value != null && value.trim().isNotEmpty) {
-                                      final num = double.tryParse(value.trim());
-                                      if (num == null || num < 0) {
-                                        return 'Please enter a valid non-negative number';
-                                      }
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _masterPercentageController,
-                                  label: 'MasterCard Percentage',
-                                  icon: Icons.credit_card,
-                                  keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                  hint: 'e.g., 2.5',
-                                  validator: (value) {
-                                    if (value != null && value.trim().isNotEmpty) {
-                                      final num = double.tryParse(value.trim());
-                                      if (num == null || num < 0) {
-                                        return 'Please enter a valid non-negative number';
-                                      }
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: _buildFormField(
-                                  controller: _accountController,
-                                  label: 'Account',
-                                  icon: Icons.account_balance,
-                                  hint: 'Account details',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ] else ...[
-                          _buildFormField(
-                            controller: _upiPercentageController,
-                            label: 'UPI Percentage',
-                            icon: Icons.payment,
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
-                            hint: 'e.g., 2.5',
-                            validator: (value) {
-                              if (value != null && value.trim().isNotEmpty) {
-                                final num = double.tryParse(value.trim());
-                                if (num == null || num < 0) {
-                                  return 'Please enter a valid non-negative number';
-                                }
-                              }
-                              return null;
-                            },
-                          ),
-                          _buildFormField(
-                            controller: _visaPercentageController,
-                            label: 'Visa Percentage',
-                            icon: Icons.credit_card,
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
-                            hint: 'e.g., 2.5',
-                            validator: (value) {
-                              if (value != null && value.trim().isNotEmpty) {
-                                final num = double.tryParse(value.trim());
-                                if (num == null || num < 0) {
-                                  return 'Please enter a valid non-negative number';
-                                }
-                              }
-                              return null;
-                            },
-                          ),
-                          _buildFormField(
-                            controller: _masterPercentageController,
-                            label: 'MasterCard Percentage',
-                            icon: Icons.credit_card,
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
-                            hint: 'e.g., 2.5',
-                            validator: (value) {
-                              if (value != null && value.trim().isNotEmpty) {
-                                final num = double.tryParse(value.trim());
-                                if (num == null || num < 0) {
-                                  return 'Please enter a valid non-negative number';
-                                }
-                              }
-                              return null;
-                            },
-                          ),
-                          _buildFormField(
-                            controller: _accountController,
-                            label: 'Account',
-                            icon: Icons.account_balance,
-                            hint: 'Account details',
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-
-                SizedBox(height: 30),
-
-                // Update Button
-                Container(
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading || _isDeleting ? null : _updateStore,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                      foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                  // Address Information
+                  _buildSectionCard(
+                    title: 'Address Information',
+                    icon: Icons.location_on,
+                    children: [
+                      _buildTextField(
+                        controller: _addressController,
+                        label: 'Address',
+                        icon: Icons.home,
+                        hint: 'Enter full address',
+                        maxLines: 2,
                       ),
-                      elevation: 4,
-                      shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+                      _buildResponsiveRow([
+                        _buildTextField(
+                          controller: _cityController,
+                          label: 'City',
+                          icon: Icons.location_city,
+                          hint: 'Enter city',
+                        ),
+                        _buildTextField(
+                          controller: _stateController,
+                          label: 'State/Province',
+                          icon: Icons.map,
+                          hint: 'Enter state/province',
+                        ),
+                      ]),
+                      _buildResponsiveRow([
+                        _buildTextField(
+                          controller: _countryController,
+                          label: 'Country',
+                          icon: Icons.public,
+                          hint: 'Enter country',
+                        ),
+                        _buildTextField(
+                          controller: _postalCodeController,
+                          label: 'Postal Code',
+                          icon: Icons.local_post_office,
+                          hint: 'Enter postal code',
+                        ),
+                      ]),
+                    ],
+                  ),
+
+                  // Store Details
+                  _buildSectionCard(
+                    title: 'Store Details',
+                    icon: Icons.business_center,
+                    children: [
+                      _buildStoreModeRadio(),
+                      _buildResponsiveRow([
+                        _buildTextField(
+                          controller: _storeTypeController,
+                          label: 'Store Type',
+                          icon: Icons.category,
+                          hint: 'e.g., retail, warehouse',
+                        ),
+                        _buildTextField(
+                          controller: _statusController,
+                          label: 'Status',
+                          icon: Icons.info,
+                          hint: 'e.g., active, inactive',
+                        ),
+                      ]),
+                      _buildTextField(
+                        controller: _openingHoursController,
+                        label: 'Opening Hours',
+                        icon: Icons.access_time,
+                        hint: 'e.g., Mon-Fri: 9AM-6PM',
+                      ),
+                      _buildTextField(
+                        controller: _squareFootageController,
+                        label: 'Square Footage',
+                        icon: Icons.square_foot,
+                        keyboardType: TextInputType.number,
+                        hint: 'Store size in sq ft',
+                        validator: (value) {
+                          if (value != null && value.trim().isNotEmpty) {
+                            final num = int.tryParse(value.trim());
+                            if (num == null || num <= 0) {
+                              return 'Enter a valid positive number';
+                            }
+                          }
+                          return null;
+                        },
+                      ),
+                      _buildTextField(
+                        controller: _notesController,
+                        label: 'Notes',
+                        icon: Icons.note,
+                        hint: 'Additional notes',
+                        maxLines: 3,
+                      ),
+                    ],
+                  ),
+
+                  // Payment Information
+                  _buildSectionCard(
+                    title: 'Payment Information',
+                    icon: Icons.payment,
+                    children: [
+                      _buildResponsiveRow([
+                        _buildTextField(
+                          controller: _masterPercentageController,
+                          label: 'MDR Master %',
+                          icon: Icons.credit_card,
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          hint: '3.0 MAX',
+                          validator: (value) {
+                            if (value != null && value.trim().isNotEmpty) {
+                              final num = double.tryParse(value.trim());
+                              if (num == null || num < 0 || num > 100) {
+                                return 'Enter a valid percentage (0-100)';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                        _buildTextField(
+                          controller: _upiPercentageController,
+                          label: 'MDR UPI %',
+                          icon: Icons.credit_card,
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          hint: '3.0 MAX',
+                          validator: (value) {
+                            if (value != null && value.trim().isNotEmpty) {
+                              final num = double.tryParse(value.trim());
+                              if (num == null || num < 0 || num > 100) {
+                                return 'Enter a valid percentage (0-100)';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                      ]),
+                      _buildTextField(
+                        controller: _visaPercentageController,
+                        label: 'MDR Visa %',
+                        icon: Icons.credit_card,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        hint: '3.0 MAX',
+                        validator: (value) {
+                          if (value != null && value.trim().isNotEmpty) {
+                            final num = double.tryParse(value.trim());
+                            if (num == null || num < 0 || num > 100) {
+                              return 'Enter a valid percentage (0-100)';
+                            }
+                          }
+                          return null;
+                        },
+                      ),
+                      _buildResponsiveRow([
+                        _buildTextField(
+                          controller: _storeTypeController,
+                          label: 'Account Name',
+                          icon: Icons.account_circle,
+                          hint: 'e.g., Abc DEF...',
+                        ),
+                        _buildTextField(
+                          controller: _accountController,
+                          label: 'Account LAK Number',
+                          icon: Icons.account_balance,
+                          hint: 'e.g., 03XXXXX41XXXXXXX',
+                        ),
+                      ]),
+                      _buildTextField(
+                        controller: _account2Controller,
+                        label: 'Account USD Number',
+                        icon: Icons.account_balance_wallet,
+                        hint: 'e.g., 03XXXXX41XXXXXXX',
+                      ),
+                    ],
+                  ),
+
+                  // Online Store Information (conditional)
+                  if (_storeMode == 'online' || _storeMode == 'hybrid')
+                    _buildSectionCard(
+                      title: 'Online Store Information',
+                      icon: Icons.web,
+                      children: [
+                        _buildTextField(
+                          controller: _webController,
+                          label: 'Website',
+                          icon: Icons.link,
+                          hint: 'www.example.com',
+                          keyboardType: TextInputType.url,
+                        ),
+                        _buildResponsiveRow([
+                          _buildTextField(
+                            controller: _email1Controller,
+                            label: 'Email 1',
+                            icon: Icons.email,
+                            hint: 'primary@example.com',
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          _buildTextField(
+                            controller: _email2Controller,
+                            label: 'Email 2',
+                            icon: Icons.email,
+                            hint: 'secondary@example.com',
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                        ]),
+                        _buildResponsiveRow([
+                          _buildTextField(
+                            controller: _email3Controller,
+                            label: 'Email 3',
+                            icon: Icons.email,
+                            hint: 'support@example.com',
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          _buildTextField(
+                            controller: _email4Controller,
+                            label: 'Email 4',
+                            icon: Icons.email,
+                            hint: 'sales@example.com',
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                        ]),
+                        _buildTextField(
+                          controller: _email5Controller,
+                          label: 'Email 5',
+                          icon: Icons.email,
+                          hint: 'info@example.com',
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                      ],
                     ),
-                    child: _isLoading
-                        ? Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    ThemeConfig.getButtonTextColor(currentTheme),
+
+                  // Update Button
+                  Container(
+                    width: double.infinity,
+                    height: 50,
+                    margin: EdgeInsets.symmetric(vertical: 16),
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _updateStore,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 2,
+                      ),
+                      child: _isLoading
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                   ),
                                 ),
-                              ),
-                              SizedBox(width: 16),
-                              Text(
-                                'Updating Store...',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.save, size: 24),
-                              SizedBox(width: 12),
-                              Text(
-                                'Update Store',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
+                                SizedBox(width: 12),
+                                Text('Updating Store...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              ],
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.save, size: 24),
+                                SizedBox(width: 12),
+                                Text('Update Store', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                    ),
                   ),
-                ),
-
-                SizedBox(height: 20),
-              ],
+                ],
+              ),
             ),
           ),
         ),

@@ -700,13 +700,38 @@ class _StorePageState extends State<StorePage> {
   }
 }
 
-// Updated Iostore model to match your io_store table structure
 class Iostore {
   final int storeId;
   final int companyId;
   final String storeName;
   final String storeCode;
   final String? imageUrl;
+  final String? storeManager; // Add this
+  final String? email; // Add this
+  final String? phone; // Add this
+  final String? address; // Add this
+  final String? city; // Add this
+  final String? state; // Add this
+  final String? country; // Add this
+  final String? postalCode; // Add this
+  final String? storeType; // Add this
+  final String? status; // Add this
+  final String? openingHours; // Add this
+  final double? squareFootage; // Add this
+  final String? notes; // Add this
+  final double? upiPercentage; // Add this
+  final double? visaPercentage; // Add this
+  final double? masterPercentage; // Add this
+  final String? account; // Add this
+  final String? account2; // Add this
+  final String? accountName; // Add this - for the account name field
+  final String? storeMode; // Add this
+  final String? web; // Add this
+  final String? email1; // Add this
+  final String? email2; // Add this
+  final String? email3; // Add this
+  final String? email4; // Add this
+  final String? email5; // Add this
   
   Iostore({
     required this.storeId,
@@ -714,6 +739,32 @@ class Iostore {
     required this.storeName,
     required this.storeCode,
     this.imageUrl,
+    this.storeManager,
+    this.email,
+    this.phone,
+    this.address,
+    this.city,
+    this.state,
+    this.country,
+    this.postalCode,
+    this.storeType,
+    this.status,
+    this.openingHours,
+    this.squareFootage,
+    this.notes,
+    this.upiPercentage,
+    this.visaPercentage,
+    this.masterPercentage,
+    this.account,
+    this.account2,
+    this.accountName,
+    this.storeMode,
+    this.web,
+    this.email1,
+    this.email2,
+    this.email3,
+    this.email4,
+    this.email5,
   });
   
   factory Iostore.fromJson(Map<String, dynamic> json) {
@@ -724,10 +775,44 @@ class Iostore {
     try {
       final store = Iostore(
         storeId: json['store_id'] ?? 0,
-        companyId: CompanyConfig.getCompanyId(), // Use centralized config instead
+        companyId: CompanyConfig.getCompanyId(),
         storeName: json['store_name'] ?? '',
         storeCode: json['store_code'] ?? '',
         imageUrl: json['image_url'],
+        storeManager: json['store_manager'],
+        email: json['email'],
+        phone: json['phone'],
+        address: json['address'],
+        city: json['city'],
+        state: json['state'],
+        country: json['country'],
+        postalCode: json['postal_code'],
+        storeType: json['store_type'],
+        status: json['status'],
+        openingHours: json['opening_hours'],
+        squareFootage: json['square_footage'] != null 
+            ? double.tryParse(json['square_footage'].toString()) 
+            : null,
+        notes: json['notes'],
+        upiPercentage: json['upi_percentage'] != null 
+            ? double.tryParse(json['upi_percentage'].toString()) 
+            : null,
+        visaPercentage: json['visa_percentage'] != null 
+            ? double.tryParse(json['visa_percentage'].toString()) 
+            : null,
+        masterPercentage: json['master_percentage'] != null 
+            ? double.tryParse(json['master_percentage'].toString()) 
+            : null,
+        account: json['account'],
+        account2: json['account2'],
+        accountName: json['account_name'],
+        storeMode: json['store_mode'],
+        web: json['web'],
+        email1: json['email1'],
+        email2: json['email2'],
+        email3: json['email3'],
+        email4: json['email4'],
+        email5: json['email5'],
       );
       print('Successfully created Iostore: ${store.storeName}');
       return store;
@@ -746,6 +831,32 @@ class Iostore {
       'store_name': storeName,
       'store_code': storeCode,
       'image_url': imageUrl,
+      'store_manager': storeManager,
+      'email': email,
+      'phone': phone,
+      'address': address,
+      'city': city,
+      'state': state,
+      'country': country,
+      'postal_code': postalCode,
+      'store_type': storeType,
+      'status': status,
+      'opening_hours': openingHours,
+      'square_footage': squareFootage,
+      'notes': notes,
+      'upi_percentage': upiPercentage,
+      'visa_percentage': visaPercentage,
+      'master_percentage': masterPercentage,
+      'account': account,
+      'account2': account2,
+      'account_name': accountName,
+      'store_mode': storeMode,
+      'web': web,
+      'email1': email1,
+      'email2': email2,
+      'email3': email3,
+      'email4': email4,
+      'email5': email5,
     };
   }
 }
