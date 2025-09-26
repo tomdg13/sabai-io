@@ -35,7 +35,7 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
   _CompanyData? _companyData;
   _BranchData _branchData = const _BranchData();
 
-  final List<String> _roles = ['office', 'admin', 'user'];
+  final List<String> _roles = ['office', 'admin', 'user', 'regitster', 'autorizer1', 'autorizer2', 'autorizer3'];
   final ImagePicker _picker = ImagePicker();
 
   late AnimationController _fadeController;

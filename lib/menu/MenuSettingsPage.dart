@@ -10,6 +10,7 @@ import 'package:inventory/business/StorePage.dart';
 import 'package:inventory/business/TerminalPage.dart';
 import 'package:inventory/business/UserPage.dart';
 import 'package:inventory/business/VendorPage.dart';
+import 'package:inventory/csv_upload/csv_upload_page.dart';
 import 'package:inventory/login/login_page.dart' show LoginPage;
 import 'package:inventory/upload/SettlementUploadMenu.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -304,6 +305,12 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         title: SimpleTranslations.get(_langCode, 'uploadSettle'),
         color: Colors.green,
         onTap: _navigateTosettleupload,
+      ),
+      _buildGridItem(
+        icon: Icons.upload,
+        title: SimpleTranslations.get(_langCode, 'uploadCSV'),
+        color: Colors.green,
+        onTap: _navigateTouploadCSV,
       ),
       
       _buildGridItem(
@@ -670,6 +677,13 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => SettlementUploadPage()),
+    );
+  }
+
+  void _navigateTouploadCSV() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => CSVUploadPage()),
     );
   }
 

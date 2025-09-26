@@ -100,6 +100,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
   final _visaPercentageController = TextEditingController();
   final _masterPercentageController = TextEditingController();
   final _accountController = TextEditingController();
+  final _account2Controller = TextEditingController();
 
   // State variables
   String? _base64Image;
@@ -281,6 +282,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     _visaPercentageController.dispose();
     _masterPercentageController.dispose();
     _accountController.dispose();
+    _account2Controller.dispose();
     _storeNameFocus.dispose();
     _phoneFocus.dispose();
     _fadeController.dispose();
@@ -618,6 +620,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
         'visa_percentage': _parseDoubleOrNull(_visaPercentageController),
         'master_percentage': _parseDoubleOrNull(_masterPercentageController),
         'account': _getTextOrNull(_accountController),
+        'account2': _getTextOrNull(_account2Controller),
       };
 
       // Only add image if one was selected
@@ -1222,9 +1225,15 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                         ),
                       _buildEnhancedTextField(
                         controller: _accountController,
-                        label: 'Account Number',
+                        label: 'Account LAK Number',
                         icon: Icons.account_balance,
-                        hint: 'e.g., 03XXX0041XXXXXXX',
+                        hint: 'e.g., 03XXXXX41XXXXXXX',
+                      ),
+                      _buildEnhancedTextField(
+                        controller: _account2Controller,
+                        label: 'Account USD Number',
+                        icon: Icons.account_balance,
+                        hint: 'e.g., 03XXXXX41XXXXXXX',
                       ),
                     ],
                   ),
