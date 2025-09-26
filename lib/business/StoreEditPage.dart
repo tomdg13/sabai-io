@@ -6,8 +6,17 @@ import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import 'package:universal_html/html.dart' as html;
+
+// Import the postal code data
+import 'postal_code_data.dart';
+
+// Import MCC data
+import 'mcc_data.dart';
 
 class StoreEditPage extends StatefulWidget {
   final Map<String, dynamic> storeData;
@@ -18,8 +27,10 @@ class StoreEditPage extends StatefulWidget {
   State<StoreEditPage> createState() => _StoreEditPageState();
 }
 
-class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateMixin {
+class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   final _formKey = GlobalKey<FormState>();
+  
+  // All Controllers
   late final TextEditingController _storeNameController;
   late final TextEditingController _storeCodeController;
   late final TextEditingController _storeManagerController;
@@ -47,26 +58,47 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
   late final TextEditingController _email4Controller;
   late final TextEditingController _email5Controller;
   late final TextEditingController _storeModeController;
+  late final TextEditingController _mccCodeController;
+  late final TextEditingController _account_nameController;
+  late final TextEditingController _cifController;
 
+  // State Variables
+  String? _storeMode;
+  PostalCode? _selectedPostalCode;
+  MccCode? _selectedMccCode;
   String? _base64Image;
   String? _currentImageUrl;
   File? _imageFile;
   Uint8List? _webImageBytes;
+  String? _webImageName;
   bool _isLoading = false;
   bool _isDeleting = false;
   String currentTheme = ThemeConfig.defaultTheme;
-  String? _storeMode;
+
+  // Cached data for better performance
+  late final List<PostalCode> _cachedPostalCodes;
+  late final List<MccCode> _cachedMccCodes;
 
   // Animation Controllers
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
+    _initializeCachedData();
     _loadCurrentTheme();
     _initializeControllers();
     _setupAnimations();
+  }
+
+  void _initializeCachedData() {
+    // Cache postal codes and MCC codes to avoid repeated calls
+    _cachedPostalCodes = PostalCodeData.getAllPostalCodes();
+    _cachedMccCodes = MccData.getAllMccCodes();
   }
 
   void _setupAnimations() {
@@ -117,10 +149,34 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     _email3Controller = TextEditingController(text: widget.storeData['email3'] ?? '');
     _email4Controller = TextEditingController(text: widget.storeData['email4'] ?? '');
     _email5Controller = TextEditingController(text: widget.storeData['email5'] ?? '');
+    _mccCodeController = TextEditingController();
+    _account_nameController = TextEditingController(text: widget.storeData['account_name'] ?? '');
+    _cifController = TextEditingController(text: widget.storeData['cif'] ?? '');
     
     // Initialize store mode
     _storeMode = widget.storeData['store_mode'];
     _storeModeController = TextEditingController(text: widget.storeData['store_mode'] ?? '');
+    
+    // Initialize MCC Code if exists
+    if (widget.storeData['mcc'] != null) {
+      final mccCode = widget.storeData['mcc'].toString();
+      final mcc = _cachedMccCodes.firstWhere(
+        (code) => code.code == mccCode,
+        orElse: () => MccCode(code: mccCode, nameEnglish: 'Unknown', nameLao: 'Unknown', category: 'Unknown'),
+      );
+      _selectedMccCode = mcc;
+      _mccCodeController.text = '${mcc.code} - ${mcc.nameEnglish}';
+    }
+
+    // Initialize Postal Code if exists
+    if (widget.storeData['postal_code'] != null) {
+      final postalCode = widget.storeData['postal_code'].toString();
+      final postal = _cachedPostalCodes.firstWhere(
+        (code) => code.code == postalCode,
+        orElse: () => PostalCode(code: postalCode, district: 'Unknown', province: 'Unknown'),
+      );
+      _selectedPostalCode = postal;
+    }
     
     print('🔧 DEBUG: Initialized edit form with store: ${widget.storeData['store_name']}');
     print('🔧 DEBUG: Store ID: ${widget.storeData['store_id']}');
@@ -156,6 +212,9 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     _email4Controller.dispose();
     _email5Controller.dispose();
     _storeModeController.dispose();
+    _mccCodeController.dispose();
+    _account_nameController.dispose();
+    _cifController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
@@ -173,56 +232,43 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
   }
 
   Future<void> _pickImageWeb() async {
-    // Web image picking implementation
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 85,
-    );
+    final html.FileUploadInputElement input = html.FileUploadInputElement();
+    input.accept = 'image/*';
+    input.click();
 
-    if (image != null && mounted) {
-      final Uint8List imageBytes = await image.readAsBytes();
-      final String base64String = base64Encode(imageBytes);
-      
-      setState(() {
-        _webImageBytes = imageBytes;
-        _base64Image = 'data:image/jpeg;base64,$base64String';
+    input.onChange.listen((e) async {
+      final files = input.files;
+      if (files!.isEmpty) return;
+
+      final file = files[0];
+      if (file.size > 5 * 1024 * 1024) {
+        _showSnackBar(message: 'Image size must be less than 5MB', isError: true);
+        return;
+      }
+
+      final reader = html.FileReader();
+      reader.onLoadEnd.listen((e) async {
+        if (mounted) {
+          final Uint8List bytes = reader.result as Uint8List;
+          final String base64String = base64Encode(bytes);
+          
+          setState(() {
+            _webImageBytes = bytes;
+            _webImageName = file.name;
+            _base64Image = 'data:${file.type};base64,$base64String';
+          });
+
+          _showSnackBar(message: 'Image selected successfully', isError: false);
+        }
       });
-      
-      _showSnackBar(message: 'Image selected successfully', isError: false);
-    }
+
+      reader.readAsArrayBuffer(file);
+    });
   }
 
   Future<void> _pickImageMobile() async {
-    final source = await _showImageSourceDialog();
-    if (source == null) return;
-
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: source,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 85,
-    );
-
-    if (image != null && mounted) {
-      final File imageFile = File(image.path);
-      final Uint8List imageBytes = await imageFile.readAsBytes();
-      final String base64String = base64Encode(imageBytes);
-      
-      setState(() {
-        _imageFile = imageFile;
-        _base64Image = 'data:image/jpeg;base64,$base64String';
-      });
-      
-      _showSnackBar(message: 'Image selected successfully', isError: false);
-    }
-  }
-
-  Future<ImageSource?> _showImageSourceDialog() async {
-    return await showModalBottomSheet<ImageSource>(
+    // Show image source selection dialog for mobile
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -266,6 +312,29 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
         ),
       ),
     );
+
+    if (source == null) return;
+
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: source,
+      maxWidth: 400,
+      maxHeight: 400,
+      imageQuality: 60,
+    );
+
+    if (image != null && mounted) {
+      final File imageFile = File(image.path);
+      final Uint8List imageBytes = await imageFile.readAsBytes();
+      final String base64String = base64Encode(imageBytes);
+      
+      setState(() {
+        _imageFile = imageFile;
+        _base64Image = 'data:image/jpeg;base64,$base64String';
+      });
+
+      _showSnackBar(message: 'Image selected successfully', isError: false);
+    }
   }
 
   Widget _buildImageSourceOption({
@@ -286,12 +355,19 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
         ),
         child: Column(
           children: [
-            Icon(icon, size: 32, color: ThemeConfig.getPrimaryColor(currentTheme)),
-            SizedBox(height: 8),
-            Text(label, style: TextStyle(
-              fontWeight: FontWeight.w500,
+            Icon(
+              icon,
+              size: 32,
               color: ThemeConfig.getPrimaryColor(currentTheme),
-            )),
+            ),
+            SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+              ),
+            ),
           ],
         ),
       ),
@@ -302,37 +378,94 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     if (kIsWeb && _webImageBytes != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Image.memory(
-          _webImageBytes!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          cacheWidth: 400,
+        child: Stack(
+          children: [
+            Image.memory(
+              _webImageBytes!, 
+              fit: BoxFit.cover, 
+              width: double.infinity, 
+              height: double.infinity,
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     } else if (!kIsWeb && _imageFile != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Image.file(
-          _imageFile!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          cacheWidth: 400,
+        child: Stack(
+          children: [
+            Image.file(
+              _imageFile!, 
+              fit: BoxFit.cover, 
+              width: double.infinity, 
+              height: double.infinity,
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     } else if (_currentImageUrl != null && _currentImageUrl!.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Image.network(
-          _currentImageUrl!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          cacheWidth: 400,
-          errorBuilder: (context, error, stackTrace) {
-            return _buildImagePlaceholder();
-          },
+        child: Stack(
+          children: [
+            Image.network(
+              _currentImageUrl!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              errorBuilder: (context, error, stackTrace) {
+                return _buildImagePlaceholder();
+              },
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     } else {
@@ -346,8 +479,33 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
       children: [
         Icon(Icons.add_a_photo, size: 48, color: ThemeConfig.getPrimaryColor(currentTheme)),
         SizedBox(height: 12),
-        Text('Tap to add image', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
-        Text('Recommended: 800x800px', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+        Text(
+          'Tap to add image',
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        SizedBox(height: 4),
+        Text(
+          'Recommended: 400x400px',
+          style: TextStyle(
+            color: Colors.grey[400],
+            fontSize: 12,
+          ),
+        ),
+        if (kIsWeb) ...[
+          SizedBox(height: 8),
+          Text(
+            'Click to browse files',
+            style: TextStyle(
+              color: Colors.grey[500],
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -400,6 +558,7 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
         'state': _getTextOrNull(_stateController),
         'country': _getTextOrNull(_countryController),
         'postal_code': _getTextOrNull(_postalCodeController),
+        'mcc': _selectedMccCode?.code,
         'store_type': _getTextOrNull(_storeTypeController),
         'status': _getTextOrNull(_statusController),
         'opening_hours': _getTextOrNull(_openingHoursController),
@@ -417,6 +576,8 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
         'email3': _getTextOrNull(_email3Controller),
         'email4': _getTextOrNull(_email4Controller),
         'email5': _getTextOrNull(_email5Controller),
+        'account_name': _getTextOrNull(_account_nameController),
+        'cif': _getTextOrNull(_cifController),
       };
 
       if (_base64Image != null) {
@@ -641,6 +802,300 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     );
   }
 
+  Widget _buildPostalCodeDropdown() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Autocomplete<PostalCode>(
+        displayStringForOption: (PostalCode option) => 
+            '${option.code} - ${option.district}, ${option.province}',
+        optionsBuilder: (TextEditingValue textEditingValue) {
+          if (textEditingValue.text == '') {
+            return _cachedPostalCodes.take(10);
+          }
+          final String query = textEditingValue.text.toLowerCase();
+          return _cachedPostalCodes.where((PostalCode option) {
+            return option.code.toLowerCase().contains(query) ||
+                   option.district.toLowerCase().contains(query) ||
+                   option.province.toLowerCase().contains(query);
+          }).take(20);
+        },
+        onSelected: (PostalCode selection) {
+          _selectedPostalCode = selection;
+          _postalCodeController.text = selection.code;
+          setState(() {});
+        },
+        fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+          if (_selectedPostalCode != null && controller.text.isEmpty) {
+            controller.text = '${_selectedPostalCode!.code} - ${_selectedPostalCode!.district}, ${_selectedPostalCode!.province}';
+          }
+          
+          return TextFormField(
+            controller: controller,
+            focusNode: focusNode,
+            onEditingComplete: onEditingComplete,
+            decoration: InputDecoration(
+              labelText: 'Postal Code',
+              hintText: 'Type to search postal codes...',
+              prefixIcon: Icon(
+                Icons.local_post_office,
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+              ),
+              suffixIcon: Icon(
+                Icons.search,
+                color: Colors.grey[600],
+              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                  width: 2,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              filled: true,
+              fillColor: Colors.white,
+            ),
+          );
+        },
+        optionsViewBuilder: (context, onSelected, options) {
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 4.0,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                constraints: BoxConstraints(maxHeight: 200, maxWidth: 400),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final PostalCode option = options.elementAt(index);
+                    return InkWell(
+                      onTap: () => onSelected(option),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          border: index < options.length - 1
+                              ? Border(bottom: BorderSide(color: Colors.grey[200]!, width: 0.5))
+                              : null,
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                option.code,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    option.district,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    option.province,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMccCodeDropdown() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Autocomplete<MccCode>(
+        displayStringForOption: (MccCode option) => 
+            '${option.code} - ${option.nameEnglish} (${option.nameLao})',
+        optionsBuilder: (TextEditingValue textEditingValue) {
+          if (textEditingValue.text == '') {
+            return _cachedMccCodes.take(10);
+          }
+          final String query = textEditingValue.text.toLowerCase();
+          return _cachedMccCodes.where((MccCode option) {
+            return option.code.toLowerCase().contains(query) ||
+                   option.nameEnglish.toLowerCase().contains(query) ||
+                   option.nameLao.toLowerCase().contains(query) ||
+                   option.category.toLowerCase().contains(query);
+          }).take(20);
+        },
+        onSelected: (MccCode selection) {
+          _selectedMccCode = selection;
+          _mccCodeController.text = selection.code;
+          setState(() {});
+        },
+        fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+          if (_selectedMccCode != null && controller.text.isEmpty) {
+            controller.text = '${_selectedMccCode!.code} - ${_selectedMccCode!.nameEnglish}';
+          }
+          
+          return TextFormField(
+            controller: controller,
+            focusNode: focusNode,
+            onEditingComplete: onEditingComplete,
+            decoration: InputDecoration(
+              labelText: 'MCC Code (Optional)',
+              hintText: 'Type to search MCC codes...',
+              prefixIcon: Icon(
+                Icons.category,
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+              ),
+              suffixIcon: Icon(
+                Icons.search,
+                color: Colors.grey[600],
+              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                  width: 2,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              filled: true,
+              fillColor: Colors.white,
+            ),
+          );
+        },
+        optionsViewBuilder: (context, onSelected, options) {
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 4.0,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                constraints: BoxConstraints(maxHeight: 200, maxWidth: 500),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final MccCode option = options.elementAt(index);
+                    return InkWell(
+                      onTap: () => onSelected(option),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          border: index < options.length - 1
+                              ? Border(bottom: BorderSide(color: Colors.grey[200]!, width: 0.5))
+                              : null,
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                option.code,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    option.nameEnglish,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    option.nameLao,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'Category: ${option.category}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey[500],
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildStoreModeRadio() {
     return Container(
       margin: EdgeInsets.only(bottom: 16),
@@ -658,6 +1113,7 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
             onChanged: (String? value) {
               setState(() {
                 _storeMode = value;
+                _storeModeController.text = value ?? '';
               });
             },
             activeColor: ThemeConfig.getPrimaryColor(currentTheme),
@@ -670,6 +1126,7 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
             onChanged: (String? value) {
               setState(() {
                 _storeMode = value;
+                _storeModeController.text = value ?? '';
               });
             },
             activeColor: ThemeConfig.getPrimaryColor(currentTheme),
@@ -682,6 +1139,7 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
             onChanged: (String? value) {
               setState(() {
                 _storeMode = value;
+                _storeModeController.text = value ?? '';
               });
             },
             activeColor: ThemeConfig.getPrimaryColor(currentTheme),
@@ -691,81 +1149,23 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     );
   }
 
-  Widget _buildSectionCard({
-    required String title,
-    required List<Widget> children,
-    IconData? icon,
-  }) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (icon != null)
-              Row(
-                children: [
-                  Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
-                  SizedBox(width: 8),
-                  Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ],
-              )
-            else
-              Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 16),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResponsiveRow(List<Widget> children) {
-    final isWideScreen = MediaQuery.of(context).size.width > 600;
-    
-    if (isWideScreen && children.length == 2) {
-      return Row(
-        children: [
-          Expanded(child: children[0]),
-          SizedBox(width: 16),
-          Expanded(child: children[1]),
-        ],
-      );
-    }
-    return Column(children: children);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = screenWidth > 600;
-    final maxWidth = isWideScreen ? 800.0 : double.infinity;
-    final imageSize = isWideScreen ? 160.0 : 140.0;
-
+    super.build(context);
+    
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: _isLoading 
-            ? Row(
-                children: [
-                  SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2, 
-                      valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getButtonTextColor(currentTheme)),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Text('Updating Store...'),
-                ],
-              )
-            : Text('Edit Store'),
+        title: Text(
+          'Edit Store',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-        foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         elevation: 0,
+        iconTheme: IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             onPressed: _isLoading || _isDeleting ? null : _deleteStore,
@@ -775,9 +1175,7 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        ThemeConfig.getButtonTextColor(currentTheme),
-                      ),
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
                 : Icon(Icons.delete, color: Colors.red),
@@ -785,30 +1183,73 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth),
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Store Image
-                  _buildSectionCard(
-                    title: 'Store Image (Optional)',
-                    icon: Icons.image,
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Store Image Section
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.image,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                            size: 24,
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Store Image (Optional)',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 20),
                       Center(
                         child: GestureDetector(
                           onTap: _pickImage,
                           child: Container(
-                            width: imageSize,
-                            height: imageSize,
+                            width: 200,
+                            height: 200,
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey[300]!),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: (_webImageBytes != null || _imageFile != null || _currentImageUrl != null)
+                                    ? ThemeConfig.getPrimaryColor(currentTheme)
+                                    : Colors.grey[300]!,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
                             ),
                             child: _buildImageDisplay(),
                           ),
@@ -816,345 +1257,532 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
                       ),
                     ],
                   ),
+                ),
 
-                  // Store Information
-                  _buildSectionCard(
-                    title: 'Store Information',
-                    icon: Icons.store,
+                SizedBox(height: 20),
+
+                // Basic Information Section
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(
+                        'Basic Information',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: ThemeConfig.getPrimaryColor(currentTheme),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+
+                      // Store Name
                       _buildTextField(
                         controller: _storeNameController,
                         label: 'Store Name *',
                         icon: Icons.store,
-                        hint: 'Enter store name',
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Store name is required';
                           }
-                          if (value.trim().length < 2) {
-                            return 'Store name must be at least 2 characters';
-                          }
                           return null;
                         },
+                        hint: 'Enter store name',
                       ),
-                      _buildResponsiveRow([
-                        _buildTextField(
-                          controller: _storeCodeController,
-                          label: 'Store Code',
-                          icon: Icons.qr_code,
-                          hint: 'Enter store code',
+
+                      // Store Code
+                      _buildTextField(
+                        controller: _storeCodeController,
+                        label: 'Store Code',
+                        icon: Icons.qr_code,
+                        hint: 'Enter store code',
+                        enabled: false, // Usually not editable
+                      ),
+
+                      // Store Manager
+                      _buildTextField(
+                        controller: _storeManagerController,
+                        label: 'Store Manager',
+                        icon: Icons.person,
+                        hint: 'Enter manager name',
+                      ),
+
+                      // Store Mode
+                      Text(
+                        'Store Mode',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[700],
                         ),
-                        _buildTextField(
-                          controller: _storeManagerController,
-                          label: 'Store Manager',
-                          icon: Icons.person,
-                          hint: 'Enter manager name',
-                        ),
-                      ]),
+                      ),
+                      SizedBox(height: 8),
+                      _buildStoreModeRadio(),
                     ],
                   ),
+                ),
 
-                  // Contact Information
-                  _buildSectionCard(
-                    title: 'Contact Information',
-                    icon: Icons.contact_phone,
-                    children: [
-                      _buildResponsiveRow([
-                        _buildTextField(
-                          controller: _emailController,
-                          label: 'Email',
-                          icon: Icons.email,
-                          keyboardType: TextInputType.emailAddress,
-                          hint: 'Enter email address',
-                          validator: (value) {
-                            if (value != null && value.trim().isNotEmpty) {
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}').hasMatch(value)) {
-                                return 'Please enter a valid email address';
-                              }
-                            }
-                            return null;
-                          },
-                        ),
-                        _buildTextField(
-                          controller: _phoneController,
-                          label: 'Phone',
-                          icon: Icons.phone,
-                          keyboardType: TextInputType.phone,
-                          hint: 'Enter phone number',
-                        ),
-                      ]),
+                SizedBox(height: 20),
+
+                // Contact Information Section
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: Offset(0, 2),
+                      ),
                     ],
                   ),
-
-                  // Address Information
-                  _buildSectionCard(
-                    title: 'Address Information',
-                    icon: Icons.location_on,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(
+                        'Contact Information',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: ThemeConfig.getPrimaryColor(currentTheme),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+
+                      _buildTextField(
+                        controller: _emailController,
+                        label: 'Main Email',
+                        icon: Icons.email,
+                        keyboardType: TextInputType.emailAddress,
+                        hint: 'Enter main email address',
+                      ),
+
+                      _buildTextField(
+                        controller: _phoneController,
+                        label: 'Phone Number',
+                        icon: Icons.phone,
+                        keyboardType: TextInputType.phone,
+                        hint: 'Enter phone number',
+                      ),
+                    ],
+                  ),
+                ),
+
+                SizedBox(height: 20),
+
+                // Address Information Section
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Address Information',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: ThemeConfig.getPrimaryColor(currentTheme),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+
                       _buildTextField(
                         controller: _addressController,
                         label: 'Address',
-                        icon: Icons.home,
-                        hint: 'Enter full address',
+                        icon: Icons.location_on,
                         maxLines: 2,
+                        hint: 'Enter full address',
                       ),
-                      _buildResponsiveRow([
-                        _buildTextField(
-                          controller: _cityController,
-                          label: 'City',
-                          icon: Icons.location_city,
-                          hint: 'Enter city',
-                        ),
-                        _buildTextField(
-                          controller: _stateController,
-                          label: 'State/Province',
-                          icon: Icons.map,
-                          hint: 'Enter state/province',
-                        ),
-                      ]),
-                      _buildResponsiveRow([
-                        _buildTextField(
-                          controller: _countryController,
-                          label: 'Country',
-                          icon: Icons.public,
-                          hint: 'Enter country',
-                        ),
-                        _buildTextField(
-                          controller: _postalCodeController,
-                          label: 'Postal Code',
-                          icon: Icons.local_post_office,
-                          hint: 'Enter postal code',
-                        ),
-                      ]),
+
+                      _buildTextField(
+                        controller: _cityController,
+                        label: 'City',
+                        icon: Icons.location_city,
+                        hint: 'Enter city',
+                      ),
+
+                      _buildTextField(
+                        controller: _stateController,
+                        label: 'State/Province',
+                        icon: Icons.map,
+                        hint: 'Enter state or province',
+                      ),
+
+                      _buildTextField(
+                        controller: _countryController,
+                        label: 'Country',
+                        icon: Icons.flag,
+                        hint: 'Enter country',
+                      ),
+
+                      _buildPostalCodeDropdown(),
                     ],
                   ),
+                ),
 
-                  // Store Details
-                  _buildSectionCard(
-                    title: 'Store Details',
-                    icon: Icons.business_center,
+                SizedBox(height: 20),
+
+                // Business Information Section
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildStoreModeRadio(),
-                      _buildResponsiveRow([
-                        _buildTextField(
-                          controller: _storeTypeController,
-                          label: 'Store Type',
-                          icon: Icons.category,
-                          hint: 'e.g., retail, warehouse',
+                      Text(
+                        'Business Information',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: ThemeConfig.getPrimaryColor(currentTheme),
                         ),
-                        _buildTextField(
-                          controller: _statusController,
-                          label: 'Status',
-                          icon: Icons.info,
-                          hint: 'e.g., active, inactive',
-                        ),
-                      ]),
+                      ),
+                      SizedBox(height: 16),
+
+                      _buildTextField(
+                        controller: _storeTypeController,
+                        label: 'Store Type',
+                        icon: Icons.category,
+                        hint: 'e.g., Retail, Restaurant, Service',
+                      ),
+
+                      _buildMccCodeDropdown(),
+
+                      _buildTextField(
+                        controller: _statusController,
+                        label: 'Status',
+                        icon: Icons.info,
+                        hint: 'e.g., active, inactive',
+                      ),
+
                       _buildTextField(
                         controller: _openingHoursController,
                         label: 'Opening Hours',
                         icon: Icons.access_time,
                         hint: 'e.g., Mon-Fri: 9AM-6PM',
                       ),
+
                       _buildTextField(
                         controller: _squareFootageController,
                         label: 'Square Footage',
                         icon: Icons.square_foot,
                         keyboardType: TextInputType.number,
                         hint: 'Store size in sq ft',
-                        validator: (value) {
-                          if (value != null && value.trim().isNotEmpty) {
-                            final num = int.tryParse(value.trim());
-                            if (num == null || num <= 0) {
-                              return 'Enter a valid positive number';
-                            }
-                          }
-                          return null;
-                        },
                       ),
+
                       _buildTextField(
                         controller: _notesController,
                         label: 'Notes',
                         icon: Icons.note,
-                        hint: 'Additional notes',
                         maxLines: 3,
+                        hint: 'Any additional notes about the store',
                       ),
                     ],
                   ),
+                ),
 
-                  // Payment Information
-                  _buildSectionCard(
-                    title: 'Payment Information',
-                    icon: Icons.payment,
-                    children: [
-                      _buildResponsiveRow([
-                        _buildTextField(
-                          controller: _masterPercentageController,
-                          label: 'MDR Master %',
-                          icon: Icons.credit_card,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          hint: '3.0 MAX',
-                          validator: (value) {
-                            if (value != null && value.trim().isNotEmpty) {
-                              final num = double.tryParse(value.trim());
-                              if (num == null || num < 0 || num > 100) {
-                                return 'Enter a valid percentage (0-100)';
-                              }
-                            }
-                            return null;
-                          },
-                        ),
-                        _buildTextField(
-                          controller: _upiPercentageController,
-                          label: 'MDR UPI %',
-                          icon: Icons.credit_card,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          hint: '3.0 MAX',
-                          validator: (value) {
-                            if (value != null && value.trim().isNotEmpty) {
-                              final num = double.tryParse(value.trim());
-                              if (num == null || num < 0 || num > 100) {
-                                return 'Enter a valid percentage (0-100)';
-                              }
-                            }
-                            return null;
-                          },
-                        ),
-                      ]),
-                      _buildTextField(
-                        controller: _visaPercentageController,
-                        label: 'MDR Visa %',
-                        icon: Icons.credit_card,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        hint: '3.0 MAX',
-                        validator: (value) {
-                          if (value != null && value.trim().isNotEmpty) {
-                            final num = double.tryParse(value.trim());
-                            if (num == null || num < 0 || num > 100) {
-                              return 'Enter a valid percentage (0-100)';
-                            }
-                          }
-                          return null;
-                        },
+                // Online Store Information (Conditional)
+                if (_storeMode == 'online' || _storeMode == 'hybrid') ...[
+                  SizedBox(height: 20),
+                  Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+                        width: 2,
                       ),
-                      _buildResponsiveRow([
-                        _buildTextField(
-                          controller: _storeTypeController,
-                          label: 'Account Name',
-                          icon: Icons.account_circle,
-                          hint: 'e.g., Abc DEF...',
-                        ),
-                        _buildTextField(
-                          controller: _accountController,
-                          label: 'Account LAK Number',
-                          icon: Icons.account_balance,
-                          hint: 'e.g., 03XXXXX41XXXXXXX',
-                        ),
-                      ]),
-                      _buildTextField(
-                        controller: _account2Controller,
-                        label: 'Account USD Number',
-                        icon: Icons.account_balance_wallet,
-                        hint: 'e.g., 03XXXXX41XXXXXXX',
-                      ),
-                    ],
-                  ),
-
-                  // Online Store Information (conditional)
-                  if (_storeMode == 'online' || _storeMode == 'hybrid')
-                    _buildSectionCard(
-                      title: 'Online Store Information',
-                      icon: Icons.web,
-                      children: [
-                        _buildTextField(
-                          controller: _webController,
-                          label: 'Website',
-                          icon: Icons.link,
-                          hint: 'www.example.com',
-                          keyboardType: TextInputType.url,
-                        ),
-                        _buildResponsiveRow([
-                          _buildTextField(
-                            controller: _email1Controller,
-                            label: 'Email 1',
-                            icon: Icons.email,
-                            hint: 'primary@example.com',
-                            keyboardType: TextInputType.emailAddress,
-                          ),
-                          _buildTextField(
-                            controller: _email2Controller,
-                            label: 'Email 2',
-                            icon: Icons.email,
-                            hint: 'secondary@example.com',
-                            keyboardType: TextInputType.emailAddress,
-                          ),
-                        ]),
-                        _buildResponsiveRow([
-                          _buildTextField(
-                            controller: _email3Controller,
-                            label: 'Email 3',
-                            icon: Icons.email,
-                            hint: 'support@example.com',
-                            keyboardType: TextInputType.emailAddress,
-                          ),
-                          _buildTextField(
-                            controller: _email4Controller,
-                            label: 'Email 4',
-                            icon: Icons.email,
-                            hint: 'sales@example.com',
-                            keyboardType: TextInputType.emailAddress,
-                          ),
-                        ]),
-                        _buildTextField(
-                          controller: _email5Controller,
-                          label: 'Email 5',
-                          icon: Icons.email,
-                          hint: 'info@example.com',
-                          keyboardType: TextInputType.emailAddress,
+                      boxShadow: [
+                        BoxShadow(
+                          color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: Offset(0, 2),
                         ),
                       ],
                     ),
-
-                  // Update Button
-                  Container(
-                    width: double.infinity,
-                    height: 50,
-                    margin: EdgeInsets.symmetric(vertical: 16),
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _updateStore,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 2,
-                      ),
-                      child: _isLoading
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Text('Updating Store...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                              ],
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.save, size: 24),
-                                SizedBox(width: 12),
-                                Text('Update Store', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                              ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.language,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
                             ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Online Store Information',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: ThemeConfig.getPrimaryColor(currentTheme),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 16),
+
+                        _buildTextField(
+                          controller: _webController,
+                          label: 'Website URL *',
+                          icon: Icons.web,
+                          keyboardType: TextInputType.url,
+                          hint: 'https://example.com',
+                          validator: (_storeMode == 'online' || _storeMode == 'hybrid') 
+                              ? (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Website is required for online stores';
+                                  }
+                                  return null;
+                                }
+                              : null,
+                        ),
+
+                        Text(
+                          'Additional Email Addresses',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        SizedBox(height: 8),
+
+                        _buildTextField(
+                          controller: _email1Controller,
+                          label: 'Email 1',
+                          icon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          hint: 'Additional email address',
+                        ),
+
+                        _buildTextField(
+                          controller: _email2Controller,
+                          label: 'Email 2',
+                          icon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          hint: 'Additional email address',
+                        ),
+
+                        _buildTextField(
+                          controller: _email3Controller,
+                          label: 'Email 3',
+                          icon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          hint: 'Additional email address',
+                        ),
+
+                        _buildTextField(
+                          controller: _email4Controller,
+                          label: 'Email 4',
+                          icon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          hint: 'Additional email address',
+                        ),
+
+                        _buildTextField(
+                          controller: _email5Controller,
+                          label: 'Email 5',
+                          icon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          hint: 'Additional email address',
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ),
+
+                SizedBox(height: 20),
+
+                // Payment Information Section
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Payment Information',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: ThemeConfig.getPrimaryColor(currentTheme),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              controller: _upiPercentageController,
+                              label: 'UPI %',
+                              icon: Icons.payment,
+                              keyboardType: TextInputType.numberWithOptions(decimal: true),
+                              hint: '0.00',
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: _buildTextField(
+                              controller: _visaPercentageController,
+                              label: 'Visa %',
+                              icon: Icons.credit_card,
+                              keyboardType: TextInputType.numberWithOptions(decimal: true),
+                              hint: '0.00',
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      _buildTextField(
+                        controller: _masterPercentageController,
+                        label: 'Mastercard %',
+                        icon: Icons.credit_card,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        hint: '0.00',
+                      ),
+
+                      _buildTextField(
+                        controller: _cifController,
+                        label: 'CIF',
+                        icon: Icons.account_balance,
+                        hint: 'Enter CIF number',
+                      ),
+
+                      _buildTextField(
+                        controller: _account_nameController,
+                        label: 'Account Name',
+                        icon: Icons.account_balance_wallet,
+                        hint: 'Enter account holder name',
+                      ),
+
+                      _buildTextField(
+                        controller: _accountController,
+                        label: 'Primary Account',
+                        icon: Icons.account_balance,
+                        hint: 'Primary account number',
+                      ),
+
+                      _buildTextField(
+                        controller: _account2Controller,
+                        label: 'Secondary Account',
+                        icon: Icons.account_balance,
+                        hint: 'Secondary account number',
+                      ),
+                    ],
+                  ),
+                ),
+
+                SizedBox(height: 30),
+
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _updateStore,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 2,
+                          ),
+                          child: _isLoading
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    SizedBox(width: 12),
+                                    Text(
+                                      'Updating...',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.save, size: 24, color: Colors.white),
+                                    SizedBox(width: 12),
+                                    Text(
+                                      'Update Store',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: 20),
+              ],
             ),
           ),
         ),
