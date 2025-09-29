@@ -300,25 +300,7 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
 
   List<Widget> _buildBusinessGridItems() {
     return [
-       _buildGridItem(
-        icon: Icons.upload,
-        title: SimpleTranslations.get(_langCode, 'uploadSettle'),
-        color: Colors.green,
-        onTap: _navigateTosettleupload,
-      ),
-      _buildGridItem(
-        icon: Icons.upload,
-        title: SimpleTranslations.get(_langCode, 'uploadCSV'),
-        color: Colors.green,
-        onTap: _navigateTouploadCSV,
-      ),
       
-      _buildGridItem(
-        icon: Icons.grass,
-        title: SimpleTranslations.get(_langCode, 'Company'),
-        color: Colors.lightGreenAccent.shade700,
-        onTap: _navigateToCompanyPage,
-      ),
       
       _buildGridItem(
         icon: Icons.group,
@@ -373,6 +355,26 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         title: SimpleTranslations.get(_langCode, 'user'),
         color: Colors.cyan,
         onTap: _navigateToUserPage,
+      ),
+
+       _buildGridItem(
+        icon: Icons.upload,
+        title: SimpleTranslations.get(_langCode, 'uploadSettle'),
+        color: Colors.green,
+        onTap: _navigateTosettleupload,
+      ),
+      _buildGridItem(
+        icon: Icons.upload,
+        title: SimpleTranslations.get(_langCode, 'uploadCSV'),
+        color: Colors.green,
+        onTap: _navigateTouploadCSV,
+      ),
+      
+      _buildGridItem(
+        icon: Icons.grass,
+        title: SimpleTranslations.get(_langCode, 'Company'),
+        color: Colors.lightGreenAccent.shade700,
+        onTap: _navigateToCompanyPage,
       ),
 
      

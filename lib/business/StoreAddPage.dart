@@ -464,12 +464,60 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
   }
 
   Future<void> _pickImageMobile() async {
+    // Show image source selection dialog for mobile
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Select Image Source',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildImageSourceOption(
+                  icon: Icons.photo_library,
+                  label: 'Gallery',
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+                _buildImageSourceOption(
+                  icon: Icons.photo_camera,
+                  label: 'Camera',
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 400,  // Reduced from 800
-      maxHeight: 400, // Reduced from 800
-      imageQuality: 60, // Reduced from 85
+      source: source,
+      maxWidth: 400,
+      maxHeight: 400,
+      imageQuality: 60,
     );
 
     if (image != null && mounted) {
@@ -484,6 +532,43 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
 
       _showSnackBar(message: 'Image selected successfully', isError: false);
     }
+  }
+
+  Widget _buildImageSourceOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 32,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+            SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildImageDisplay() {
@@ -1741,28 +1826,48 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.payment,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                            size: 24,
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Payment Information',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 20),
+
+                      // Payment Percentages Row
                       Text(
-                        'Payment Information',
+                        'MDR Percentages',
                         style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: ThemeConfig.getPrimaryColor(currentTheme),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
                         ),
                       ),
-                      SizedBox(height: 16),
-
+                      SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
                             child: _buildTextField(
                               controller: _upiPercentageController,
                               label: 'UPI %',
-                              icon: Icons.payment,
+                              icon: Icons.account_balance_wallet,
                               keyboardType: TextInputType.numberWithOptions(decimal: true),
                               hint: '0.00',
                             ),
                           ),
-                          SizedBox(width: 12),
+                          SizedBox(width: 16),
                           Expanded(
                             child: _buildTextField(
                               controller: _visaPercentageController,
@@ -1783,32 +1888,63 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                         hint: '0.00',
                       ),
 
-                      _buildTextField(
-                        controller: _cifController,
-                        label: 'CIF',
-                        icon: Icons.account_balance,
-                        hint: 'Enter CIF number',
+                      SizedBox(height: 8),
+                      Divider(color: Colors.grey[200]),
+                      SizedBox(height: 8),
+
+                      // Account Information
+                      Text(
+                        'Account Information',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      SizedBox(height: 12),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              controller: _cifController,
+                              label: 'CIF',
+                              icon: Icons.fingerprint,
+                              hint: 'Customer ID',
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: _buildTextField(
+                              controller: _account_nameController,
+                              label: 'Account Name',
+                              icon: Icons.person_outline,
+                              hint: 'Account holder',
+                            ),
+                          ),
+                        ],
                       ),
 
-                      _buildTextField(
-                        controller: _account_nameController,
-                        label: 'Account Name',
-                        icon: Icons.account_balance_wallet,
-                        hint: 'Enter account holder name',
-                      ),
-
-                      _buildTextField(
-                        controller: _accountController,
-                        label: 'Primary Account',
-                        icon: Icons.account_balance,
-                        hint: 'Primary account number',
-                      ),
-
-                      _buildTextField(
-                        controller: _account2Controller,
-                        label: 'Secondary Account',
-                        icon: Icons.account_balance,
-                        hint: 'Secondary account number',
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              controller: _accountController,
+                              label: 'Primary Account',
+                              icon: Icons.account_balance,
+                              hint: 'LAK account number',
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: _buildTextField(
+                              controller: _account2Controller,
+                              label: 'Secondary Account',
+                              icon: Icons.account_balance_wallet,
+                              hint: 'USD account number',
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
