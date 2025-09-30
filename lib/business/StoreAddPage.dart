@@ -77,6 +77,38 @@ class Merchant {
   int get hashCode => merchantId.hashCode;
 }
 
+class User {
+  final int userId;
+  final String userName;
+  final String? phone;
+  final String? email;
+
+  const User({
+    required this.userId,
+    required this.userName,
+    this.phone,
+    this.email,
+  });
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      userId: json['user_id'] as int,
+      userName: json['user_name'] as String,
+      phone: json['phone'] as String?,
+      email: json['email'] as String?,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is User && other.userId == userId;
+  }
+
+  @override
+  int get hashCode => userId.hashCode;
+}
+
 class StoreAddPage extends StatefulWidget {
   const StoreAddPage({Key? key}) : super(key: key);
 
@@ -87,7 +119,7 @@ class StoreAddPage extends StatefulWidget {
 class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   final _formKey = GlobalKey<FormState>();
   
-  // All Controllers - optimized with less frequent rebuilds
+  // All Controllers
   late final TextEditingController _storeNameController;
   late final TextEditingController _storeManagerController;
   late final TextEditingController _emailController;
@@ -122,21 +154,31 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
   String? _base64Image;
   File? _imageFile;
   Uint8List? _webImageBytes;
+  // ignore: unused_field
   String? _webImageName;
   bool _isLoading = false;
   bool _isLoadingGroups = false;
   bool _isLoadingMerchants = false;
+  bool _isLoadingUsers = false;
+  bool _isLoadingCif = false;
   String currentTheme = ThemeConfig.defaultTheme;
 
-  // Cached data for better performance
+  // Cached data
   late final List<PostalCode> _cachedPostalCodes;
   late final List<MccCode> _cachedMccCodes;
+
+  // CIF Account Selection
+  List<Map<String, dynamic>> _cifAccounts = [];
+  List<Map<String, dynamic>> _selectedAccounts = [];
 
   // Dropdown Data
   List<Group> _groups = [];
   Group? _selectedGroup;
   List<Merchant> _merchants = [];
   Merchant? _selectedMerchant;
+  List<User> _users = [];
+  User? _selectedApprover1;
+  User? _selectedApprover2;
 
   // Animation Controllers
   late AnimationController _fadeController;
@@ -154,6 +196,12 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     _setupAnimations();
     _loadUserPhone();
     _loadGroups();
+    _loadUsers();
+    
+    // Set default MDR percentages to 3
+    _upiPercentageController.text = '3';
+    _visaPercentageController.text = '3';
+    _masterPercentageController.text = '3';
   }
 
   void _initializeControllers() {
@@ -186,7 +234,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
   }
 
   void _initializeCachedData() {
-    // Cache postal codes and MCC codes to avoid repeated calls
     _cachedPostalCodes = PostalCodeData.getAllPostalCodes();
     _cachedMccCodes = MccData.getAllMccCodes();
   }
@@ -219,7 +266,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     }
   }
 
-  // Optimized API Methods
   Future<void> _loadGroups() async {
     if (_isLoadingGroups) return;
     
@@ -314,6 +360,345 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     }
   }
 
+  Future<void> _loadUsers() async {
+    if (_isLoadingUsers) return;
+    
+    if (mounted) setState(() => _isLoadingUsers = true);
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final companyId = CompanyConfig.getCompanyId();
+      
+      final url = AppConfig.api('/api/iouser?company_id=$companyId');
+      
+      final response = await http.get(
+        Uri.parse(url.toString()),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['status'] == 'success') {
+          final List<dynamic> usersJson = responseData['data'];
+          if (mounted) {
+            setState(() {
+              _users = usersJson.map((json) => User.fromJson(json)).toList();
+            });
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar(message: 'Error loading users: $e', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingUsers = false);
+      }
+    }
+  }
+
+  Future<void> _fetchCifData() async {
+    final cifValue = _cifController.text.trim();
+    
+    if (cifValue.isEmpty) {
+      _showSnackBar(message: 'Please enter CIF number first', isError: true);
+      return;
+    }
+
+    if (mounted) setState(() => _isLoadingCif = true);
+
+    try {
+      print('🔍 Fetching CIF data for: $cifValue');
+      
+      final response = await http.post(
+        Uri.parse('https://dehome.ldblao.la/atm-api/v1/api/atmsystem/atm-system/cif-mapping-direct'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'customerId': cifValue}),
+      );
+
+      print('📥 CIF Response Status: ${response.statusCode}');
+      print('📥 CIF Response Body: ${response.body}');
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        
+        if (responseData['response'] == '00' && responseData['data'] != null) {
+          final atmData = responseData['data']['atmData'];
+          final t24Data = atmData['t24_data'] as List<dynamic>?;
+          
+          if (t24Data != null && t24Data.isNotEmpty) {
+            setState(() {
+              _cifAccounts = t24Data.map((e) => e as Map<String, dynamic>).toList();
+              _selectedAccounts.clear();
+            });
+            
+            print('✅ Found ${_cifAccounts.length} accounts');
+            _showAccountSelectionDialog();
+          } else {
+            _showSnackBar(message: 'No accounts found for this CIF', isError: true);
+          }
+        } else {
+          throw Exception(responseData['data']?['message'] ?? 'Failed to fetch CIF data');
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ CIF lookup error: $e');
+      if (mounted) {
+        _showSnackBar(message: 'Error fetching CIF data: $e', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingCif = false);
+    }
+  }
+
+  void _showAccountSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.account_balance, color: ThemeConfig.getPrimaryColor(currentTheme)),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text('Select Accounts (Max 2)', style: TextStyle(fontSize: 18)),
+              ),
+            ],
+          ),
+          content: Container(
+            width: double.maxFinite,
+            constraints: BoxConstraints(maxHeight: 500),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_cifAccounts.isNotEmpty) ...[
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_cifAccounts[0]['CUSTOMER_NAME1']}',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        Text(
+                          '${_cifAccounts[0]['CUSTOMER_NAME2']}',
+                          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'CIF: ${_cifAccounts[0]['CUST_CIF']}',
+                          style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                ],
+                Expanded(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _cifAccounts.length,
+                    itemBuilder: (context, index) {
+                      final account = _cifAccounts[index];
+                      final isSelected = _selectedAccounts.contains(account);
+                      final isInactive = account['INACTIV_MARKER'] == 'Y';
+                      
+                      return Card(
+                        margin: EdgeInsets.only(bottom: 12),
+                        elevation: isSelected ? 4 : 1,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: isSelected 
+                                ? ThemeConfig.getPrimaryColor(currentTheme)
+                                : Colors.grey[300]!,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: CheckboxListTile(
+                          value: isSelected,
+                          enabled: !isInactive,
+                          onChanged: (bool? checked) {
+                            setDialogState(() {
+                              if (checked == true) {
+                                if (_selectedAccounts.length < 2) {
+                                  _selectedAccounts.add(account);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Maximum 2 accounts can be selected'),
+                                      backgroundColor: Colors.orange,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                _selectedAccounts.remove(account);
+                              }
+                            });
+                          },
+                          activeColor: ThemeConfig.getPrimaryColor(currentTheme),
+                          title: Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isInactive 
+                                      ? Colors.red[100]
+                                      : ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  account['ACCTID'],
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isInactive ? Colors.red[700] : ThemeConfig.getPrimaryColor(currentTheme),
+                                  ),
+                                ),
+                              ),
+                              if (isInactive) ...[
+                                SizedBox(width: 8),
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'INACTIVE',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          subtitle: Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Category: ${account['CATEGORY']}',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: account['CURRENCY'] == 'LAK' 
+                                            ? Colors.green[100]
+                                            : Colors.blue[100],
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        account['CURRENCY'],
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: account['CURRENCY'] == 'LAK' 
+                                              ? Colors.green[700]
+                                              : Colors.blue[700],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Balance: ${account['WORKING_BALANCE']} ${account['CURRENCY']}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+            ),
+            ElevatedButton(
+              onPressed: _selectedAccounts.isEmpty
+                  ? null
+                  : () {
+                      _applySelectedAccounts();
+                      Navigator.pop(context);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Apply (${_selectedAccounts.length})'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _applySelectedAccounts() {
+    if (_selectedAccounts.isEmpty) return;
+
+    _cifController.text = _selectedAccounts[0]['CUST_CIF'].toString();
+    _account_nameController.text = _selectedAccounts[0]['CUSTOMER_NAME1'] ?? '';
+
+    final lakAccount = _selectedAccounts.firstWhere(
+      (acc) => acc['CURRENCY'] == 'LAK',
+      orElse: () => _selectedAccounts[0],
+    );
+    _accountController.text = lakAccount['ACCTID'].toString();
+
+    if (_selectedAccounts.length == 2) {
+      final secondAccount = _selectedAccounts.firstWhere(
+        (acc) => acc != lakAccount,
+        orElse: () => _selectedAccounts[1],
+      );
+      _account2Controller.text = secondAccount['ACCTID'].toString();
+    }
+
+    setState(() {});
+    
+    _showSnackBar(
+      message: 'CIF data applied successfully!',
+      isError: false,
+    );
+  }
+
   @override
   void dispose() {
     _storeNameController.dispose();
@@ -346,7 +731,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     super.dispose();
   }
 
-  // Optimized Image Handling
   Future<void> _pickImage() async {
     try {
       if (kIsWeb) {
@@ -378,8 +762,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
       reader.onLoadEnd.listen((e) async {
         if (mounted) {
           final Uint8List bytes = reader.result as Uint8List;
-          
-          // Compress the image for web
           final compressedBytes = await _compressImageWeb(bytes);
           final String base64String = base64Encode(compressedBytes);
           
@@ -397,19 +779,14 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     });
   }
 
-  // Add image compression method for web (simplified approach)
   Future<Uint8List> _compressImageWeb(Uint8List imageBytes) async {
     try {
-      // Create a canvas element for image processing
       final canvas = html.CanvasElement();
       final ctx = canvas.context2D;
-      
-      // Create an image element
       final img = html.ImageElement();
       final completer = Completer<Uint8List>();
       
       img.onLoad.listen((_) {
-        // Calculate new dimensions (max 400x400)
         double width = img.width!.toDouble();
         double height = img.height!.toDouble();
         
@@ -423,48 +800,34 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
           }
         }
         
-        // Set canvas size
         canvas.width = width.round();
         canvas.height = height.round();
-        
-        // Draw the image
         ctx.drawImageScaled(img, 0, 0, width, height);
         
-        // Get the compressed image data
         try {
           final dataUrl = canvas.toDataUrl('image/jpeg', 0.6);
           final base64Data = dataUrl.split(',')[1];
           completer.complete(base64Decode(base64Data));
         } catch (e) {
-          print('Canvas compression failed: $e');
           completer.complete(imageBytes);
         }
       });
       
-      img.onError.listen((_) {
-        print('Image loading failed');
-        completer.complete(imageBytes);
-      });
+      img.onError.listen((_) => completer.complete(imageBytes));
       
-      // Convert bytes to blob URL
       final blob = html.Blob([imageBytes]);
       img.src = html.Url.createObjectUrlFromBlob(blob);
       
       return await completer.future.timeout(
         Duration(seconds: 10),
-        onTimeout: () {
-          print('Image compression timed out');
-          return imageBytes;
-        },
+        onTimeout: () => imageBytes,
       );
     } catch (e) {
-      print('Image compression failed: $e');
-      return imageBytes; // Return original if compression fails
+      return imageBytes;
     }
   }
 
   Future<void> _pickImageMobile() async {
-    // Show image source selection dialog for mobile
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
       shape: RoundedRectangleBorder(
@@ -654,17 +1017,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
               fontSize: 12,
             ),
           ),
-          if (kIsWeb) ...[
-            SizedBox(height: 8),
-            Text(
-              'Click to browse files',
-              style: TextStyle(
-                color: Colors.grey[500],
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
         ],
       );
     }
@@ -678,21 +1030,14 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
       return;
     }
 
-    // Validate online store requirements
+    if (_storeMode == null || _storeMode!.isEmpty) {
+      _showSnackBar(message: 'Please select a store mode', isError: true);
+      return;
+    }
+
     if (_storeMode == 'online' || _storeMode == 'hybrid') {
       if (_webController.text.trim().isEmpty) {
         _showSnackBar(message: 'Website is required for online stores', isError: true);
-        return;
-      }
-
-      bool hasEmail = _email1Controller.text.trim().isNotEmpty ||
-                     _email2Controller.text.trim().isNotEmpty ||
-                     _email3Controller.text.trim().isNotEmpty ||
-                     _email4Controller.text.trim().isNotEmpty ||
-                     _email5Controller.text.trim().isNotEmpty;
-
-      if (!hasEmail) {
-        _showSnackBar(message: 'At least one email is required for online stores', isError: true);
         return;
       }
     }
@@ -705,10 +1050,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
       final companyId = CompanyConfig.getCompanyId();
 
       final url = AppConfig.api('/api/iostore');
-      
-      print('🌐 API URL: $url');
-      print('🏢 Company ID: $companyId');
-      print('🔑 Token exists: ${token != null}');
 
       final storeData = {
         'company_id': companyId.toString(),
@@ -723,7 +1064,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
         'state': _getTextOrNull(_stateController),
         'country': _getTextOrNull(_countryController),
         'postal_code': _getTextOrNull(_postalCodeController),
-        'mcc': _selectedMccCode?.code, // Backend expects 'mcc' not 'mcc_code'
+        'mcc': _selectedMccCode?.code,
         'store_type': _getTextOrNull(_storeTypeController),
         'notes': _getTextOrNull(_notesController),
         'upi_percentage': _parseDoubleOrNull(_upiPercentageController),
@@ -740,24 +1081,13 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
         'email5': _getTextOrNull(_email5Controller),
         'account_name': _getTextOrNull(_account_nameController),
         'cif': _getTextOrNull(_cifController),
+        'approve1': _selectedApprover1?.userId,
+        'approve2': _selectedApprover2?.userId,
       };
 
       if (_base64Image != null) {
         storeData['image'] = _base64Image!;
-        print('📷 Image included in request (base64 length: ${_base64Image!.length})');
       }
-
-      final storeDataForLog = Map<String, dynamic>.from(storeData);
-      if (storeDataForLog.containsKey('image')) {
-        storeDataForLog['image'] = '[BASE64_IMAGE_DATA_${_base64Image!.length}_CHARS]';
-      }
-      
-      print('📤 REQUEST BODY:');
-      print('================');
-      storeDataForLog.forEach((key, value) {
-        print('$key: $value');
-      });
-      print('================');
 
       final response = await http.post(
         Uri.parse(url.toString()),
@@ -768,35 +1098,21 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
         body: jsonEncode(storeData),
       );
 
-      print('📥 RESPONSE:');
-      print('================');
-      print('Status Code: ${response.statusCode}');
-      print('Headers: ${response.headers}');
-      print('Body: ${response.body}');
-      print('================');
-
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
-        print('✅ SUCCESS: ${responseData['status']}');
-        print('📋 Response Data: $responseData');
         
         if (responseData['status'] == 'success') {
           _showSuccessDialog();
         } else {
-          print('❌ API returned success status but with error message');
           throw Exception(responseData['message'] ?? 'Unknown error');
         }
       } else {
-        print('❌ HTTP ERROR: ${response.statusCode}');
         final errorData = jsonDecode(response.body);
-        print('🚨 Error Data: $errorData');
         throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('💥 EXCEPTION CAUGHT: $e');
-      print('📍 Exception Type: ${e.runtimeType}');
       if (mounted) _showErrorDialog(e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -826,33 +1142,20 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     );
   }
 
-  void _logFormData() {
-    print('📝 CURRENT FORM DATA:');
-    print('===================');
-    print('Store Name: ${_storeNameController.text}');
-    print('Store Manager: ${_storeManagerController.text}');
-    print('Email: ${_emailController.text}');
-    print('Phone: ${_phoneController.text}');
-    print('Address: ${_addressController.text}');
-    print('City: ${_cityController.text}');
-    print('State: ${_stateController.text}');
-    print('Country: ${_countryController.text}');
-    print('Postal Code: ${_postalCodeController.text}');
-    print('MCC Code: ${_selectedMccCode?.code} - ${_selectedMccCode?.nameEnglish}');
-    print('Selected Group: ${_selectedGroup?.groupName}');
-    print('Selected Merchant: ${_selectedMerchant?.merchantName}');
-    print('Store Mode: $_storeMode');
-    print('Website: ${_webController.text}');
-    print('Email1: ${_email1Controller.text}');
-    print('Email2: ${_email2Controller.text}');
-    print('Email3: ${_email3Controller.text}');
-    print('Email4: ${_email4Controller.text}');
-    print('Email5: ${_email5Controller.text}');
-    print('===================');
-  }
-
   void _showSuccessDialog() {
     if (!mounted) return;
+    
+    String approvalInfo = '';
+    if (_selectedApprover1 != null || _selectedApprover2 != null) {
+      approvalInfo = '\n\nApprovers assigned:';
+      if (_selectedApprover1 != null) {
+        approvalInfo += '\n✓ ${_selectedApprover1!.userName}';
+      }
+      if (_selectedApprover2 != null) {
+        approvalInfo += '\n✓ ${_selectedApprover2!.userName}';
+      }
+    }
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -862,10 +1165,10 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
           children: [
             Icon(Icons.check_circle, color: Colors.green, size: 28),
             SizedBox(width: 12),
-            Text('Success!'),
+            Expanded(child: Text('Store Created!')),
           ],
         ),
-        content: Text('Store "${_storeNameController.text}" has been created successfully!'),
+        content: Text('Store "${_storeNameController.text}" has been created successfully!$approvalInfo'),
         actions: [
           TextButton(
             onPressed: () {
@@ -903,7 +1206,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
     );
   }
 
-  // Optimized UI Building Methods
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -1018,8 +1320,14 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
             controller: controller,
             focusNode: focusNode,
             onEditingComplete: onEditingComplete,
+            validator: (value) {
+              if (_selectedPostalCode == null || _postalCodeController.text.isEmpty) {
+                return 'Postal code is required';
+              }
+              return null;
+            },
             decoration: InputDecoration(
-              labelText: 'Postal Code',
+              labelText: 'Postal Code *',
               hintText: 'Type to search postal codes...',
               prefixIcon: Icon(
                 Icons.local_post_office,
@@ -1161,8 +1469,14 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
             controller: controller,
             focusNode: focusNode,
             onEditingComplete: onEditingComplete,
+            validator: (value) {
+              if (_selectedMccCode == null || _mccCodeController.text.isEmpty) {
+                return 'MCC code is required';
+              }
+              return null;
+            },
             decoration: InputDecoration(
-              labelText: 'MCC Code (Optional)',
+              labelText: 'MCC Code *',
               hintText: 'Type to search MCC codes...',
               prefixIcon: Icon(
                 Icons.category,
@@ -1348,14 +1662,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
-        actions: [
-          if (kDebugMode)
-            IconButton(
-              onPressed: _logFormData,
-              icon: Icon(Icons.bug_report),
-              tooltip: 'Log Form Data',
-            ),
-        ],
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
@@ -1462,7 +1768,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                       ),
                       SizedBox(height: 16),
 
-                      // Group Dropdown
                       _buildDropdown<Group>(
                         label: 'Select Group',
                         icon: Icons.group,
@@ -1482,7 +1787,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                         hint: 'Choose a group...',
                       ),
 
-                      // Merchant Dropdown
                       _buildDropdown<Merchant>(
                         label: 'Select Merchant',
                         icon: Icons.business,
@@ -1498,7 +1802,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                         hint: _selectedGroup == null ? 'Select a group first' : 'Choose a merchant...',
                       ),
 
-                      // Store Name
                       _buildTextField(
                         controller: _storeNameController,
                         label: 'Store Name *',
@@ -1512,7 +1815,6 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                         hint: 'Enter store name',
                       ),
 
-                      // Store Manager
                       _buildTextField(
                         controller: _storeManagerController,
                         label: 'Store Manager',
@@ -1520,14 +1822,25 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                         hint: 'Enter manager name',
                       ),
 
-                      // Store Mode
-                      Text(
-                        'Store Mode',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey[700],
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            'Store Mode',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          Text(
+                            ' *',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
                       ),
                       SizedBox(height: 8),
                       _buildStoreModeRadio(),
@@ -1765,10 +2078,19 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
 
                         _buildTextField(
                           controller: _email1Controller,
-                          label: 'Email 1',
+                          label: 'Email 1 *',
                           icon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                           hint: 'Additional email address',
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Email 1 is required';
+                            }
+                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                              return 'Enter valid email';
+                            }
+                            return null;
+                          },
                         ),
 
                         _buildTextField(
@@ -1846,14 +2168,25 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                       ),
                       SizedBox(height: 20),
 
-                      // Payment Percentages Row
-                      Text(
-                        'MDR Percentages',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[700],
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            'MDR Percentages',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          Text(
+                            ' *',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
                       ),
                       SizedBox(height: 12),
                       Row(
@@ -1861,20 +2194,46 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                           Expanded(
                             child: _buildTextField(
                               controller: _upiPercentageController,
-                              label: 'UPI %',
+                              label: 'UPI % *',
                               icon: Icons.account_balance_wallet,
                               keyboardType: TextInputType.numberWithOptions(decimal: true),
-                              hint: '0.00',
+                              hint: '0.00 - 3.00',
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'UPI % is required';
+                                }
+                                final numValue = double.tryParse(value.trim());
+                                if (numValue == null) {
+                                  return 'Invalid number';
+                                }
+                                if (numValue < 0 || numValue > 3) {
+                                  return 'Must be 0-3';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                           SizedBox(width: 16),
                           Expanded(
                             child: _buildTextField(
                               controller: _visaPercentageController,
-                              label: 'Visa %',
+                              label: 'Visa % *',
                               icon: Icons.credit_card,
                               keyboardType: TextInputType.numberWithOptions(decimal: true),
-                              hint: '0.00',
+                              hint: '0.00 - 3.00',
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Visa % is required';
+                                }
+                                final numValue = double.tryParse(value.trim());
+                                if (numValue == null) {
+                                  return 'Invalid number';
+                                }
+                                if (numValue < 0 || numValue > 3) {
+                                  return 'Must be 0-3';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                         ],
@@ -1882,24 +2241,48 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
 
                       _buildTextField(
                         controller: _masterPercentageController,
-                        label: 'Mastercard %',
+                        label: 'Mastercard % *',
                         icon: Icons.credit_card,
                         keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        hint: '0.00',
+                        hint: '0.00 - 3.00',
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Mastercard % is required';
+                          }
+                          final numValue = double.tryParse(value.trim());
+                          if (numValue == null) {
+                            return 'Invalid number';
+                          }
+                          if (numValue < 0 || numValue > 3) {
+                            return 'Must be between 0 and 3';
+                          }
+                          return null;
+                        },
                       ),
 
                       SizedBox(height: 8),
                       Divider(color: Colors.grey[200]),
                       SizedBox(height: 8),
 
-                      // Account Information
-                      Text(
-                        'Account Information',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[700],
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            'Account Information',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          Text(
+                            ' *',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
                       ),
                       SizedBox(height: 12),
 
@@ -1908,21 +2291,57 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                           Expanded(
                             child: _buildTextField(
                               controller: _cifController,
-                              label: 'CIF',
+                              label: 'CIF *',
                               icon: Icons.fingerprint,
                               hint: 'Customer ID',
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'CIF is required';
+                                }
+                                return null;
+                              },
                             ),
                           ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: _buildTextField(
-                              controller: _account_nameController,
-                              label: 'Account Name',
-                              icon: Icons.person_outline,
-                              hint: 'Account holder',
+                          SizedBox(width: 12),
+                          Container(
+                            margin: EdgeInsets.only(bottom: 16),
+                            child: ElevatedButton.icon(
+                              onPressed: _isLoadingCif ? null : _fetchCifData,
+                              icon: _isLoadingCif
+                                  ? SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : Icon(Icons.search, size: 20),
+                              label: Text('Lookup'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
                             ),
                           ),
                         ],
+                      ),
+
+                      _buildTextField(
+                        controller: _account_nameController,
+                        label: 'Account Name *',
+                        icon: Icons.person_outline,
+                        hint: 'Account holder name',
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Account name is required';
+                          }
+                          return null;
+                        },
                       ),
 
                       Row(
@@ -1930,9 +2349,15 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                           Expanded(
                             child: _buildTextField(
                               controller: _accountController,
-                              label: 'Primary Account',
+                              label: 'Primary Account (LAK) *',
                               icon: Icons.account_balance,
                               hint: 'LAK account number',
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Primary account is required';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                           SizedBox(width: 16),
@@ -1941,10 +2366,82 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
                               controller: _account2Controller,
                               label: 'Secondary Account',
                               icon: Icons.account_balance_wallet,
-                              hint: 'USD account number',
+                              hint: 'Other account number',
                             ),
                           ),
                         ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                SizedBox(height: 20),
+
+                // Approval Information Section
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.approval,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                            size: 24,
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Approval Information',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+
+                      _buildDropdown<User>(
+                        label: 'First Approver',
+                        icon: Icons.person_outline,
+                        value: _selectedApprover1,
+                        items: _users,
+                        getDisplayText: (user) => '${user.userName}${user.phone != null ? " (${user.phone})" : ""}',
+                        onChanged: (User? user) {
+                          setState(() {
+                            _selectedApprover1 = user;
+                          });
+                        },
+                        isLoading: _isLoadingUsers,
+                        hint: 'Select first approver...',
+                      ),
+
+                      _buildDropdown<User>(
+                        label: 'Second Approver',
+                        icon: Icons.person_outline,
+                        value: _selectedApprover2,
+                        items: _users,
+                        getDisplayText: (user) => '${user.userName}${user.phone != null ? " (${user.phone})" : ""}',
+                        onChanged: (User? user) {
+                          setState(() {
+                            _selectedApprover2 = user;
+                          });
+                        },
+                        isLoading: _isLoadingUsers,
+                        hint: 'Select second approver...',
                       ),
                     ],
                   ),

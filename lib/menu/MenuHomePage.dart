@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:inventory/business/ApprovalPage.dart';
 import 'package:inventory/business/ListTerminalPage.dart';
 import 'package:inventory/monitor/ProductPage.dart';
 import 'package:inventory/monitor/StockPage.dart';
@@ -226,6 +227,12 @@ class _MenuHomePageState extends State<MenuHomePage> {
       children: [
         _buildGridItem(
           icon: Icons.terminal,
+          title: SimpleTranslations.get(_langCode, 'Approve'),
+          color: Colors.purple,
+          onTap: _navigateToApprovePage,
+        ),
+        _buildGridItem(
+          icon: Icons.terminal,
           title: SimpleTranslations.get(_langCode, 'Terminal'),
           color: Colors.purple,
           onTap: _navigateToTerminalPage,
@@ -327,6 +334,13 @@ class _MenuHomePageState extends State<MenuHomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const ListterminalPage()),
+    );
+  }
+
+  void _navigateToApprovePage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ApprovalPage()),
     );
   }
 

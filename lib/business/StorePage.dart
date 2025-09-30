@@ -479,6 +479,9 @@ class _StorePageState extends State<StorePage> {
           constraints: BoxConstraints(maxWidth: isWideScreen ? 1200 : double.infinity),
           child: Column(
             children: [
+              // Warning banner for stores without approvers
+              _buildApprovalWarningBanner(),
+              
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
                 child: TextField(
@@ -645,7 +648,64 @@ class _StorePageState extends State<StorePage> {
     );
   }
 
+  Widget _buildApprovalWarningBanner() {
+    // Count stores without approvers
+    final storesNeedingApproval = filteredstores.where(
+      (store) => store.approve1 == null && store.approve2 == null
+    ).length;
+
+    if (storesNeedingApproval == 0) {
+      return SizedBox.shrink(); // Don't show banner if all stores have approvers
+    }
+
+    return Container(
+      margin: EdgeInsets.all(16),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        border: Border.all(color: Colors.orange[300]!, width: 1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.orange[700],
+            size: 24,
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Approval Required',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange[900],
+                    fontSize: 14,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '$storesNeedingApproval store${storesNeedingApproval > 1 ? 's' : ''} without approvers assigned',
+                  style: TextStyle(
+                    color: Colors.orange[800],
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStoreSubtitle(Iostore store, {bool compact = false}) {
+    bool hasApprovers = store.approve1 != null || store.approve2 != null;
+    int approverCount = (store.approve1 != null ? 1 : 0) + (store.approve2 != null ? 1 : 0);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -665,6 +725,45 @@ class _StorePageState extends State<StorePage> {
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+          ),
+        SizedBox(height: 4),
+        if (hasApprovers)
+          Row(
+            children: [
+              Icon(
+                Icons.verified_user,
+                size: compact ? 12 : 14,
+                color: Colors.green,
+              ),
+              SizedBox(width: 4),
+              Text(
+                '$approverCount Approver${approverCount > 1 ? 's' : ''} assigned',
+                style: TextStyle(
+                  fontSize: compact ? 10 : 12,
+                  color: Colors.green[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          )
+        else
+          Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                size: compact ? 12 : 14,
+                color: Colors.orange[700],
+              ),
+              SizedBox(width: 4),
+              Text(
+                'No approvers assigned',
+                style: TextStyle(
+                  fontSize: compact ? 10 : 12,
+                  color: Colors.orange[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
       ],
     );
@@ -706,32 +805,36 @@ class Iostore {
   final String storeName;
   final String storeCode;
   final String? imageUrl;
-  final String? storeManager; // Add this
-  final String? email; // Add this
-  final String? phone; // Add this
-  final String? address; // Add this
-  final String? city; // Add this
-  final String? state; // Add this
-  final String? country; // Add this
-  final String? postalCode; // Add this
-  final String? storeType; // Add this
-  final String? status; // Add this
-  final String? openingHours; // Add this
-  final double? squareFootage; // Add this
-  final String? notes; // Add this
-  final double? upiPercentage; // Add this
-  final double? visaPercentage; // Add this
-  final double? masterPercentage; // Add this
-  final String? account; // Add this
-  final String? account2; // Add this
-  final String? accountName; // Add this - for the account name field
-  final String? storeMode; // Add this
-  final String? web; // Add this
-  final String? email1; // Add this
-  final String? email2; // Add this
-  final String? email3; // Add this
-  final String? email4; // Add this
-  final String? email5; // Add this
+  final String? storeManager;
+  final String? email;
+  final String? phone;
+  final String? address;
+  final String? city;
+  final String? state;
+  final String? country;
+  final String? postalCode;
+  final String? storeType;
+  final String? status;
+  final String? openingHours;
+  final double? squareFootage;
+  final String? notes;
+  final double? upiPercentage;
+  final double? visaPercentage;
+  final double? masterPercentage;
+  final String? account;
+  final String? account2;
+  final String? accountName;
+  final String? storeMode;
+  final String? web;
+  final String? email1;
+  final String? email2;
+  final String? email3;
+  final String? email4;
+  final String? email5;
+  final String? mcc;
+  final String? cif;
+  final int? approve1;  // User ID for first approver
+  final int? approve2;  // User ID for second approver
   
   Iostore({
     required this.storeId,
@@ -765,6 +868,10 @@ class Iostore {
     this.email3,
     this.email4,
     this.email5,
+    this.mcc,
+    this.cif,
+    this.approve1,
+    this.approve2,
   });
   
   factory Iostore.fromJson(Map<String, dynamic> json) {
@@ -813,6 +920,10 @@ class Iostore {
         email3: json['email3'],
         email4: json['email4'],
         email5: json['email5'],
+        mcc: json['mcc'],
+        cif: json['cif'],
+        approve1: json['approve1'] != null ? int.tryParse(json['approve1'].toString()) : null,
+        approve2: json['approve2'] != null ? int.tryParse(json['approve2'].toString()) : null,
       );
       print('Successfully created Iostore: ${store.storeName}');
       return store;
@@ -857,6 +968,10 @@ class Iostore {
       'email3': email3,
       'email4': email4,
       'email5': email5,
+      'mcc': mcc,
+      'cif': cif,
+      'approve1': approve1,
+      'approve2': approve2,
     };
   }
 }

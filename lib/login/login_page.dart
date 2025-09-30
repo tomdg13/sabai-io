@@ -81,6 +81,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _savePrefs() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user', userCtrl.text);
+    await prefs.setString('phone', userCtrl.text);
     await prefs.setBool('remember', rememberMe);
     if (rememberMe) {
       await prefs.setString('pass', passCtrl.text);

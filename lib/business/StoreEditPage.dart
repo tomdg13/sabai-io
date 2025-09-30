@@ -18,6 +18,39 @@ import 'postal_code_data.dart';
 // Import MCC data
 import 'mcc_data.dart';
 
+// User Model
+class User {
+  final int userId;
+  final String userName;
+  final String? phone;
+  final String? email;
+
+  const User({
+    required this.userId,
+    required this.userName,
+    this.phone,
+    this.email,
+  });
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      userId: json['user_id'] as int,
+      userName: json['user_name'] as String,
+      phone: json['phone'] as String?,
+      email: json['email'] as String?,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is User && other.userId == userId;
+  }
+
+  @override
+  int get hashCode => userId.hashCode;
+}
+
 class StoreEditPage extends StatefulWidget {
   final Map<String, dynamic> storeData;
 
@@ -70,14 +103,26 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
   String? _currentImageUrl;
   File? _imageFile;
   Uint8List? _webImageBytes;
+  // ignore: unused_field
   String? _webImageName;
   bool _isLoading = false;
   bool _isDeleting = false;
+  bool _isLoadingCif = false;
   String currentTheme = ThemeConfig.defaultTheme;
 
   // Cached data for better performance
   late final List<PostalCode> _cachedPostalCodes;
   late final List<MccCode> _cachedMccCodes;
+
+  // CIF Account Selection
+  List<Map<String, dynamic>> _cifAccounts = [];
+  List<Map<String, dynamic>> _selectedAccounts = [];
+
+  // Approval state variables
+  List<User> _users = [];
+  User? _selectedApprover1;
+  User? _selectedApprover2;
+  bool _isLoadingUsers = false;
 
   // Animation Controllers
   late AnimationController _fadeController;
@@ -93,10 +138,10 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     _loadCurrentTheme();
     _initializeControllers();
     _setupAnimations();
+    _loadUsers();
   }
 
   void _initializeCachedData() {
-    // Cache postal codes and MCC codes to avoid repeated calls
     _cachedPostalCodes = PostalCodeData.getAllPostalCodes();
     _cachedMccCodes = MccData.getAllMccCodes();
   }
@@ -121,6 +166,77 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     }
   }
 
+  Future<void> _loadUsers() async {
+    if (_isLoadingUsers) return;
+    
+    if (mounted) setState(() => _isLoadingUsers = true);
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final companyId = CompanyConfig.getCompanyId();
+      final currentUserPhone = prefs.getString('phone');
+      
+      final url = AppConfig.api('/api/iouser?company_id=$companyId');
+      
+      final response = await http.get(
+        Uri.parse(url.toString()),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['status'] == 'success') {
+          final List<dynamic> usersJson = responseData['data'];
+          if (mounted) {
+            setState(() {
+              _users = usersJson.map((json) => User.fromJson(json)).toList();
+              
+              if (widget.storeData['approve1'] != null) {
+                final approve1Id = widget.storeData['approve1'];
+                _selectedApprover1 = _users.firstWhere(
+                  (user) => user.userId == approve1Id,
+                  orElse: () => _users.isNotEmpty ? _users.first : User(userId: 0, userName: ''),
+                );
+              } else if (currentUserPhone != null && currentUserPhone.isNotEmpty) {
+                _selectedApprover1 = _users.firstWhere(
+                  (user) => user.phone == currentUserPhone,
+                  orElse: () => _users.isNotEmpty ? _users.first : User(userId: 0, userName: ''),
+                );
+              }
+              
+              if (widget.storeData['approve2'] != null) {
+                final approve2Id = widget.storeData['approve2'];
+                _selectedApprover2 = _users.firstWhere(
+                  (user) => user.userId == approve2Id,
+                  orElse: () => _users.isNotEmpty ? _users.first : User(userId: 0, userName: ''),
+                );
+              } else if (_selectedApprover1 == null && currentUserPhone != null && currentUserPhone.isNotEmpty) {
+                _selectedApprover2 = _users.firstWhere(
+                  (user) => user.phone == currentUserPhone,
+                  orElse: () => _users.isNotEmpty ? _users.first : User(userId: 0, userName: ''),
+                );
+              }
+            });
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar(message: 'Error loading users: $e', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingUsers = false);
+      }
+    }
+  }
+
   void _initializeControllers() {
     _storeNameController = TextEditingController(text: widget.storeData['store_name'] ?? '');
     _currentImageUrl = widget.storeData['image_url'];
@@ -138,9 +254,12 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     _openingHoursController = TextEditingController(text: widget.storeData['opening_hours'] ?? '');
     _squareFootageController = TextEditingController(text: widget.storeData['square_footage']?.toString() ?? '');
     _notesController = TextEditingController(text: widget.storeData['notes'] ?? '');
-    _upiPercentageController = TextEditingController(text: widget.storeData['upi_percentage']?.toString() ?? '');
-    _visaPercentageController = TextEditingController(text: widget.storeData['visa_percentage']?.toString() ?? '');
-    _masterPercentageController = TextEditingController(text: widget.storeData['master_percentage']?.toString() ?? '');
+    
+    // Set MDR percentages with default 3 if empty
+    _upiPercentageController = TextEditingController(text: widget.storeData['upi_percentage']?.toString() ?? '3');
+    _visaPercentageController = TextEditingController(text: widget.storeData['visa_percentage']?.toString() ?? '3');
+    _masterPercentageController = TextEditingController(text: widget.storeData['master_percentage']?.toString() ?? '3');
+    
     _accountController = TextEditingController(text: widget.storeData['account'] ?? '');
     _account2Controller = TextEditingController(text: widget.storeData['account2'] ?? '');
     _webController = TextEditingController(text: widget.storeData['web'] ?? '');
@@ -153,11 +272,9 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     _account_nameController = TextEditingController(text: widget.storeData['account_name'] ?? '');
     _cifController = TextEditingController(text: widget.storeData['cif'] ?? '');
     
-    // Initialize store mode
     _storeMode = widget.storeData['store_mode'];
     _storeModeController = TextEditingController(text: widget.storeData['store_mode'] ?? '');
     
-    // Initialize MCC Code if exists
     if (widget.storeData['mcc'] != null) {
       final mccCode = widget.storeData['mcc'].toString();
       final mcc = _cachedMccCodes.firstWhere(
@@ -168,7 +285,6 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
       _mccCodeController.text = '${mcc.code} - ${mcc.nameEnglish}';
     }
 
-    // Initialize Postal Code if exists
     if (widget.storeData['postal_code'] != null) {
       final postalCode = widget.storeData['postal_code'].toString();
       final postal = _cachedPostalCodes.firstWhere(
@@ -177,10 +293,6 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
       );
       _selectedPostalCode = postal;
     }
-    
-    print('🔧 DEBUG: Initialized edit form with store: ${widget.storeData['store_name']}');
-    print('🔧 DEBUG: Store ID: ${widget.storeData['store_id']}');
-    print('🔧 DEBUG: Store Mode: $_storeMode');
   }
 
   @override
@@ -217,6 +329,301 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     _cifController.dispose();
     _fadeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchCifData() async {
+    final cifValue = _cifController.text.trim();
+    
+    if (cifValue.isEmpty) {
+      _showSnackBar(message: 'Please enter CIF number first', isError: true);
+      return;
+    }
+
+    if (mounted) setState(() => _isLoadingCif = true);
+
+    try {
+      print('🔍 Fetching CIF data for: $cifValue');
+      
+      final response = await http.post(
+        Uri.parse('https://dehome.ldblao.la/atm-api/v1/api/atmsystem/atm-system/cif-mapping-direct'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'customerId': cifValue}),
+      );
+
+      print('📥 CIF Response Status: ${response.statusCode}');
+      print('📥 CIF Response Body: ${response.body}');
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        
+        if (responseData['response'] == '00' && responseData['data'] != null) {
+          final atmData = responseData['data']['atmData'];
+          final t24Data = atmData['t24_data'] as List<dynamic>?;
+          
+          if (t24Data != null && t24Data.isNotEmpty) {
+            setState(() {
+              _cifAccounts = t24Data.map((e) => e as Map<String, dynamic>).toList();
+              _selectedAccounts.clear();
+            });
+            
+            print('✅ Found ${_cifAccounts.length} accounts');
+            _showAccountSelectionDialog();
+          } else {
+            _showSnackBar(message: 'No accounts found for this CIF', isError: true);
+          }
+        } else {
+          throw Exception(responseData['data']?['message'] ?? 'Failed to fetch CIF data');
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ CIF lookup error: $e');
+      if (mounted) {
+        _showSnackBar(message: 'Error fetching CIF data: $e', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingCif = false);
+    }
+  }
+
+  void _showAccountSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.account_balance, color: ThemeConfig.getPrimaryColor(currentTheme)),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text('Select Accounts (Max 2)', style: TextStyle(fontSize: 18)),
+              ),
+            ],
+          ),
+          content: Container(
+            width: double.maxFinite,
+            constraints: BoxConstraints(maxHeight: 500),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_cifAccounts.isNotEmpty) ...[
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_cifAccounts[0]['CUSTOMER_NAME1']}',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        Text(
+                          '${_cifAccounts[0]['CUSTOMER_NAME2']}',
+                          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'CIF: ${_cifAccounts[0]['CUST_CIF']}',
+                          style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                ],
+                Expanded(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _cifAccounts.length,
+                    itemBuilder: (context, index) {
+                      final account = _cifAccounts[index];
+                      final isSelected = _selectedAccounts.contains(account);
+                      final isInactive = account['INACTIV_MARKER'] == 'Y';
+                      
+                      return Card(
+                        margin: EdgeInsets.only(bottom: 12),
+                        elevation: isSelected ? 4 : 1,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: isSelected 
+                                ? ThemeConfig.getPrimaryColor(currentTheme)
+                                : Colors.grey[300]!,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: CheckboxListTile(
+                          value: isSelected,
+                          enabled: !isInactive,
+                          onChanged: (bool? checked) {
+                            setDialogState(() {
+                              if (checked == true) {
+                                if (_selectedAccounts.length < 2) {
+                                  _selectedAccounts.add(account);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Maximum 2 accounts can be selected'),
+                                      backgroundColor: Colors.orange,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                _selectedAccounts.remove(account);
+                              }
+                            });
+                          },
+                          activeColor: ThemeConfig.getPrimaryColor(currentTheme),
+                          title: Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isInactive 
+                                      ? Colors.red[100]
+                                      : ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  account['ACCTID'],
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isInactive ? Colors.red[700] : ThemeConfig.getPrimaryColor(currentTheme),
+                                  ),
+                                ),
+                              ),
+                              if (isInactive) ...[
+                                SizedBox(width: 8),
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'INACTIVE',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          subtitle: Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Category: ${account['CATEGORY']}',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: account['CURRENCY'] == 'LAK' 
+                                            ? Colors.green[100]
+                                            : Colors.blue[100],
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        account['CURRENCY'],
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: account['CURRENCY'] == 'LAK' 
+                                              ? Colors.green[700]
+                                              : Colors.blue[700],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Balance: ${account['WORKING_BALANCE']} ${account['CURRENCY']}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+            ),
+            ElevatedButton(
+              onPressed: _selectedAccounts.isEmpty
+                  ? null
+                  : () {
+                      _applySelectedAccounts();
+                      Navigator.pop(context);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Apply (${_selectedAccounts.length})'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _applySelectedAccounts() {
+    if (_selectedAccounts.isEmpty) return;
+
+    _cifController.text = _selectedAccounts[0]['CUST_CIF'].toString();
+    _account_nameController.text = _selectedAccounts[0]['CUSTOMER_NAME1'] ?? '';
+
+    final lakAccount = _selectedAccounts.firstWhere(
+      (acc) => acc['CURRENCY'] == 'LAK',
+      orElse: () => _selectedAccounts[0],
+    );
+    _accountController.text = lakAccount['ACCTID'].toString();
+
+    if (_selectedAccounts.length == 2) {
+      final secondAccount = _selectedAccounts.firstWhere(
+        (acc) => acc != lakAccount,
+        orElse: () => _selectedAccounts[1],
+      );
+      _account2Controller.text = secondAccount['ACCTID'].toString();
+    }
+
+    setState(() {});
+    
+    _showSnackBar(
+      message: 'CIF data applied successfully!',
+      isError: false,
+    );
   }
 
   Future<void> _pickImage() async {
@@ -267,7 +674,6 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
   }
 
   Future<void> _pickImageMobile() async {
-    // Show image source selection dialog for mobile
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
       shape: RoundedRectangleBorder(
@@ -495,17 +901,6 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
             fontSize: 12,
           ),
         ),
-        if (kIsWeb) ...[
-          SizedBox(height: 8),
-          Text(
-            'Click to browse files',
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 11,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -518,24 +913,83 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
       return;
     }
 
-    // Validate online store requirements
+    if (_storeMode == null || _storeMode!.isEmpty) {
+      _showSnackBar(message: 'Please select a store mode', isError: true);
+      return;
+    }
+
     if (_storeMode == 'online' || _storeMode == 'hybrid') {
       if (_webController.text.trim().isEmpty) {
         _showSnackBar(message: 'Website is required for online stores', isError: true);
         return;
       }
-
-      bool hasEmail = _email1Controller.text.trim().isNotEmpty ||
-                     _email2Controller.text.trim().isNotEmpty ||
-                     _email3Controller.text.trim().isNotEmpty ||
-                     _email4Controller.text.trim().isNotEmpty ||
-                     _email5Controller.text.trim().isNotEmpty;
-
-      if (!hasEmail) {
-        _showSnackBar(message: 'At least one email is required for online stores', isError: true);
-        return;
-      }
     }
+
+    final bool? confirmUpdate = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber, color: Colors.orange, size: 28),
+            SizedBox(width: 12),
+            Text('Confirm Update'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Updating this store will reset the approval status.'),
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 16, color: Colors.orange[700]),
+                      SizedBox(width: 8),
+                      Text(
+                        'The store will need to be re-approved:',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange[700]),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text('• Approval will be reset by backend', style: TextStyle(fontSize: 12, color: Colors.orange[900])),
+                  Text('• Both approvers must approve again', style: TextStyle(fontSize: 12, color: Colors.orange[900])),
+                ],
+              ),
+            ),
+            SizedBox(height: 12),
+            Text('Do you want to continue?'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Update Store'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmUpdate != true) return;
 
     if (mounted) setState(() => _isLoading = true);
 
@@ -683,7 +1137,6 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     }
   }
 
-  // Utility methods
   String? _getTextOrNull(TextEditingController controller) {
     final text = controller.text.trim();
     return text.isEmpty ? null : text;
@@ -726,7 +1179,34 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
             Text('Success!'),
           ],
         ),
-        content: Text('Store "${_storeNameController.text}" has been updated successfully!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Store "${_storeNameController.text}" has been updated successfully!'),
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 20, color: Colors.blue[700]),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This store now requires re-approval from both approvers.',
+                      style: TextStyle(fontSize: 13, color: Colors.blue[900]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () {
@@ -802,6 +1282,51 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     );
   }
 
+  Widget _buildDropdown<T>({
+    required String label,
+    required IconData icon,
+    required T? value,
+    required List<T> items,
+    required String Function(T) getDisplayText,
+    required void Function(T?)? onChanged,
+    bool isLoading = false,
+    String? hint,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<T>(
+        value: value,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          suffixIcon: isLoading ? SizedBox(
+            width: 20,
+            height: 20,
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ) : null,
+        ),
+        items: items.map((item) => DropdownMenuItem<T>(
+          value: item,
+          child: Text(getDisplayText(item)),
+        )).toList(),
+        onChanged: isLoading ? null : onChanged,
+        menuMaxHeight: 200,
+      ),
+    );
+  }
+
   Widget _buildPostalCodeDropdown() {
     return Container(
       margin: EdgeInsets.only(bottom: 16),
@@ -833,8 +1358,14 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
             controller: controller,
             focusNode: focusNode,
             onEditingComplete: onEditingComplete,
+            validator: (value) {
+              if (_selectedPostalCode == null || _postalCodeController.text.isEmpty) {
+                return 'Postal code is required';
+              }
+              return null;
+            },
             decoration: InputDecoration(
-              labelText: 'Postal Code',
+              labelText: 'Postal Code *',
               hintText: 'Type to search postal codes...',
               prefixIcon: Icon(
                 Icons.local_post_office,
@@ -976,8 +1507,14 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
             controller: controller,
             focusNode: focusNode,
             onEditingComplete: onEditingComplete,
+            validator: (value) {
+              if (_selectedMccCode == null || _mccCodeController.text.isEmpty) {
+                return 'MCC code is required';
+              }
+              return null;
+            },
             decoration: InputDecoration(
-              labelText: 'MCC Code (Optional)',
+              labelText: 'MCC Code *',
               hintText: 'Type to search MCC codes...',
               prefixIcon: Icon(
                 Icons.category,
@@ -1288,7 +1825,6 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
                       ),
                       SizedBox(height: 16),
 
-                      // Store Name
                       _buildTextField(
                         controller: _storeNameController,
                         label: 'Store Name *',
@@ -1302,16 +1838,14 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
                         hint: 'Enter store name',
                       ),
 
-                      // Store Code
                       _buildTextField(
                         controller: _storeCodeController,
                         label: 'Store Code',
                         icon: Icons.qr_code,
                         hint: 'Enter store code',
-                        enabled: false, // Usually not editable
+                        enabled: false,
                       ),
 
-                      // Store Manager
                       _buildTextField(
                         controller: _storeManagerController,
                         label: 'Store Manager',
@@ -1319,14 +1853,25 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
                         hint: 'Enter manager name',
                       ),
 
-                      // Store Mode
-                      Text(
-                        'Store Mode',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey[700],
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            'Store Mode',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          Text(
+                            ' *',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
                       ),
                       SizedBox(height: 8),
                       _buildStoreModeRadio(),
@@ -1586,10 +2131,19 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
 
                         _buildTextField(
                           controller: _email1Controller,
-                          label: 'Email 1',
+                          label: 'Email 1 *',
                           icon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                           hint: 'Additional email address',
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Email 1 is required';
+                            }
+                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                              return 'Enter valid email';
+                            }
+                            return null;
+                          },
                         ),
 
                         _buildTextField(
@@ -1659,23 +2213,70 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
 
                       Row(
                         children: [
+                          Text(
+                            'MDR Percentages',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          Text(
+                            ' *',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12),
+                      Row(
+                        children: [
                           Expanded(
                             child: _buildTextField(
                               controller: _upiPercentageController,
-                              label: 'UPI %',
+                              label: 'UPI % *',
                               icon: Icons.payment,
                               keyboardType: TextInputType.numberWithOptions(decimal: true),
-                              hint: '0.00',
+                              hint: '0.00 - 3.00',
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'UPI % is required';
+                                }
+                                final numValue = double.tryParse(value.trim());
+                                if (numValue == null) {
+                                  return 'Invalid number';
+                                }
+                                if (numValue < 0 || numValue > 3) {
+                                  return 'Must be 0-3';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                           SizedBox(width: 12),
                           Expanded(
                             child: _buildTextField(
                               controller: _visaPercentageController,
-                              label: 'Visa %',
+                              label: 'Visa % *',
                               icon: Icons.credit_card,
                               keyboardType: TextInputType.numberWithOptions(decimal: true),
-                              hint: '0.00',
+                              hint: '0.00 - 3.00',
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Visa % is required';
+                                }
+                                final numValue = double.tryParse(value.trim());
+                                if (numValue == null) {
+                                  return 'Invalid number';
+                                }
+                                if (numValue < 0 || numValue > 3) {
+                                  return 'Must be 0-3';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                         ],
@@ -1683,39 +2284,248 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
 
                       _buildTextField(
                         controller: _masterPercentageController,
-                        label: 'Mastercard %',
+                        label: 'Mastercard % *',
                         icon: Icons.credit_card,
                         keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        hint: '0.00',
+                        hint: '0.00 - 3.00',
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Mastercard % is required';
+                          }
+                          final numValue = double.tryParse(value.trim());
+                          if (numValue == null) {
+                            return 'Invalid number';
+                          }
+                          if (numValue < 0 || numValue > 3) {
+                            return 'Must be between 0 and 3';
+                          }
+                          return null;
+                        },
                       ),
 
-                      _buildTextField(
-                        controller: _cifController,
-                        label: 'CIF',
-                        icon: Icons.account_balance,
-                        hint: 'Enter CIF number',
+                      SizedBox(height: 8),
+                      Divider(color: Colors.grey[200]),
+                      SizedBox(height: 8),
+
+                      Row(
+                        children: [
+                          Text(
+                            'Account Information',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          Text(
+                            ' *',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              controller: _cifController,
+                              label: 'CIF *',
+                              icon: Icons.fingerprint,
+                              hint: 'Customer ID',
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'CIF is required';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Container(
+                            margin: EdgeInsets.only(bottom: 16),
+                            child: ElevatedButton.icon(
+                              onPressed: _isLoadingCif ? null : _fetchCifData,
+                              icon: _isLoadingCif
+                                  ? SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : Icon(Icons.search, size: 20),
+                              label: Text('Lookup'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
 
                       _buildTextField(
                         controller: _account_nameController,
-                        label: 'Account Name',
-                        icon: Icons.account_balance_wallet,
-                        hint: 'Enter account holder name',
+                        label: 'Account Name *',
+                        icon: Icons.person_outline,
+                        hint: 'Account holder name',
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Account name is required';
+                          }
+                          return null;
+                        },
                       ),
 
-                      _buildTextField(
-                        controller: _accountController,
-                        label: 'Primary Account',
-                        icon: Icons.account_balance,
-                        hint: 'Primary account number',
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              controller: _accountController,
+                              label: 'Primary Account (LAK) *',
+                              icon: Icons.account_balance,
+                              hint: 'LAK account number',
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Primary account is required';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: _buildTextField(
+                              controller: _account2Controller,
+                              label: 'Secondary Account',
+                              icon: Icons.account_balance_wallet,
+                              hint: 'Other account number',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                SizedBox(height: 20),
+
+                // Approval Information Section
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.approval,
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                            size: 24,
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Approval Information',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: ThemeConfig.getPrimaryColor(currentTheme),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+
+                      _buildDropdown<User>(
+                        label: 'First Approver',
+                        icon: Icons.person_outline,
+                        value: _selectedApprover1,
+                        items: _users,
+                        getDisplayText: (user) => '${user.userName}${user.phone != null ? " (${user.phone})" : ""}',
+                        onChanged: (User? user) {
+                          setState(() {
+                            _selectedApprover1 = user;
+                          });
+                        },
+                        isLoading: _isLoadingUsers,
+                        hint: 'Select first approver...',
                       ),
 
-                      _buildTextField(
-                        controller: _account2Controller,
-                        label: 'Secondary Account',
-                        icon: Icons.account_balance,
-                        hint: 'Secondary account number',
+                      _buildDropdown<User>(
+                        label: 'Second Approver',
+                        icon: Icons.person_outline,
+                        value: _selectedApprover2,
+                        items: _users,
+                        getDisplayText: (user) => '${user.userName}${user.phone != null ? " (${user.phone})" : ""}',
+                        onChanged: (User? user) {
+                          setState(() {
+                            _selectedApprover2 = user;
+                          });
+                        },
+                        isLoading: _isLoadingUsers,
+                        hint: 'Select second approver...',
                       ),
+
+                      if (widget.storeData['approver1_name'] != null || widget.storeData['approver2_name'] != null)
+                        Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue[200]!),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Current Approvers',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Colors.blue[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 8),
+                              if (widget.storeData['approver1_name'] != null)
+                                Text(
+                                  '1. ${widget.storeData['approver1_name']}',
+                                  style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                                ),
+                              if (widget.storeData['approver2_name'] != null)
+                                Text(
+                                  '2. ${widget.storeData['approver2_name']}',
+                                  style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                                ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 ),
