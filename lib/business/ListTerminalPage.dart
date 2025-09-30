@@ -8,6 +8,7 @@ import 'package:inventory/models/terminal_models.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/simple_translations.dart';
+import 'dart:developer' as developer;
 
 class ListterminalPage extends StatefulWidget {
   const ListterminalPage({Key? key}) : super(key: key);
@@ -16,24 +17,23 @@ class ListterminalPage extends StatefulWidget {
   State<ListterminalPage> createState() => _ListterminalPageState();
 }
 
-class _ListterminalPageState extends State<ListterminalPage> 
+class _ListterminalPageState extends State<ListterminalPage>
     with TickerProviderStateMixin {
-  
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
-  
+
   bool _isLoading = false;
   String currentTheme = ThemeConfig.defaultTheme;
   String _langCode = 'en';
-  
+
   List<Group> _groups = [];
   Group? _selectedGroup;
   bool _isLoadingGroups = false;
-  
+
   List<Merchant> _merchants = [];
   Merchant? _selectedMerchant;
   bool _isLoadingMerchants = false;
-  
+
   List<Store> _stores = [];
   Store? _selectedStore;
   bool _isLoadingStores = false;
@@ -79,7 +79,8 @@ class _ListterminalPageState extends State<ListterminalPage>
   Future<void> _loadCurrentTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      currentTheme =
+          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
       _langCode = prefs.getString('languageCode') ?? 'en';
     });
   }
@@ -87,7 +88,7 @@ class _ListterminalPageState extends State<ListterminalPage>
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
-    
+
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -99,8 +100,24 @@ class _ListterminalPageState extends State<ListterminalPage>
     T Function(Map<String, dynamic>) parser,
   ) async {
     final headers = await _getHeaders();
+
+    // Log the API request
+    developer.log('═══════════════════════════════════════');
+    developer.log('📤 API GET REQUEST');
+    developer.log('URL: $endpoint');
+    developer.log('Headers: ${headers.toString()}');
+    developer.log('═══════════════════════════════════════');
+
     final response = await http.get(Uri.parse(endpoint), headers: headers);
-    
+
+    // Log the API response
+    developer.log('═══════════════════════════════════════');
+    developer.log('📥 API GET RESPONSE');
+    developer.log('Status Code: ${response.statusCode}');
+    developer.log('URL: $endpoint');
+    developer.log('Response Body: ${response.body}');
+    developer.log('═══════════════════════════════════════');
+
     if (response.statusCode == 200) {
       final responseData = jsonDecode(response.body);
       if (responseData['status'] == 'success' && responseData['data'] != null) {
@@ -114,19 +131,20 @@ class _ListterminalPageState extends State<ListterminalPage>
 
   Future<void> _loadGroups() async {
     setState(() => _isLoadingGroups = true);
-    
+
     try {
       final companyId = CompanyConfig.getCompanyId();
       final url = AppConfig.api('/api/iogroup?company_id=$companyId');
-      
-      final groups = await _apiRequest<Group>(
-        url.toString(),
-        Group.fromJson,
-      );
-      
+
+      final groups = await _apiRequest<Group>(url.toString(), Group.fromJson);
+
       setState(() => _groups = groups);
     } catch (e) {
-      _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_load_groups')}: $e', detail.MessageType.error);
+      developer.log('❌ ERROR loading groups: $e');
+      _showMessage(
+        '${SimpleTranslations.get(_langCode, 'failed_to_load_groups')}: $e',
+        detail.MessageType.error,
+      );
     } finally {
       setState(() => _isLoadingGroups = false);
     }
@@ -134,21 +152,27 @@ class _ListterminalPageState extends State<ListterminalPage>
 
   Future<void> _loadMerchants() async {
     if (_selectedGroup == null) return;
-    
+
     setState(() => _isLoadingMerchants = true);
-    
+
     try {
       final companyId = CompanyConfig.getCompanyId();
-      final url = AppConfig.api('/api/iomerchant/company/$companyId/group/${_selectedGroup!.id}');
-      
+      final url = AppConfig.api(
+        '/api/iomerchant/company/$companyId/group/${_selectedGroup!.id}',
+      );
+
       final merchants = await _apiRequest<Merchant>(
         url.toString(),
         Merchant.fromJson,
       );
-      
+
       setState(() => _merchants = merchants);
     } catch (e) {
-      _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_load_merchants')}: $e', detail.MessageType.error);
+      developer.log('❌ ERROR loading merchants: $e');
+      _showMessage(
+        '${SimpleTranslations.get(_langCode, 'failed_to_load_merchants')}: $e',
+        detail.MessageType.error,
+      );
       setState(() => _merchants = []);
     } finally {
       setState(() => _isLoadingMerchants = false);
@@ -157,53 +181,85 @@ class _ListterminalPageState extends State<ListterminalPage>
 
   Future<void> _loadStores() async {
     if (_selectedMerchant == null) return;
-    
+
     setState(() => _isLoadingStores = true);
-    
+
     try {
       final companyId = CompanyConfig.getCompanyId();
-      final url = AppConfig.api('/api/ioterminal/company/$companyId/merchant/${_selectedMerchant!.merchantId}');
-      
-      final stores = await _apiRequest<Store>(
-        url.toString(),
-        Store.fromJson,
+      final url = AppConfig.api(
+        
+        '/api/ioterminal/company/$companyId/merchant/${_selectedMerchant!.merchantId}',
       );
+
+      final stores = await _apiRequest<Store>(url.toString(), Store.fromJson);
+
+      // Filter to only show approved stores
+      final approvedStores = stores.where((store) => 
+        store.approvalStatus == 'approved'
+      ).toList();
+
+      setState(() => _stores = approvedStores);
       
-      setState(() => _stores = stores);
+      developer.log('✅ Loaded ${stores.length} stores, filtered to ${approvedStores.length} approved stores');
     } catch (e) {
-      _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_load_stores')}: $e', detail.MessageType.error);
+      developer.log('❌ ERROR loading stores: $e');
+      _showMessage(
+        '${SimpleTranslations.get(_langCode, 'failed_to_load_stores')}: $e',
+        detail.MessageType.error,
+      );
       setState(() => _stores = []);
     } finally {
       setState(() => _isLoadingStores = false);
     }
   }
 
-  Future<void> _loadTerminals() async {
-    if (_selectedStore == null) return;
+  
+ Future<void> _loadTerminals() async {
+  if (_selectedStore == null) return;
+
+  setState(() => _isLoadingTerminals = true);
+
+  try {
+    final companyId = CompanyConfig.getCompanyId();
+    final url = AppConfig.api(
+      '/api/ioterminal/company/$companyId/store/${_selectedStore!.storeId}/terminals',
+    );
+
+    final terminals = await _apiRequest<Terminal>(
+      url.toString(),
+      Terminal.fromJson,
+    );
+
+    // Filter to only show approved terminals
+    final approvedTerminals = terminals.where((terminal) => 
+      terminal.approvalStatus == 'approved'
+    ).toList();
+
+    setState(() => _terminals = approvedTerminals); // Use the filtered list
     
-    setState(() => _isLoadingTerminals = true);
+    developer.log('✅ Loaded ${terminals.length} terminals, filtered to ${approvedTerminals.length} approved terminals');
     
-    try {
-      final companyId = CompanyConfig.getCompanyId();
-      final url = AppConfig.api('/api/ioterminal/company/$companyId/store/${_selectedStore!.storeId}/terminals');
-      
-      final terminals = await _apiRequest<Terminal>(
-        url.toString(),
-        Terminal.fromJson,
-      );
-      
-      setState(() => _terminals = terminals);
-    } catch (e) {
-      _showMessage('${SimpleTranslations.get(_langCode, 'failed_to_load_terminals')}: $e', detail.MessageType.error);
-      setState(() => _terminals = []);
-    } finally {
-      setState(() => _isLoadingTerminals = false);
-    }
+  } catch (e) {
+    developer.log('❌ ERROR loading terminals: $e');
+    _showMessage(
+      '${SimpleTranslations.get(_langCode, 'failed_to_load_terminals')}: $e',
+      detail.MessageType.error,
+    );
+    setState(() => _terminals = []);
+  } finally {
+    setState(() => _isLoadingTerminals = false);
   }
+}
 
   Future<void> _createBulkTerminals() async {
     if (_selectedTerminals.isEmpty) {
-      _showMessage(SimpleTranslations.get(_langCode, 'please_select_at_least_one_terminal'), detail.MessageType.warning);
+      _showMessage(
+        SimpleTranslations.get(
+          _langCode,
+          'please_select_at_least_one_terminal',
+        ),
+        detail.MessageType.warning,
+      );
       return;
     }
 
@@ -212,13 +268,14 @@ class _ListterminalPageState extends State<ListterminalPage>
     try {
       final terminalIds = _selectedTerminals.map((t) => t.terminalId).toList();
       final response = await _submitBulkTerminals(terminalIds);
-      
+
       if (_isSuccessResponse(response)) {
         _navigateToDetailPage(response);
       } else {
         _handleErrorResponse(response);
       }
     } catch (e) {
+      developer.log('❌ ERROR in bulk terminals: $e');
       _showErrorDialog(e.toString());
     } finally {
       setState(() => _isLoading = false);
@@ -228,23 +285,41 @@ class _ListterminalPageState extends State<ListterminalPage>
   Future<http.Response> _submitBulkTerminals(List<int> terminalIds) async {
     final headers = await _getHeaders();
     final apiUrl = AppConfig.api('/api/ioterminal/bulk').toString();
-    
-    final requestBody = {
-      'terminalIds': terminalIds,
-    };
-    
+
+    final requestBody = {'terminalIds': terminalIds};
+
+    // Log the POST request
+    developer.log('═══════════════════════════════════════');
+    developer.log('📤 API POST REQUEST');
+    developer.log('URL: $apiUrl');
+    developer.log('Headers: ${headers.toString()}');
+    developer.log('Request Body: ${jsonEncode(requestBody)}');
+    developer.log('Terminal IDs: $terminalIds');
+    developer.log('═══════════════════════════════════════');
+
     final response = await http.post(
       Uri.parse(apiUrl),
       headers: headers,
       body: jsonEncode(requestBody),
     );
-    
+
+    // Log the POST response
+    developer.log('═══════════════════════════════════════');
+    developer.log('📥 API POST RESPONSE');
+    developer.log('Status Code: ${response.statusCode}');
+    developer.log('URL: $apiUrl');
+    developer.log('Response Body: ${response.body}');
+    developer.log('═══════════════════════════════════════');
+
     return response;
   }
 
   void _navigateToDetailPage(http.Response response) {
     final responseData = jsonDecode(response.body);
-    
+
+    developer.log('✅ SUCCESS - Navigating to detail page');
+    developer.log('Response Data: ${jsonEncode(responseData)}');
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -267,26 +342,36 @@ class _ListterminalPageState extends State<ListterminalPage>
   void _handleErrorResponse(http.Response response) {
     final errorData = jsonDecode(response.body);
     String errorMessage;
-    
+
+    developer.log('❌ ERROR RESPONSE');
+    developer.log('Status Code: ${response.statusCode}');
+    developer.log('Error Data: ${jsonEncode(errorData)}');
+
     switch (response.statusCode) {
       case 409:
-        errorMessage = '${SimpleTranslations.get(_langCode, 'terminal_already_exists')}: ${errorData['details'] ?? errorData['message']}';
+        errorMessage =
+            '${SimpleTranslations.get(_langCode, 'terminal_already_exists')}: ${errorData['details'] ?? errorData['message']}';
         break;
       case 400:
         if (errorData['message'] is List) {
-          errorMessage = '${SimpleTranslations.get(_langCode, 'validation_error')}: ${(errorData['message'] as List).join(', ')}';
+          errorMessage =
+              '${SimpleTranslations.get(_langCode, 'validation_error')}: ${(errorData['message'] as List).join(', ')}';
         } else {
-          errorMessage = '${SimpleTranslations.get(_langCode, 'validation_error')}: ${errorData['message']}';
+          errorMessage =
+              '${SimpleTranslations.get(_langCode, 'validation_error')}: ${errorData['message']}';
         }
         break;
       default:
-        errorMessage = errorData['message'] ?? '${SimpleTranslations.get(_langCode, 'server_error')}: ${response.statusCode}';
+        errorMessage =
+            errorData['message'] ??
+            '${SimpleTranslations.get(_langCode, 'server_error')}: ${response.statusCode}';
     }
-    
+
     throw Exception(errorMessage);
   }
 
   void _onGroupChanged(Group? value) {
+    developer.log('🔄 Group changed: ${value?.groupName ?? "null"}');
     setState(() {
       _selectedGroup = value;
       _clearDependentSelections();
@@ -295,6 +380,7 @@ class _ListterminalPageState extends State<ListterminalPage>
   }
 
   void _onMerchantChanged(Merchant? value) {
+    developer.log('🔄 Merchant changed: ${value?.merchantName ?? "null"}');
     setState(() {
       _selectedMerchant = value;
       _selectedStore = null;
@@ -306,6 +392,7 @@ class _ListterminalPageState extends State<ListterminalPage>
   }
 
   void _onStoreChanged(Store? value) {
+    developer.log('🔄 Store changed: ${value?.storeName ?? "null"}');
     setState(() {
       _selectedStore = value;
       _selectedTerminals.clear();
@@ -324,29 +411,39 @@ class _ListterminalPageState extends State<ListterminalPage>
   }
 
   void _onTerminalChanged(Terminal terminal, bool isSelected) {
+    developer.log(
+      '✓ Terminal ${isSelected ? "selected" : "deselected"}: ${terminal.terminalName} (ID: ${terminal.terminalId})',
+    );
     setState(() {
       if (isSelected) {
         _selectedTerminals.add(terminal);
       } else {
-        _selectedTerminals.removeWhere((t) => t.terminalId == terminal.terminalId);
+        _selectedTerminals.removeWhere(
+          (t) => t.terminalId == terminal.terminalId,
+        );
       }
     });
+    developer.log('Selected terminals count: ${_selectedTerminals.length}');
   }
 
   void _onSelectAllTerminals(bool selectAll) {
+    developer.log(
+      '${selectAll ? "✓" : "✗"} ${selectAll ? "Select All" : "Clear All"} terminals',
+    );
     setState(() {
       _selectedTerminals = selectAll ? List.from(_terminals) : [];
     });
+    developer.log('Selected terminals count: ${_selectedTerminals.length}');
   }
 
   void _sortTerminals(int columnIndex, bool ascending) {
     setState(() {
       _sortColumnIndex = columnIndex;
       _isAscending = ascending;
-      
+
       _terminals.sort((a, b) {
         dynamic aValue, bValue;
-        
+
         switch (columnIndex) {
           case 1:
             aValue = a.terminalName;
@@ -371,11 +468,15 @@ class _ListterminalPageState extends State<ListterminalPage>
           default:
             return 0;
         }
-        
+
         if (aValue is String && bValue is String) {
-          return ascending ? aValue.compareTo(bValue) : bValue.compareTo(aValue);
+          return ascending
+              ? aValue.compareTo(bValue)
+              : bValue.compareTo(aValue);
         } else if (aValue is int && bValue is int) {
-          return ascending ? aValue.compareTo(bValue) : bValue.compareTo(aValue);
+          return ascending
+              ? aValue.compareTo(bValue)
+              : bValue.compareTo(aValue);
         }
         return 0;
       });
@@ -422,7 +523,9 @@ class _ListterminalPageState extends State<ListterminalPage>
             Text(SimpleTranslations.get(_langCode, 'error')),
           ],
         ),
-        content: Text('${SimpleTranslations.get(_langCode, 'failed_to_process_terminals')}:\n$error'),
+        content: Text(
+          '${SimpleTranslations.get(_langCode, 'failed_to_process_terminals')}:\n$error',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -450,7 +553,11 @@ class _ListterminalPageState extends State<ListterminalPage>
           children: [
             Row(
               children: [
-                Icon(Icons.info, color: ThemeConfig.getPrimaryColor(currentTheme), size: 24),
+                Icon(
+                  Icons.info,
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                  size: 24,
+                ),
                 const SizedBox(width: 12),
                 Text(
                   SimpleTranslations.get(_langCode, 'terminal_selection'),
@@ -465,9 +572,12 @@ class _ListterminalPageState extends State<ListterminalPage>
             const SizedBox(height: 20),
             _buildMobileDropdown<Group>(
               label: SimpleTranslations.get(_langCode, 'group'),
-              hint: _isLoadingGroups 
-                ? SimpleTranslations.get(_langCode, 'loading_groups')
-                : SimpleTranslations.get(_langCode, 'select_a_group_optional'),
+              hint: _isLoadingGroups
+                  ? SimpleTranslations.get(_langCode, 'loading_groups')
+                  : SimpleTranslations.get(
+                      _langCode,
+                      'select_a_group_optional',
+                    ),
               icon: Icons.group,
               value: _selectedGroup,
               items: _groups,
@@ -490,8 +600,11 @@ class _ListterminalPageState extends State<ListterminalPage>
               hint: _selectedGroup == null
                   ? SimpleTranslations.get(_langCode, 'select_group_first')
                   : _isLoadingMerchants
-                      ? SimpleTranslations.get(_langCode, 'loading_merchants')
-                      : SimpleTranslations.get(_langCode, 'select_a_merchant_optional'),
+                  ? SimpleTranslations.get(_langCode, 'loading_merchants')
+                  : SimpleTranslations.get(
+                      _langCode,
+                      'select_a_merchant_optional',
+                    ),
               icon: Icons.business,
               value: _selectedMerchant,
               items: _merchants,
@@ -515,8 +628,11 @@ class _ListterminalPageState extends State<ListterminalPage>
               hint: _selectedMerchant == null
                   ? SimpleTranslations.get(_langCode, 'select_merchant_first')
                   : _isLoadingStores
-                      ? SimpleTranslations.get(_langCode, 'loading_stores')
-                      : SimpleTranslations.get(_langCode, 'select_a_store_optional'),
+                  ? SimpleTranslations.get(_langCode, 'loading_stores')
+                  : SimpleTranslations.get(
+                      _langCode,
+                      'select_a_store_optional',
+                    ),
               icon: Icons.store,
               value: _selectedStore,
               items: _stores,
@@ -550,12 +666,19 @@ class _ListterminalPageState extends State<ListterminalPage>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.computer_outlined, size: 48, color: Colors.grey[400]),
+                Icon(
+                  Icons.computer_outlined,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
                 const SizedBox(height: 16),
                 Text(
-                  _selectedStore == null 
-                    ? SimpleTranslations.get(_langCode, 'select_a_store_to_view_terminals')
-                    : SimpleTranslations.get(_langCode, 'no_terminals_found'),
+                  _selectedStore == null
+                      ? SimpleTranslations.get(
+                          _langCode,
+                          'select_a_store_to_view_terminals',
+                        )
+                      : SimpleTranslations.get(_langCode, 'no_terminals_found'),
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey[600],
@@ -598,8 +721,14 @@ class _ListterminalPageState extends State<ListterminalPage>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    _buildSelectButton(SimpleTranslations.get(_langCode, 'all'), () => _onSelectAllTerminals(true)),
-                    _buildSelectButton(SimpleTranslations.get(_langCode, 'clear'), () => _onSelectAllTerminals(false)),
+                    _buildSelectButton(
+                      SimpleTranslations.get(_langCode, 'all'),
+                      () => _onSelectAllTerminals(true),
+                    ),
+                    _buildSelectButton(
+                      SimpleTranslations.get(_langCode, 'clear'),
+                      () => _onSelectAllTerminals(false),
+                    ),
                   ],
                 ),
               ),
@@ -613,25 +742,29 @@ class _ListterminalPageState extends State<ListterminalPage>
   }
 
   Widget _buildMobileTerminalCheckbox(Terminal terminal) {
-    final isSelected = _selectedTerminals.any((t) => t.terminalId == terminal.terminalId);
-    
+    final isSelected = _selectedTerminals.any(
+      (t) => t.terminalId == terminal.terminalId,
+    );
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isSelected 
-            ? ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.08) 
+        color: isSelected
+            ? ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.08)
             : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isSelected 
-              ? ThemeConfig.getPrimaryColor(currentTheme) 
+          color: isSelected
+              ? ThemeConfig.getPrimaryColor(currentTheme)
               : Colors.grey[300]!,
           width: isSelected ? 2 : 1,
         ),
-        boxShadow: isSelected 
+        boxShadow: isSelected
             ? [
                 BoxShadow(
-                  color: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1),
+                  color: ThemeConfig.getPrimaryColor(
+                    currentTheme,
+                  ).withOpacity(0.1),
                   spreadRadius: 0,
                   blurRadius: 4,
                   offset: const Offset(0, 2),
@@ -654,10 +787,12 @@ class _ListterminalPageState extends State<ListterminalPage>
                   size: 48,
                   icon: Icons.computer,
                   imageUrl: terminal.imageUrl,
-                  backgroundColor: isSelected 
-                      ? ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.15)
+                  backgroundColor: isSelected
+                      ? ThemeConfig.getPrimaryColor(
+                          currentTheme,
+                        ).withOpacity(0.15)
                       : Colors.grey[100],
-                  borderColor: isSelected 
+                  borderColor: isSelected
                       ? ThemeConfig.getPrimaryColor(currentTheme)
                       : Colors.grey[300]!,
                 ),
@@ -683,7 +818,11 @@ class _ListterminalPageState extends State<ListterminalPage>
           children: [
             Row(
               children: [
-                Icon(Icons.filter_list, color: ThemeConfig.getPrimaryColor(currentTheme), size: 20),
+                Icon(
+                  Icons.filter_list,
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   SimpleTranslations.get(_langCode, 'filters'),
@@ -701,7 +840,9 @@ class _ListterminalPageState extends State<ListterminalPage>
                 Expanded(
                   child: _buildCompactDropdown<Group>(
                     label: SimpleTranslations.get(_langCode, 'group'),
-                    hint: _isLoadingGroups ? SimpleTranslations.get(_langCode, 'loading') : SimpleTranslations.get(_langCode, 'select_group'),
+                    hint: _isLoadingGroups
+                        ? SimpleTranslations.get(_langCode, 'loading')
+                        : SimpleTranslations.get(_langCode, 'select_group'),
                     icon: Icons.group_outlined,
                     value: _selectedGroup,
                     items: _groups,
@@ -715,10 +856,13 @@ class _ListterminalPageState extends State<ListterminalPage>
                   child: _buildCompactDropdown<Merchant>(
                     label: SimpleTranslations.get(_langCode, 'merchant'),
                     hint: _selectedGroup == null
-                        ? SimpleTranslations.get(_langCode, 'select_group_first')
+                        ? SimpleTranslations.get(
+                            _langCode,
+                            'select_group_first',
+                          )
                         : _isLoadingMerchants
-                            ? SimpleTranslations.get(_langCode, 'loading')
-                            : SimpleTranslations.get(_langCode, 'select_merchant'),
+                        ? SimpleTranslations.get(_langCode, 'loading')
+                        : SimpleTranslations.get(_langCode, 'select_merchant'),
                     icon: Icons.business_outlined,
                     value: _selectedMerchant,
                     items: _merchants,
@@ -733,10 +877,13 @@ class _ListterminalPageState extends State<ListterminalPage>
                   child: _buildCompactDropdown<Store>(
                     label: SimpleTranslations.get(_langCode, 'store'),
                     hint: _selectedMerchant == null
-                        ? SimpleTranslations.get(_langCode, 'select_merchant_first')
+                        ? SimpleTranslations.get(
+                            _langCode,
+                            'select_merchant_first',
+                          )
                         : _isLoadingStores
-                            ? SimpleTranslations.get(_langCode, 'loading')
-                            : SimpleTranslations.get(_langCode, 'select_store'),
+                        ? SimpleTranslations.get(_langCode, 'loading')
+                        : SimpleTranslations.get(_langCode, 'select_store'),
                     icon: Icons.store_outlined,
                     value: _selectedStore,
                     items: _stores,
@@ -763,12 +910,19 @@ class _ListterminalPageState extends State<ListterminalPage>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.computer_outlined, size: 48, color: Colors.grey[400]),
+                Icon(
+                  Icons.computer_outlined,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
                 const SizedBox(height: 16),
                 Text(
-                  _selectedStore == null 
-                    ? SimpleTranslations.get(_langCode, 'select_a_store_to_view_terminals')
-                    : SimpleTranslations.get(_langCode, 'no_terminals_found'),
+                  _selectedStore == null
+                      ? SimpleTranslations.get(
+                          _langCode,
+                          'select_a_store_to_view_terminals',
+                        )
+                      : SimpleTranslations.get(_langCode, 'no_terminals_found'),
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey[600],
@@ -820,31 +974,42 @@ class _ListterminalPageState extends State<ListterminalPage>
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          prefixIcon: Icon(icon, size: 20, color: ThemeConfig.getPrimaryColor(currentTheme)),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          suffixIcon: isLoading 
-            ? Container(
-                width: 20,
-                height: 20,
-                padding: const EdgeInsets.all(12),
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    ThemeConfig.getPrimaryColor(currentTheme)
-                  ),
-                ),
-              )
-            : null,
-        ),
-        items: items.map((item) => DropdownMenuItem<T>(
-          value: item,
-          child: Text(
-            displayText(item),
-            style: const TextStyle(fontSize: 14),
-            overflow: TextOverflow.ellipsis,
+          prefixIcon: Icon(
+            icon,
+            size: 20,
+            color: ThemeConfig.getPrimaryColor(currentTheme),
           ),
-        )).toList(),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
+          suffixIcon: isLoading
+              ? Container(
+                  width: 20,
+                  height: 20,
+                  padding: const EdgeInsets.all(12),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      ThemeConfig.getPrimaryColor(currentTheme),
+                    ),
+                  ),
+                )
+              : null,
+        ),
+        items: items
+            .map(
+              (item) => DropdownMenuItem<T>(
+                value: item,
+                child: Text(
+                  displayText(item),
+                  style: const TextStyle(fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            )
+            .toList(),
         onChanged: isEnabled && !isLoading ? onChanged : null,
       ),
     );
@@ -870,11 +1035,17 @@ class _ListterminalPageState extends State<ListterminalPage>
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          prefixIcon: Icon(icon, color: ThemeConfig.getPrimaryColor(currentTheme)),
+          prefixIcon: Icon(
+            icon,
+            color: ThemeConfig.getPrimaryColor(currentTheme),
+          ),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: ThemeConfig.getPrimaryColor(currentTheme), width: 2),
+            borderSide: BorderSide(
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+              width: 2,
+            ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -884,11 +1055,14 @@ class _ListterminalPageState extends State<ListterminalPage>
           fillColor: Colors.grey[50],
           suffixIcon: isLoading ? _buildLoadingIndicator() : null,
         ),
-        selectedItemBuilder: (context) => items.map(selectedItemBuilder).toList(),
-        items: items.map((item) => DropdownMenuItem<T>(
-          value: item,
-          child: itemBuilder(item),
-        )).toList(),
+        selectedItemBuilder: (context) =>
+            items.map(selectedItemBuilder).toList(),
+        items: items
+            .map(
+              (item) =>
+                  DropdownMenuItem<T>(value: item, child: itemBuilder(item)),
+            )
+            .toList(),
         onChanged: isEnabled && !isLoading ? onChanged : null,
       ),
     );
@@ -936,11 +1110,7 @@ class _ListterminalPageState extends State<ListterminalPage>
   }) {
     return Row(
       children: [
-        _buildImageContainer(
-          size: 24,
-          icon: icon,
-          imageUrl: imageUrl,
-        ),
+        _buildImageContainer(size: 24, icon: icon, imageUrl: imageUrl),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -963,18 +1133,14 @@ class _ListterminalPageState extends State<ListterminalPage>
     return ListTile(
       contentPadding: EdgeInsets.zero,
       dense: true,
-      leading: _buildImageContainer(
-        size: 36,
-        icon: icon,
-        imageUrl: imageUrl,
-      ),
+      leading: _buildImageContainer(size: 36, icon: icon, imageUrl: imageUrl),
       title: Text(
         title,
         overflow: TextOverflow.ellipsis,
         maxLines: 1,
         style: const TextStyle(fontSize: 14),
       ),
-      subtitle: subtitle != null 
+      subtitle: subtitle != null
           ? Text(
               subtitle,
               overflow: TextOverflow.ellipsis,
@@ -993,7 +1159,7 @@ class _ListterminalPageState extends State<ListterminalPage>
       child: CircularProgressIndicator(
         strokeWidth: 2,
         valueColor: AlwaysStoppedAnimation<Color>(
-          ThemeConfig.getPrimaryColor(currentTheme)
+          ThemeConfig.getPrimaryColor(currentTheme),
         ),
       ),
     );
@@ -1005,18 +1171,18 @@ class _ListterminalPageState extends State<ListterminalPage>
       width: 24,
       height: 24,
       decoration: BoxDecoration(
-        color: isSelected 
-            ? ThemeConfig.getPrimaryColor(currentTheme) 
+        color: isSelected
+            ? ThemeConfig.getPrimaryColor(currentTheme)
             : Colors.transparent,
         border: Border.all(
-          color: isSelected 
-              ? ThemeConfig.getPrimaryColor(currentTheme) 
+          color: isSelected
+              ? ThemeConfig.getPrimaryColor(currentTheme)
               : Colors.grey[400]!,
           width: 2,
         ),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: isSelected 
+      child: isSelected
           ? const Icon(Icons.check, size: 16, color: Colors.white)
           : null,
     );
@@ -1031,7 +1197,7 @@ class _ListterminalPageState extends State<ListterminalPage>
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
-            color: isSelected 
+            color: isSelected
                 ? ThemeConfig.getPrimaryColor(currentTheme)
                 : Colors.black87,
           ),
@@ -1055,12 +1221,12 @@ class _ListterminalPageState extends State<ListterminalPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: isSelected 
+        color: isSelected
             ? ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.1)
             : Colors.grey[100],
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: isSelected 
+          color: isSelected
               ? ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3)
               : Colors.grey[300]!,
         ),
@@ -1069,7 +1235,7 @@ class _ListterminalPageState extends State<ListterminalPage>
         '${SimpleTranslations.get(_langCode, 'code_label')}: $terminalCode',
         style: TextStyle(
           fontSize: 12,
-          color: isSelected 
+          color: isSelected
               ? ThemeConfig.getPrimaryColor(currentTheme)
               : Colors.grey[700],
           fontWeight: FontWeight.w500,
@@ -1118,7 +1284,11 @@ class _ListterminalPageState extends State<ListterminalPage>
         children: [
           Row(
             children: [
-              Icon(Icons.computer, color: ThemeConfig.getPrimaryColor(currentTheme), size: 24),
+              Icon(
+                Icons.computer,
+                color: ThemeConfig.getPrimaryColor(currentTheme),
+                size: 24,
+              ),
               const SizedBox(width: 12),
               Text(
                 '${SimpleTranslations.get(_langCode, 'terminals')} (${_terminals.length})',
@@ -1131,7 +1301,10 @@ class _ListterminalPageState extends State<ListterminalPage>
               if (_selectedTerminals.isNotEmpty) ...[
                 const SizedBox(width: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.orange,
                     borderRadius: BorderRadius.circular(12),
@@ -1163,9 +1336,7 @@ class _ListterminalPageState extends State<ListterminalPage>
                 onPressed: () => _onSelectAllTerminals(false),
                 icon: const Icon(Icons.clear, size: 18),
                 label: Text(SimpleTranslations.get(_langCode, 'clear')),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.grey[600],
-                ),
+                style: TextButton.styleFrom(foregroundColor: Colors.grey[600]),
               ),
             ],
           ),
@@ -1178,7 +1349,9 @@ class _ListterminalPageState extends State<ListterminalPage>
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: ConstrainedBox(
-        constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width - 32),
+        constraints: BoxConstraints(
+          minWidth: MediaQuery.of(context).size.width - 32,
+        ),
         child: DataTable(
           sortColumnIndex: _sortColumnIndex,
           sortAscending: _isAscending,
@@ -1191,7 +1364,9 @@ class _ListterminalPageState extends State<ListterminalPage>
               label: Container(
                 width: 50,
                 child: Checkbox(
-                  value: _selectedTerminals.length == _terminals.length && _terminals.isNotEmpty,
+                  value:
+                      _selectedTerminals.length == _terminals.length &&
+                      _terminals.isNotEmpty,
                   tristate: true,
                   onChanged: (value) => _onSelectAllTerminals(value ?? false),
                   activeColor: ThemeConfig.getPrimaryColor(currentTheme),
@@ -1199,37 +1374,64 @@ class _ListterminalPageState extends State<ListterminalPage>
               ),
             ),
             DataColumn(
-              label: Text(SimpleTranslations.get(_langCode, 'terminal_name'), style: TextStyle(fontWeight: FontWeight.bold)),
-              onSort: (columnIndex, ascending) => _sortTerminals(columnIndex, ascending),
+              label: Text(
+                SimpleTranslations.get(_langCode, 'terminal_name'),
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onSort: (columnIndex, ascending) =>
+                  _sortTerminals(columnIndex, ascending),
             ),
             DataColumn(
-              label: Text(SimpleTranslations.get(_langCode, 'code'), style: TextStyle(fontWeight: FontWeight.bold)),
-              onSort: (columnIndex, ascending) => _sortTerminals(columnIndex, ascending),
+              label: Text(
+                SimpleTranslations.get(_langCode, 'code'),
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onSort: (columnIndex, ascending) =>
+                  _sortTerminals(columnIndex, ascending),
             ),
             DataColumn(
-              label: Text(SimpleTranslations.get(_langCode, 'terminal_id'), style: TextStyle(fontWeight: FontWeight.bold)),
-              onSort: (columnIndex, ascending) => _sortTerminals(columnIndex, ascending),
+              label: Text(
+                SimpleTranslations.get(_langCode, 'terminal_id'),
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onSort: (columnIndex, ascending) =>
+                  _sortTerminals(columnIndex, ascending),
             ),
             DataColumn(
-              label: Text(SimpleTranslations.get(_langCode, 'company_id'), style: TextStyle(fontWeight: FontWeight.bold)),
-              onSort: (columnIndex, ascending) => _sortTerminals(columnIndex, ascending),
+              label: Text(
+                SimpleTranslations.get(_langCode, 'company_id'),
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onSort: (columnIndex, ascending) =>
+                  _sortTerminals(columnIndex, ascending),
             ),
             DataColumn(
-              label: Text(SimpleTranslations.get(_langCode, 'store_id'), style: TextStyle(fontWeight: FontWeight.bold)),
-              onSort: (columnIndex, ascending) => _sortTerminals(columnIndex, ascending),
+              label: Text(
+                SimpleTranslations.get(_langCode, 'store_id'),
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onSort: (columnIndex, ascending) =>
+                  _sortTerminals(columnIndex, ascending),
             ),
             DataColumn(
-              label: Text(SimpleTranslations.get(_langCode, 'status'), style: TextStyle(fontWeight: FontWeight.bold)),
+              label: Text(
+                SimpleTranslations.get(_langCode, 'status'),
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
           rows: _terminals.map((terminal) {
-            final isSelected = _selectedTerminals.any((t) => t.terminalId == terminal.terminalId);
-            
+            final isSelected = _selectedTerminals.any(
+              (t) => t.terminalId == terminal.terminalId,
+            );
+
             return DataRow(
               selected: isSelected,
               color: MaterialStateProperty.resolveWith<Color?>((states) {
                 if (states.contains(MaterialState.selected)) {
-                  return ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.08);
+                  return ThemeConfig.getPrimaryColor(
+                    currentTheme,
+                  ).withOpacity(0.08);
                 }
                 return null;
               }),
@@ -1237,7 +1439,8 @@ class _ListterminalPageState extends State<ListterminalPage>
                 DataCell(
                   Checkbox(
                     value: isSelected,
-                    onChanged: (value) => _onTerminalChanged(terminal, value ?? false),
+                    onChanged: (value) =>
+                        _onTerminalChanged(terminal, value ?? false),
                     activeColor: ThemeConfig.getPrimaryColor(currentTheme),
                   ),
                 ),
@@ -1246,9 +1449,9 @@ class _ListterminalPageState extends State<ListterminalPage>
                     children: [
                       CircleAvatar(
                         radius: 16,
-                        backgroundColor: isSelected 
-                          ? ThemeConfig.getPrimaryColor(currentTheme)
-                          : Colors.grey[300],
+                        backgroundColor: isSelected
+                            ? ThemeConfig.getPrimaryColor(currentTheme)
+                            : Colors.grey[300],
                         child: Icon(
                           Icons.computer,
                           size: 16,
@@ -1265,9 +1468,9 @@ class _ListterminalPageState extends State<ListterminalPage>
                               terminal.terminalName,
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
-                                color: isSelected 
-                                  ? ThemeConfig.getPrimaryColor(currentTheme)
-                                  : Colors.black87,
+                                color: isSelected
+                                    ? ThemeConfig.getPrimaryColor(currentTheme)
+                                    : Colors.black87,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1287,26 +1490,30 @@ class _ListterminalPageState extends State<ListterminalPage>
                 ),
                 DataCell(
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: terminal.terminalCode?.isNotEmpty == true 
-                        ? Colors.blue[50] 
-                        : Colors.grey[100],
+                      color: terminal.terminalCode?.isNotEmpty == true
+                          ? Colors.blue[50]
+                          : Colors.grey[100],
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: terminal.terminalCode?.isNotEmpty == true 
-                          ? Colors.blue[200]! 
-                          : Colors.grey[300]!,
+                        color: terminal.terminalCode?.isNotEmpty == true
+                            ? Colors.blue[200]!
+                            : Colors.grey[300]!,
                       ),
                     ),
                     child: Text(
-                      terminal.terminalCode ?? SimpleTranslations.get(_langCode, 'n_a'),
+                      terminal.terminalCode ??
+                          SimpleTranslations.get(_langCode, 'n_a'),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: terminal.terminalCode?.isNotEmpty == true 
-                          ? Colors.blue[700] 
-                          : Colors.grey[600],
+                        color: terminal.terminalCode?.isNotEmpty == true
+                            ? Colors.blue[700]
+                            : Colors.grey[600],
                       ),
                     ),
                   ),
@@ -1331,7 +1538,10 @@ class _ListterminalPageState extends State<ListterminalPage>
                 ),
                 DataCell(
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.green[50],
                       borderRadius: BorderRadius.circular(12),
@@ -1379,26 +1589,28 @@ class _ListterminalPageState extends State<ListterminalPage>
           ),
           ElevatedButton.icon(
             onPressed: _isLoading ? null : _createBulkTerminals,
-            icon: _isLoading 
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              : const Icon(Icons.batch_prediction),
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.batch_prediction),
             label: Text(
-              _isLoading 
-                ? SimpleTranslations.get(_langCode, 'processing')
-                : '${SimpleTranslations.get(_langCode, 'process_selected')} (${_selectedTerminals.length})'
+              _isLoading
+                  ? SimpleTranslations.get(_langCode, 'processing')
+                  : '${SimpleTranslations.get(_langCode, 'process_selected')} (${_selectedTerminals.length})',
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
               elevation: 2,
             ),
           ),
@@ -1415,7 +1627,7 @@ class _ListterminalPageState extends State<ListterminalPage>
           if (_selectedTerminals.isNotEmpty) ...[
             ElevatedButton.icon(
               onPressed: _isLoading ? null : _createBulkTerminals,
-              icon: _isLoading 
+              icon: _isLoading
                   ? const SizedBox(
                       width: 20,
                       height: 20,
@@ -1426,15 +1638,17 @@ class _ListterminalPageState extends State<ListterminalPage>
                     )
                   : const Icon(Icons.batch_prediction),
               label: Text(
-                _isLoading 
+                _isLoading
                     ? SimpleTranslations.get(_langCode, 'processing')
-                    : '${SimpleTranslations.get(_langCode, 'process_selected')} (${_selectedTerminals.length})'
+                    : '${SimpleTranslations.get(_langCode, 'process_selected')} (${_selectedTerminals.length})',
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 elevation: 2,
                 minimumSize: const Size(double.infinity, 50),
               ),
@@ -1491,7 +1705,12 @@ class _ListterminalPageState extends State<ListterminalPage>
                             children: [
                               CircularProgressIndicator(),
                               SizedBox(height: 16),
-                              Text(SimpleTranslations.get(_langCode, 'loading_terminals')),
+                              Text(
+                                SimpleTranslations.get(
+                                  _langCode,
+                                  'loading_terminals',
+                                ),
+                              ),
                             ],
                           ),
                         ),

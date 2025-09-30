@@ -1879,54 +1879,7 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
                   ),
                 ),
 
-                SizedBox(height: 20),
-
-                // Contact Information Section
-                Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Contact Information',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: ThemeConfig.getPrimaryColor(currentTheme),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-
-                      _buildTextField(
-                        controller: _emailController,
-                        label: 'Main Email',
-                        icon: Icons.email,
-                        keyboardType: TextInputType.emailAddress,
-                        hint: 'Enter main email address',
-                      ),
-
-                      _buildTextField(
-                        controller: _phoneController,
-                        label: 'Phone Number',
-                        icon: Icons.phone,
-                        keyboardType: TextInputType.phone,
-                        hint: 'Enter phone number',
-                      ),
-                    ],
-                  ),
-                ),
-
+              
                 SizedBox(height: 20),
 
                 // Address Information Section

@@ -219,57 +219,57 @@ class _MenuHomePageState extends State<MenuHomePage> {
   }
 
   Widget _buildGridView() {
-    return GridView.count(
-      crossAxisCount: _crossAxisCount,
-      crossAxisSpacing: _isWebDesktop ? 24 : 12, // Reduced spacing for mobile
-      mainAxisSpacing: _isWebDesktop ? 24 : 12,  // Reduced spacing for mobile
-      childAspectRatio: _childAspectRatio,
-      children: [
-        _buildGridItem(
-          icon: Icons.terminal,
-          title: SimpleTranslations.get(_langCode, 'Approve'),
-          color: Colors.purple,
-          onTap: _navigateToApprovePage,
-        ),
-        _buildGridItem(
-          icon: Icons.terminal,
-          title: SimpleTranslations.get(_langCode, 'Terminal'),
-          color: Colors.purple,
-          onTap: _navigateToTerminalPage,
-        ),
-        _buildGridItem(
-          icon: Icons.schedule,
-          title: SimpleTranslations.get(_langCode, 'expiry'),
-          color: Colors.red,
-          onTap: _navigateToExpiryPage,
-        ),
-        _buildGridItem(
-          icon: Icons.inventory,
-          title: SimpleTranslations.get(_langCode, 'stock'),
-          color: Colors.cyan,
-          onTap: _navigateToStockPage,
-        ),
-        _buildGridItem(
-          icon: Icons.view_in_ar,
-          title: SimpleTranslations.get(_langCode, 'location'),
-          color: const Color.fromARGB(255, 1, 136, 35),
-          onTap: _navigateToLocationPage,
-        ),
-        _buildGridItem(
-          icon: Icons.inventory,
-          title: SimpleTranslations.get(_langCode, 'product'),
+  return GridView.count(
+    crossAxisCount: _crossAxisCount,
+    crossAxisSpacing: _isWebDesktop ? 24 : 12,
+    mainAxisSpacing: _isWebDesktop ? 24 : 12,
+    childAspectRatio: _childAspectRatio,
+    children: [
+      _buildGridItem(
+        icon: Icons.library_add_check, // Approval
+        title: SimpleTranslations.get(_langCode, 'Approve'),
+        color: Colors.green,
+        onTap: _navigateToApprovePage,
+      ),
+      _buildGridItem(
+        icon: Icons.computer, // Terminal
+        title: SimpleTranslations.get(_langCode, 'Terminal'),
+        color: Colors.blue,
+        onTap: _navigateToTerminalPage,
+      ),
+      _buildGridItem(
+        icon: Icons.schedule, // Expiry
+        title: SimpleTranslations.get(_langCode, 'expiry'),
+        color: Colors.red,
+        onTap: _navigateToExpiryPage,
+      ),
+      _buildGridItem(
+        icon: Icons.inventory_2, // Stock
+        title: SimpleTranslations.get(_langCode, 'stock'),
+        color: Colors.orange,
+        onTap: _navigateToStockPage,
+      ),
+      _buildGridItem(
+        icon: Icons.location_on, // Location
+        title: SimpleTranslations.get(_langCode, 'location'),
+        color: Colors.teal,
+        onTap: _navigateToLocationPage,
+      ),
+      _buildGridItem(
+        icon: Icons.shopping_bag, // Product
+        title: SimpleTranslations.get(_langCode, 'product'),
         color: Colors.amber.shade700,
-          onTap: _navigateToProductsPage,
-        ),
-         _buildGridItem(
-        icon: Icons.attach_money, // Updated for financial/settlement context
+        onTap: _navigateToProductsPage,
+      ),
+      _buildGridItem(
+        icon: Icons.account_balance_wallet, // Settlement
         title: SimpleTranslations.get(_langCode, 'Settle'),
-        color: Colors.indigo, // Matching the "Product" page amber tone
+        color: Colors.indigo,
         onTap: _navigateToSettlementViewPage,
       ),
-      ],
-    );
-  }
+    ],
+  );
+}
 
   Widget _buildGridItem({
     required IconData icon,

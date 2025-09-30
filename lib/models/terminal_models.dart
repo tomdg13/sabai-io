@@ -14,6 +14,7 @@ class Terminal {
   final String? serialNumber;    // NEW FIELD
   final String? simNumber;       // NEW FIELD
   final DateTime? expireDate;    // NEW FIELD
+  final String? approvalStatus; // ADD THIS FIELD
 
   const Terminal({
     required this.terminalId,
@@ -25,6 +26,7 @@ class Terminal {
     this.serialNumber,    // NEW FIELD
     this.simNumber,       // NEW FIELD
     this.expireDate,      // NEW FIELD
+    this.approvalStatus, // ADD TO CONSTRUCTOR
   }) : assert(terminalId > 0, 'Terminal ID must be positive'),
        assert(terminalName != '', 'Terminal name cannot be empty');
 
@@ -41,6 +43,7 @@ class Terminal {
       expireDate: json['expire_date'] != null 
           ? DateTime.tryParse(json['expire_date']) 
           : null,                             // NEW FIELD
+      approvalStatus: json['approval_status'], // ADD THIS LINE
     );
   }
 
@@ -55,6 +58,8 @@ class Terminal {
       'serial_number': serialNumber,          // NEW FIELD
       'sim_number': simNumber,                // NEW FIELD
       'expire_date': expireDate?.toIso8601String().split('T')[0], // NEW FIELD (YYYY-MM-DD format)
+      'approval_status': approvalStatus, // ADD THIS LINE
+
     };
   }
 
@@ -68,6 +73,7 @@ class Terminal {
     String? serialNumber,    // NEW FIELD
     String? simNumber,       // NEW FIELD
     DateTime? expireDate,    // NEW FIELD
+    String? approvalStatus, // ADD THIS
   }) {
     return Terminal(
       terminalId: terminalId ?? this.terminalId,
@@ -266,6 +272,8 @@ class Store {
   final int merchantId;
   final String? imageUrl;
   final String? storeCode;
+  final String? approvalStatus; // ADD THIS FIELD
+
 
   const Store({
     required this.storeId,
@@ -274,6 +282,7 @@ class Store {
     required this.merchantId,
     this.imageUrl,
     this.storeCode,
+    this.approvalStatus, // ADD TO CONSTRUCTOR
   }) : assert(storeId > 0, 'Store ID must be positive'),
        assert(storeName != '', 'Store name cannot be empty');
 
@@ -285,6 +294,7 @@ class Store {
       merchantId: json['merchant_id'] ?? 0,
       imageUrl: json['image_url'],
       storeCode: json['store_code'],
+      approvalStatus: json['approval_status'], // ADD THIS LINE
     );
   }
 
@@ -296,6 +306,7 @@ class Store {
       'merchant_id': merchantId,
       'image_url': imageUrl,
       'store_code': storeCode,
+      'approval_status': approvalStatus, // ADD THIS LINE
     };
   }
 
@@ -306,6 +317,7 @@ class Store {
     int? merchantId,
     String? imageUrl,
     String? storeCode,
+    String? approvalStatus, // ADD THIS
   }) {
     return Store(
       storeId: storeId ?? this.storeId,
@@ -314,6 +326,7 @@ class Store {
       merchantId: merchantId ?? this.merchantId,
       imageUrl: imageUrl ?? this.imageUrl,
       storeCode: storeCode ?? this.storeCode,
+      approvalStatus: approvalStatus ?? this.approvalStatus, // ADD THIS
     );
   }
 
