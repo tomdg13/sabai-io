@@ -14,7 +14,7 @@ class ApprovalPage extends StatefulWidget {
   State<ApprovalPage> createState() => _ApprovalPageState();
 }
 
-class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderStateMixin {
+class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   List<Map<String, dynamic>> _allStores = [];
   List<Map<String, dynamic>> _allTerminals = [];
   
@@ -22,8 +22,76 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
   bool _isLoadingTerminals = false;
   String currentTheme = ThemeConfig.defaultTheme;
   String? _currentUserPhone;
+  String? _cachedToken;
   
   late TabController _tabController;
+  
+  // Pagination for Stores
+  int _currentStorePage = 1;
+  int _storesPerPage = 10;
+  final List<int> _itemsPerPageOptions = const [5, 10, 20, 50, 100];
+  
+  // Pagination for Terminals
+  int _currentTerminalPage = 1;
+  int _terminalsPerPage = 10;
+  
+  // Cache computed values
+  List<Map<String, dynamic>>? _cachedPaginatedStores;
+  List<Map<String, dynamic>>? _cachedPaginatedTerminals;
+  int _lastStorePageComputed = -1;
+  int _lastTerminalPageComputed = -1;
+  
+  // Visible columns cache
+  List<Map<String, dynamic>>? _visibleStoreColumns;
+  List<Map<String, dynamic>>? _visibleTerminalColumns;
+  
+  // Paginated stores getter with caching
+  List<Map<String, dynamic>> get _paginatedStores {
+    if (_cachedPaginatedStores != null && _lastStorePageComputed == _currentStorePage) {
+      return _cachedPaginatedStores!;
+    }
+    
+    final startIndex = (_currentStorePage - 1) * _storesPerPage;
+    final endIndex = startIndex + _storesPerPage;
+    
+    if (startIndex >= _allStores.length) {
+      _cachedPaginatedStores = [];
+    } else {
+      _cachedPaginatedStores = _allStores.sublist(
+        startIndex,
+        endIndex > _allStores.length ? _allStores.length : endIndex,
+      );
+    }
+    
+    _lastStorePageComputed = _currentStorePage;
+    return _cachedPaginatedStores!;
+  }
+  
+  int get _totalStorePages => _allStores.isEmpty ? 0 : (_allStores.length / _storesPerPage).ceil();
+  
+  // Paginated terminals getter with caching
+  List<Map<String, dynamic>> get _paginatedTerminals {
+    if (_cachedPaginatedTerminals != null && _lastTerminalPageComputed == _currentTerminalPage) {
+      return _cachedPaginatedTerminals!;
+    }
+    
+    final startIndex = (_currentTerminalPage - 1) * _terminalsPerPage;
+    final endIndex = startIndex + _terminalsPerPage;
+    
+    if (startIndex >= _allTerminals.length) {
+      _cachedPaginatedTerminals = [];
+    } else {
+      _cachedPaginatedTerminals = _allTerminals.sublist(
+        startIndex,
+        endIndex > _allTerminals.length ? _allTerminals.length : endIndex,
+      );
+    }
+    
+    _lastTerminalPageComputed = _currentTerminalPage;
+    return _cachedPaginatedTerminals!;
+  }
+  
+  int get _totalTerminalPages => _allTerminals.isEmpty ? 0 : (_allTerminals.length / _terminalsPerPage).ceil();
   
   // Store columns
   List<Map<String, dynamic>> _storeColumns = [
@@ -60,6 +128,9 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
   ];
   
   @override
+  bool get wantKeepAlive => true;
+  
+  @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
@@ -78,6 +149,7 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
 
   Future<void> _loadCurrentTheme() async {
     final prefs = await SharedPreferences.getInstance();
+    _cachedToken = prefs.getString('access_token');
     if (mounted) {
       setState(() {
         currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
@@ -88,29 +160,86 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
   Future<void> _loadCurrentUser() async {
     final prefs = await SharedPreferences.getInstance();
     _currentUserPhone = prefs.getString('phone');
-    print('Current user phone: $_currentUserPhone');
-    await _loadStores();
-    await _loadTerminals();
+    await Future.wait([_loadStores(), _loadTerminals()]);
+  }
+
+  void _invalidateCache() {
+    _cachedPaginatedStores = null;
+    _cachedPaginatedTerminals = null;
+    _lastStorePageComputed = -1;
+    _lastTerminalPageComputed = -1;
+  }
+
+  List<Map<String, dynamic>> _getVisibleColumns(bool isStore) {
+    if (isStore) {
+      return _visibleStoreColumns ??= _storeColumns.where((c) => c['visible'] == true).toList();
+    } else {
+      return _visibleTerminalColumns ??= _terminalColumns.where((c) => c['visible'] == true).toList();
+    }
+  }
+
+  void _invalidateColumnCache() {
+    _visibleStoreColumns = null;
+    _visibleTerminalColumns = null;
+  }
+
+  // Pagination methods for Stores
+  void _goToStorePage(int page) {
+    if (page >= 1 && page <= _totalStorePages && page != _currentStorePage) {
+      setState(() => _currentStorePage = page);
+    }
+  }
+
+  void _changeStoresPerPage(int? newValue) {
+    if (newValue != null && newValue != _storesPerPage) {
+      setState(() {
+        _storesPerPage = newValue;
+        _currentStorePage = 1;
+        _invalidateCache();
+      });
+    }
+  }
+
+  // Pagination methods for Terminals
+  void _goToTerminalPage(int page) {
+    if (page >= 1 && page <= _totalTerminalPages && page != _currentTerminalPage) {
+      setState(() => _currentTerminalPage = page);
+    }
+  }
+
+  void _changeTerminalsPerPage(int? newValue) {
+    if (newValue != null && newValue != _terminalsPerPage) {
+      setState(() {
+        _terminalsPerPage = newValue;
+        _currentTerminalPage = 1;
+        _invalidateCache();
+      });
+    }
+  }
+
+  Map<String, String> _getHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      if (_cachedToken != null) 'Authorization': 'Bearer $_cachedToken',
+    };
   }
 
   Future<void> _loadStores() async {
     if (_isLoadingStores) return;
     
-    setState(() => _isLoadingStores = true);
+    setState(() {
+      _isLoadingStores = true;
+      _currentStorePage = 1;
+      _invalidateCache();
+    });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
       final companyId = CompanyConfig.getCompanyId();
-      
       final url = AppConfig.api('/api/iostore?company_id=$companyId');
       
       final response = await http.get(
         Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
+        headers: _getHeaders(),
       );
 
       if (!mounted) return;
@@ -118,11 +247,8 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         if (responseData['status'] == 'success') {
-          final List<dynamic> storesJson = responseData['data'];
-          
           setState(() {
-            _allStores = storesJson.map((json) => json as Map<String, dynamic>).toList();
-            print('Total stores loaded: ${_allStores.length}');
+            _allStores = List<Map<String, dynamic>>.from(responseData['data']);
           });
         }
       }
@@ -140,21 +266,19 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
   Future<void> _loadTerminals() async {
     if (_isLoadingTerminals) return;
     
-    setState(() => _isLoadingTerminals = true);
+    setState(() {
+      _isLoadingTerminals = true;
+      _currentTerminalPage = 1;
+      _invalidateCache();
+    });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
       final companyId = CompanyConfig.getCompanyId();
-      
       final url = AppConfig.api('/api/ioterminal?company_id=$companyId');
       
       final response = await http.get(
         Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
+        headers: _getHeaders(),
       );
 
       if (!mounted) return;
@@ -162,11 +286,8 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         if (responseData['status'] == 'success') {
-          final List<dynamic> terminalsJson = responseData['data'];
-          
           setState(() {
-            _allTerminals = terminalsJson.map((json) => json as Map<String, dynamic>).toList();
-            print('Total terminals loaded: ${_allTerminals.length}');
+            _allTerminals = List<Map<String, dynamic>>.from(responseData['data']);
           });
         }
       }
@@ -194,17 +315,17 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
               title: Row(
                 children: [
                   Icon(Icons.view_column, color: ThemeConfig.getPrimaryColor(currentTheme)),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Text('Manage ${isStoreTab ? "Store" : "Terminal"} Columns'),
                 ],
               ),
-              content: Container(
+              content: SizedBox(
                 width: double.maxFinite,
                 height: MediaQuery.of(context).size.height * 0.6,
                 child: Column(
                   children: [
                     Container(
-                      padding: EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: Colors.blue[50],
                         borderRadius: BorderRadius.circular(8),
@@ -212,17 +333,17 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
                       child: Row(
                         children: [
                           Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
-                          SizedBox(width: 8),
-                          Expanded(
+                          const SizedBox(width: 8),
+                          const Expanded(
                             child: Text(
                               'Drag to reorder columns',
-                              style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                              style: TextStyle(fontSize: 12),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Expanded(
                       child: ReorderableListView(
                         onReorder: (oldIndex, newIndex) {
@@ -233,7 +354,7 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
                             final item = columns.removeAt(oldIndex);
                             columns.insert(newIndex, item);
                           });
-                          setState(() {});
+                          setState(() => _invalidateColumnCache());
                         },
                         children: columns.map((column) {
                           return CheckboxListTile(
@@ -241,9 +362,9 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
                             dense: true,
                             title: Row(
                               children: [
-                                Icon(Icons.drag_handle, size: 16, color: Colors.grey),
-                                SizedBox(width: 8),
-                                Expanded(child: Text(column['label'], style: TextStyle(fontSize: 13))),
+                                const Icon(Icons.drag_handle, size: 16, color: Colors.grey),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text(column['label'], style: const TextStyle(fontSize: 13))),
                               ],
                             ),
                             value: column['visible'],
@@ -251,7 +372,7 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
                               setDialogState(() {
                                 column['visible'] = value ?? true;
                               });
-                              setState(() {});
+                              setState(() => _invalidateColumnCache());
                             },
                           );
                         }).toList(),
@@ -268,9 +389,9 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
                         column['visible'] = true;
                       }
                     });
-                    setState(() {});
+                    setState(() => _invalidateColumnCache());
                   },
-                  child: Text('Show All'),
+                  child: const Text('Show All'),
                 ),
                 TextButton(
                   onPressed: () {
@@ -279,13 +400,13 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
                         column['visible'] = false;
                       }
                     });
-                    setState(() {});
+                    setState(() => _invalidateColumnCache());
                   },
-                  child: Text('Hide All'),
+                  child: const Text('Hide All'),
                 ),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text('Done'),
+                  child: const Text('Done'),
                 ),
               ],
             );
@@ -295,22 +416,123 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     );
   }
 
-  // STORE APPROVAL METHODS
+  Widget _buildPaginationControls({
+    required int currentPage,
+    required int totalPages,
+    required int itemsPerPage,
+    required int totalItems,
+    required Function(int) onPageChanged,
+    required Function(int?) onItemsPerPageChanged,
+    required Color primaryColor,
+  }) {
+    if (totalItems == 0) return const SizedBox.shrink();
+
+    final startItem = (currentPage - 1) * itemsPerPage + 1;
+    final endItem = (currentPage * itemsPerPage).clamp(0, totalItems);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border(top: BorderSide(color: Colors.grey[300]!)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Items per page selector
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Show', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButton<int>(
+                  value: itemsPerPage,
+                  underline: const SizedBox(),
+                  items: _itemsPerPageOptions.map((value) {
+                    return DropdownMenuItem<int>(
+                      value: value,
+                      child: Text('$value'),
+                    );
+                  }).toList(),
+                  onChanged: onItemsPerPageChanged,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('per page', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+            ],
+          ),
+          // Page info
+          Text(
+            'Showing $startItem-$endItem of $totalItems',
+            style: TextStyle(fontSize: 14, color: Colors.grey[700], fontWeight: FontWeight.w500),
+          ),
+          // Page navigation
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _PaginationButton(
+                icon: Icons.first_page,
+                onPressed: currentPage > 1 ? () => onPageChanged(1) : null,
+                tooltip: 'First page',
+              ),
+              _PaginationButton(
+                icon: Icons.chevron_left,
+                onPressed: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
+                tooltip: 'Previous',
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$currentPage / $totalPages',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: primaryColor,
+                  ),
+                ),
+              ),
+              _PaginationButton(
+                icon: Icons.chevron_right,
+                onPressed: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
+                tooltip: 'Next',
+              ),
+              _PaginationButton(
+                icon: Icons.last_page,
+                onPressed: currentPage < totalPages ? () => onPageChanged(totalPages) : null,
+                tooltip: 'Last page',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Approval methods remain the same but use cached headers
   Future<void> _approveStore(Map<String, dynamic> store) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Confirm Approval'),
+        title: const Text('Confirm Approval'),
         content: Text('Are you sure you want to approve "${store['store_name']}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: Text('Approve', style: TextStyle(color: Colors.white)),
+            child: const Text('Approve', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -319,47 +541,42 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     if (confirmed != true || !mounted) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
       final storeId = store['store_id'];
-      
       final url = AppConfig.api('/api/iostore/$storeId/approval');
       
       final currentApprove1 = store['approve1']?.toString();
       final currentApprove2 = store['approve2']?.toString();
-      
-      bool isFirstApproval = (currentApprove1 == null || currentApprove1.isEmpty);
-      bool isSecondApproval = (currentApprove1 != null && currentApprove1.isNotEmpty) && 
-                              (currentApprove2 == null || currentApprove2.isEmpty);
       
       if (currentApprove1 == _currentUserPhone || currentApprove2 == _currentUserPhone) {
         _showSnackBar(message: 'You have already approved this store', isError: true);
         return;
       }
       
-      Map<String, dynamic> requestBody = {
-        'approved_by': _currentUserPhone ?? 'unknown',
-        'approved_at': DateTime.now().toIso8601String(),
-      };
+      final isFirstApproval = (currentApprove1 == null || currentApprove1.isEmpty);
+      final isSecondApproval = (currentApprove1?.isNotEmpty ?? false) && 
+                              (currentApprove2 == null || currentApprove2.isEmpty);
       
-      if (isFirstApproval) {
-        requestBody['approval_status'] = 'pending';
-        requestBody['approve1'] = _currentUserPhone;
-      } else if (isSecondApproval) {
-        requestBody['approval_status'] = 'approved';
-        requestBody['approve1'] = currentApprove1;
-        requestBody['approve2'] = _currentUserPhone;
-      } else {
+      if (!isFirstApproval && !isSecondApproval) {
         _showSnackBar(message: 'Store already fully approved', isError: true);
         return;
       }
       
+      final requestBody = {
+        'approved_by': _currentUserPhone ?? 'unknown',
+        'approved_at': DateTime.now().toIso8601String(),
+        if (isFirstApproval) ...{
+          'approval_status': 'pending',
+          'approve1': _currentUserPhone,
+        } else ...{
+          'approval_status': 'approved',
+          'approve1': currentApprove1,
+          'approve2': _currentUserPhone,
+        },
+      };
+      
       final response = await http.put(
         Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
+        headers: _getHeaders(),
         body: jsonEncode(requestBody),
       );
 
@@ -368,11 +585,12 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
       final responseData = jsonDecode(response.body);
       
       if (response.statusCode == 200 && responseData['status'] == 'success') {
-        if (isSecondApproval) {
-          _showSnackBar(message: 'Store fully approved! (2/2 approvals)', isError: false);
-        } else {
-          _showSnackBar(message: 'Store approved! Waiting for second approver (1/2)', isError: false);
-        }
+        _showSnackBar(
+          message: isSecondApproval 
+            ? 'Store fully approved! (2/2 approvals)' 
+            : 'Store approved! Waiting for second approver (1/2)',
+          isError: false,
+        );
         await _loadStores();
       } else {
         _showSnackBar(
@@ -394,7 +612,7 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
-          children: [
+          children: const [
             Icon(Icons.cancel, color: Colors.red),
             SizedBox(width: 8),
             Text('Reject Store'),
@@ -405,7 +623,7 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.red[50],
                 borderRadius: BorderRadius.circular(8),
@@ -414,26 +632,26 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Store: ${store['store_name']}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  SizedBox(height: 4),
+                  Text('Store: ${store['store_name']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  const SizedBox(height: 4),
                   Text('Code: ${store['store_code']}', style: TextStyle(fontSize: 13, color: Colors.grey[700])),
                 ],
               ),
             ),
-            SizedBox(height: 20),
-            Text('Rejection Reason *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            SizedBox(height: 8),
+            const SizedBox(height: 20),
+            const Text('Rejection Reason *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 8),
             TextField(
               controller: reasonController,
               maxLines: 5,
               autofocus: true,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Please provide a detailed reason for rejection...',
                 border: OutlineInputBorder(),
                 focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.red, width: 2)),
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               '* This reason will be visible to the store and other approvers',
               style: TextStyle(fontSize: 11, color: Colors.grey[600], fontStyle: FontStyle.italic),
@@ -443,19 +661,20 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
-              if (reasonController.text.trim().isEmpty) {
+              final reason = reasonController.text.trim();
+              if (reason.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Please provide a rejection reason'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('Please provide a rejection reason'), backgroundColor: Colors.red),
                 );
                 return;
               }
-              if (reasonController.text.trim().length < 10) {
+              if (reason.length < 10) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Rejection reason must be at least 10 characters'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('Rejection reason must be at least 10 characters'), backgroundColor: Colors.red),
                 );
                 return;
               }
@@ -463,9 +682,9 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            child: Text('Reject Store', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text('Reject Store', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -474,28 +693,19 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     if (result != true || !mounted) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
       final storeId = store['store_id'];
-      
       final url = AppConfig.api('/api/iostore/$storeId/approval');
-      
-      final currentApprove1 = store['approve1']?.toString();
-      final currentApprove2 = store['approve2']?.toString();
       
       final response = await http.put(
         Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
+        headers: _getHeaders(),
         body: jsonEncode({
           'approval_status': 'rejected',
           'approved_by': _currentUserPhone ?? 'unknown',
           'approved_at': DateTime.now().toIso8601String(),
           'rejection_reason': reasonController.text.trim(),
-          'approve1': currentApprove1,
-          'approve2': currentApprove2,
+          'approve1': store['approve1'],
+          'approve2': store['approve2'],
         }),
       );
 
@@ -516,22 +726,21 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     }
   }
 
-  // TERMINAL APPROVAL METHODS
   Future<void> _approveTerminal(Map<String, dynamic> terminal) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Confirm Approval'),
+        title: const Text('Confirm Approval'),
         content: Text('Are you sure you want to approve "${terminal['terminal_name']}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: Text('Approve', style: TextStyle(color: Colors.white)),
+            child: const Text('Approve', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -540,47 +749,42 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     if (confirmed != true || !mounted) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
       final terminalId = terminal['terminal_id'];
-      
       final url = AppConfig.api('/api/ioterminal/$terminalId/approve');
       
       final currentApprove1 = terminal['approve1']?.toString();
       final currentApprove2 = terminal['approve2']?.toString();
-      
-      bool isFirstApproval = (currentApprove1 == null || currentApprove1.isEmpty);
-      bool isSecondApproval = (currentApprove1 != null && currentApprove1.isNotEmpty) && 
-                              (currentApprove2 == null || currentApprove2.isEmpty);
       
       if (currentApprove1 == _currentUserPhone || currentApprove2 == _currentUserPhone) {
         _showSnackBar(message: 'You have already approved this terminal', isError: true);
         return;
       }
       
-      Map<String, dynamic> requestBody = {
-        'approved_by': _currentUserPhone ?? 'unknown',
-        'approved_at': DateTime.now().toIso8601String(),
-      };
+      final isFirstApproval = (currentApprove1 == null || currentApprove1.isEmpty);
+      final isSecondApproval = (currentApprove1?.isNotEmpty ?? false) && 
+                              (currentApprove2 == null || currentApprove2.isEmpty);
       
-      if (isFirstApproval) {
-        requestBody['approval_status'] = 'pending';
-        requestBody['approve1'] = _currentUserPhone;
-      } else if (isSecondApproval) {
-        requestBody['approval_status'] = 'approved';
-        requestBody['approve1'] = currentApprove1;
-        requestBody['approve2'] = _currentUserPhone;
-      } else {
+      if (!isFirstApproval && !isSecondApproval) {
         _showSnackBar(message: 'Terminal already fully approved', isError: true);
         return;
       }
       
+      final requestBody = {
+        'approved_by': _currentUserPhone ?? 'unknown',
+        'approved_at': DateTime.now().toIso8601String(),
+        if (isFirstApproval) ...{
+          'approval_status': 'pending',
+          'approve1': _currentUserPhone,
+        } else ...{
+          'approval_status': 'approved',
+          'approve1': currentApprove1,
+          'approve2': _currentUserPhone,
+        },
+      };
+      
       final response = await http.patch(
         Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
+        headers: _getHeaders(),
         body: jsonEncode(requestBody),
       );
 
@@ -589,11 +793,12 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
       final responseData = jsonDecode(response.body);
       
       if (response.statusCode == 200 && responseData['status'] == 'success') {
-        if (isSecondApproval) {
-          _showSnackBar(message: 'Terminal fully approved! (2/2 approvals)', isError: false);
-        } else {
-          _showSnackBar(message: 'Terminal approved! Waiting for second approver (1/2)', isError: false);
-        }
+        _showSnackBar(
+          message: isSecondApproval 
+            ? 'Terminal fully approved! (2/2 approvals)' 
+            : 'Terminal approved! Waiting for second approver (1/2)',
+          isError: false,
+        );
         await _loadTerminals();
       } else {
         _showSnackBar(
@@ -615,7 +820,7 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
-          children: [
+          children: const [
             Icon(Icons.cancel, color: Colors.red),
             SizedBox(width: 8),
             Text('Reject Terminal'),
@@ -626,7 +831,7 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.red[50],
                 borderRadius: BorderRadius.circular(8),
@@ -635,26 +840,26 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Terminal: ${terminal['terminal_name']}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  SizedBox(height: 4),
+                  Text('Terminal: ${terminal['terminal_name']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  const SizedBox(height: 4),
                   Text('Code: ${terminal['terminal_code']}', style: TextStyle(fontSize: 13, color: Colors.grey[700])),
                 ],
               ),
             ),
-            SizedBox(height: 20),
-            Text('Rejection Reason *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            SizedBox(height: 8),
+            const SizedBox(height: 20),
+            const Text('Rejection Reason *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 8),
             TextField(
               controller: reasonController,
               maxLines: 5,
               autofocus: true,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Please provide a detailed reason for rejection...',
                 border: OutlineInputBorder(),
                 focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.red, width: 2)),
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               '* This reason will be visible to the terminal and other approvers',
               style: TextStyle(fontSize: 11, color: Colors.grey[600], fontStyle: FontStyle.italic),
@@ -664,19 +869,20 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
-              if (reasonController.text.trim().isEmpty) {
+              final reason = reasonController.text.trim();
+              if (reason.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Please provide a rejection reason'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('Please provide a rejection reason'), backgroundColor: Colors.red),
                 );
                 return;
               }
-              if (reasonController.text.trim().length < 10) {
+              if (reason.length < 10) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Rejection reason must be at least 10 characters'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('Rejection reason must be at least 10 characters'), backgroundColor: Colors.red),
                 );
                 return;
               }
@@ -684,9 +890,9 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            child: Text('Reject Terminal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text('Reject Terminal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -695,28 +901,19 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     if (result != true || !mounted) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
       final terminalId = terminal['terminal_id'];
-      
       final url = AppConfig.api('/api/ioterminal/$terminalId/approve');
-      
-      final currentApprove1 = terminal['approve1']?.toString();
-      final currentApprove2 = terminal['approve2']?.toString();
       
       final response = await http.patch(
         Uri.parse(url.toString()),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
+        headers: _getHeaders(),
         body: jsonEncode({
           'approval_status': 'rejected',
           'approved_by': _currentUserPhone ?? 'unknown',
           'approved_at': DateTime.now().toIso8601String(),
           'rejection_reason': reasonController.text.trim(),
-          'approve1': currentApprove1,
-          'approve2': currentApprove2,
+          'approve1': terminal['approve1'],
+          'approve2': terminal['approve2'],
         }),
       );
 
@@ -745,7 +942,7 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
         backgroundColor: isError ? Colors.red : Colors.green,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: Duration(seconds: 3),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -755,9 +952,7 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     final approve2 = item['approve2'];
     final approvalStatus = item['approval_status']?.toString().toLowerCase();
     
-    if (approvalStatus == 'rejected') {
-      return 'REJECTED';
-    }
+    if (approvalStatus == 'rejected') return 'REJECTED';
     
     if (approvalStatus == 'approved' && 
         approve1 != null && approve1.toString().isNotEmpty &&
@@ -780,206 +975,122 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     final userAlreadyApproved = (approve1 == _currentUserPhone || approve2 == _currentUserPhone);
     final canApprove = !userAlreadyApproved && status != 'APPROVED' && status != 'REJECTED';
     
-    Color statusColor = Colors.orange;
-    switch (status) {
-      case 'APPROVED':
-        statusColor = Colors.green;
-        break;
-      case 'REJECTED':
-        statusColor = Colors.red;
-        break;
-      case 'WAITING FOR 2ND APPROVAL':
-        statusColor = Colors.blue;
-        break;
-    }
+    final statusColor = switch (status) {
+      'APPROVED' => Colors.green,
+      'REJECTED' => Colors.red,
+      'WAITING FOR 2ND APPROVAL' => Colors.blue,
+      _ => Colors.orange,
+    };
 
-    switch (columnKey) {
-      case 'image':
-        return DataCell(
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), color: primaryColor.withOpacity(0.1)),
-            child: store['image_url'] != null && store['image_url'].toString().isNotEmpty
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      store['image_url'],
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Icon(Icons.store, color: primaryColor, size: 24),
-                    ),
-                  )
-                : Icon(Icons.store, color: primaryColor, size: 24),
+    return switch (columnKey) {
+      'image' => DataCell(
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: primaryColor.withOpacity(0.1),
           ),
-        );
-      
-      case 'store_name':
-        return DataCell(
-          Container(
-            constraints: BoxConstraints(maxWidth: 150),
-            child: Text(store['store_name'] ?? 'N/A', overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        );
-      
-      case 'store_code':
-        return DataCell(Text(store['store_code'] ?? 'N/A'));
-      
-      case 'manager':
-        return DataCell(Text(store['store_manager'] ?? 'N/A'));
-      
-      case 'address':
-        return DataCell(
-          Container(
-            constraints: BoxConstraints(maxWidth: 150),
-            child: Text(store['address'] ?? 'N/A', overflow: TextOverflow.ellipsis),
-          ),
-        );
-      
-      case 'upi':
-        return DataCell(
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(4)),
-            child: Text(store['upi_percentage']?.toString() ?? '-', style: TextStyle(color: Colors.blue[800], fontWeight: FontWeight.w600)),
-          ),
-        );
-      
-      case 'visa':
-        return DataCell(
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: Colors.indigo[50], borderRadius: BorderRadius.circular(4)),
-            child: Text(store['visa_percentage']?.toString() ?? '-', style: TextStyle(color: Colors.indigo[800], fontWeight: FontWeight.w600)),
-          ),
-        );
-      
-      case 'mc':
-        return DataCell(
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(4)),
-            child: Text(store['master_percentage']?.toString() ?? '-', style: TextStyle(color: Colors.orange[800], fontWeight: FontWeight.w600)),
-          ),
-        );
-      
-      case 'approve1':
-        return DataCell(
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: (approve1 == null || approve1.isEmpty) ? Colors.orange[50] : Colors.green[50],
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: (approve1 == null || approve1.isEmpty) ? Colors.orange[300]! : Colors.green[300]!),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (approve1 != null && approve1.isNotEmpty) Icon(Icons.check_circle, size: 12, color: Colors.green[700]),
-                if (approve1 != null && approve1.isNotEmpty) SizedBox(width: 4),
-                Text(
-                  approve1 ?? 'Pending',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: (approve1 == null || approve1.isEmpty) ? Colors.orange[800] : Colors.green[800],
-                    fontWeight: FontWeight.w600,
+          child: store['image_url'] != null && store['image_url'].toString().isNotEmpty
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    store['image_url'],
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Icon(Icons.store, color: primaryColor, size: 24),
                   ),
-                ),
-              ],
-            ),
-          ),
-        );
-      
-      case 'approve2':
-        return DataCell(
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: (approve2 == null || approve2.isEmpty) ? Colors.orange[50] : Colors.green[50],
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: (approve2 == null || approve2.isEmpty) ? Colors.orange[300]! : Colors.green[300]!),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (approve2 != null && approve2.isNotEmpty) Icon(Icons.check_circle, size: 12, color: Colors.green[700]),
-                if (approve2 != null && approve2.isNotEmpty) SizedBox(width: 4),
-                Text(
-                  approve2 ?? 'Pending',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: (approve2 == null || approve2.isEmpty) ? Colors.orange[800] : Colors.green[800],
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      
-      case 'approval_status':
-        return DataCell(
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: statusColor.withOpacity(0.5)),
-            ),
-            child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 10)),
-          ),
-        );
-      
-      case 'created':
-        return DataCell(
-          Text(
-            store['created_date'] != null ? DateFormat('MMM dd, yyyy').format(DateTime.parse(store['created_date'])) : 'N/A',
-            style: TextStyle(fontSize: 11),
-          ),
-        );
-      
-      case 'actions':
-        return DataCell(
-          canApprove
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () => _approveStore(store),
-                      icon: Icon(Icons.check_circle, size: 16),
-                      label: Text('Approve', style: TextStyle(fontSize: 11)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        minimumSize: Size(90, 36),
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => _rejectStore(store),
-                      icon: Icon(Icons.cancel, size: 16),
-                      label: Text('Reject', style: TextStyle(fontSize: 11)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        minimumSize: Size(90, 36),
-                      ),
-                    ),
-                  ],
                 )
-              : Container(
-                  padding: EdgeInsets.all(8),
-                  child: Text(
-                    userAlreadyApproved ? '✓ Done' : '-',
-                    style: TextStyle(color: userAlreadyApproved ? Colors.green : Colors.grey, fontWeight: FontWeight.w600, fontSize: 12),
-                  ),
+              : Icon(Icons.store, color: primaryColor, size: 24),
+        ),
+      ),
+      'store_name' => DataCell(
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 150),
+          child: Text(
+            store['store_name'] ?? 'N/A',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+      'store_code' => DataCell(Text(store['store_code'] ?? 'N/A')),
+      'manager' => DataCell(Text(store['store_manager'] ?? 'N/A')),
+      'address' => DataCell(
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 150),
+          child: Text(store['address'] ?? 'N/A', overflow: TextOverflow.ellipsis),
+        ),
+      ),
+      'upi' => DataCell(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            store['upi_percentage']?.toString() ?? '-',
+            style: TextStyle(color: Colors.blue[800], fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+      'visa' => DataCell(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.indigo[50],
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            store['visa_percentage']?.toString() ?? '-',
+            style: TextStyle(color: Colors.indigo[800], fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+      'mc' => DataCell(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.orange[50],
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            store['master_percentage']?.toString() ?? '-',
+            style: TextStyle(color: Colors.orange[800], fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+      'approve1' => DataCell(_ApproverBadge(approver: approve1)),
+      'approve2' => DataCell(_ApproverBadge(approver: approve2)),
+      'approval_status' => DataCell(_StatusBadge(status: status, color: statusColor)),
+      'created' => DataCell(
+        Text(
+          store['created_date'] != null 
+            ? DateFormat('MMM dd, yyyy').format(DateTime.parse(store['created_date']))
+            : 'N/A',
+          style: const TextStyle(fontSize: 11),
+        ),
+      ),
+      'actions' => DataCell(
+        canApprove
+          ? _ActionButtons(
+              onApprove: () => _approveStore(store),
+              onReject: () => _rejectStore(store),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                userAlreadyApproved ? '✓ Done' : '-',
+                style: TextStyle(
+                  color: userAlreadyApproved ? Colors.green : Colors.grey,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
                 ),
-        );
-      
-      default:
-        return DataCell(Text('-'));
-    }
+              ),
+            ),
+      ),
+      _ => const DataCell(Text('-')),
+    };
   }
 
   DataCell _buildTerminalCell(String columnKey, Map<String, dynamic> terminal, Color primaryColor) {
@@ -989,195 +1100,93 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     final userAlreadyApproved = (approve1 == _currentUserPhone || approve2 == _currentUserPhone);
     final canApprove = !userAlreadyApproved && status != 'APPROVED' && status != 'REJECTED';
     
-    Color statusColor = Colors.orange;
-    switch (status) {
-      case 'APPROVED':
-        statusColor = Colors.green;
-        break;
-      case 'REJECTED':
-        statusColor = Colors.red;
-        break;
-      case 'WAITING FOR 2ND APPROVAL':
-        statusColor = Colors.blue;
-        break;
-    }
+    final statusColor = switch (status) {
+      'APPROVED' => Colors.green,
+      'REJECTED' => Colors.red,
+      'WAITING FOR 2ND APPROVAL' => Colors.blue,
+      _ => Colors.orange,
+    };
 
-    switch (columnKey) {
-      case 'image':
-        return DataCell(
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), color: primaryColor.withOpacity(0.1)),
-            child: terminal['image_url'] != null && terminal['image_url'].toString().isNotEmpty
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      terminal['image_url'],
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Icon(Icons.phone_android, color: primaryColor, size: 24),
-                    ),
-                  )
-                : Icon(Icons.phone_android, color: primaryColor, size: 24),
+    return switch (columnKey) {
+      'image' => DataCell(
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: primaryColor.withOpacity(0.1),
           ),
-        );
-      
-      case 'terminal_name':
-        return DataCell(
-          Container(
-            constraints: BoxConstraints(maxWidth: 150),
-            child: Text(terminal['terminal_name'] ?? 'N/A', overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        );
-      
-      case 'terminal_code':
-        return DataCell(Text(terminal['terminal_code'] ?? 'N/A'));
-      
-      case 'store_name':
-        return DataCell(
-          Container(
-            constraints: BoxConstraints(maxWidth: 120),
-            child: Text(terminal['store_name'] ?? '-', overflow: TextOverflow.ellipsis),
-          ),
-        );
-      
-      case 'serial_number':
-        return DataCell(Text(terminal['serial_number'] ?? '-'));
-      
-      case 'sim_number':
-        return DataCell(Text(terminal['sim_number'] ?? '-'));
-      
-      case 'expire_date':
-        return DataCell(
-          terminal['expire_date'] != null
-              ? Text(
-                  DateFormat('MMM dd, yyyy').format(DateTime.parse(terminal['expire_date'])),
-                  style: TextStyle(fontSize: 11),
+          child: terminal['image_url'] != null && terminal['image_url'].toString().isNotEmpty
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    terminal['image_url'],
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Icon(Icons.phone_android, color: primaryColor, size: 24),
+                  ),
                 )
-              : Text('-'),
-        );
-      
-      case 'phone':
-        return DataCell(Text(terminal['phone'] ?? '-'));
-      
-      case 'approve1':
-        return DataCell(
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: (approve1 == null || approve1.isEmpty) ? Colors.orange[50] : Colors.green[50],
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: (approve1 == null || approve1.isEmpty) ? Colors.orange[300]! : Colors.green[300]!),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (approve1 != null && approve1.isNotEmpty) Icon(Icons.check_circle, size: 12, color: Colors.green[700]),
-                if (approve1 != null && approve1.isNotEmpty) SizedBox(width: 4),
-                Text(
-                  approve1 ?? 'Pending',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: (approve1 == null || approve1.isEmpty) ? Colors.orange[800] : Colors.green[800],
-                    fontWeight: FontWeight.w600,
-                  ),
+              : Icon(Icons.phone_android, color: primaryColor, size: 24),
+        ),
+      ),
+      'terminal_name' => DataCell(
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 150),
+          child: Text(
+            terminal['terminal_name'] ?? 'N/A',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+      'terminal_code' => DataCell(Text(terminal['terminal_code'] ?? 'N/A')),
+      'store_name' => DataCell(
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 120),
+          child: Text(terminal['store_name'] ?? '-', overflow: TextOverflow.ellipsis),
+        ),
+      ),
+      'serial_number' => DataCell(Text(terminal['serial_number'] ?? '-')),
+      'sim_number' => DataCell(Text(terminal['sim_number'] ?? '-')),
+      'expire_date' => DataCell(
+        terminal['expire_date'] != null
+          ? Text(
+              DateFormat('MMM dd, yyyy').format(DateTime.parse(terminal['expire_date'])),
+              style: const TextStyle(fontSize: 11),
+            )
+          : const Text('-'),
+      ),
+      'phone' => DataCell(Text(terminal['phone'] ?? '-')),
+      'approve1' => DataCell(_ApproverBadge(approver: approve1)),
+      'approve2' => DataCell(_ApproverBadge(approver: approve2)),
+      'approval_status' => DataCell(_StatusBadge(status: status, color: statusColor)),
+      'created' => DataCell(
+        Text(
+          terminal['created_date'] != null 
+            ? DateFormat('MMM dd, yyyy').format(DateTime.parse(terminal['created_date']))
+            : 'N/A',
+          style: const TextStyle(fontSize: 11),
+        ),
+      ),
+      'actions' => DataCell(
+        canApprove
+          ? _ActionButtons(
+              onApprove: () => _approveTerminal(terminal),
+              onReject: () => _rejectTerminal(terminal),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                userAlreadyApproved ? '✓ Done' : '-',
+                style: TextStyle(
+                  color: userAlreadyApproved ? Colors.green : Colors.grey,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
                 ),
-              ],
+              ),
             ),
-          ),
-        );
-      
-      case 'approve2':
-        return DataCell(
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: (approve2 == null || approve2.isEmpty) ? Colors.orange[50] : Colors.green[50],
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: (approve2 == null || approve2.isEmpty) ? Colors.orange[300]! : Colors.green[300]!),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (approve2 != null && approve2.isNotEmpty) Icon(Icons.check_circle, size: 12, color: Colors.green[700]),
-                if (approve2 != null && approve2.isNotEmpty) SizedBox(width: 4),
-                Text(
-                  approve2 ?? 'Pending',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: (approve2 == null || approve2.isEmpty) ? Colors.orange[800] : Colors.green[800],
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      
-      case 'approval_status':
-        return DataCell(
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: statusColor.withOpacity(0.5)),
-            ),
-            child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 10)),
-          ),
-        );
-      
-      case 'created':
-        return DataCell(
-          Text(
-            terminal['created_date'] != null ? DateFormat('MMM dd, yyyy').format(DateTime.parse(terminal['created_date'])) : 'N/A',
-            style: TextStyle(fontSize: 11),
-          ),
-        );
-      
-      case 'actions':
-        return DataCell(
-          canApprove
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () => _approveTerminal(terminal),
-                      icon: Icon(Icons.check_circle, size: 16),
-                      label: Text('Approve', style: TextStyle(fontSize: 11)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        minimumSize: Size(90, 36),
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => _rejectTerminal(terminal),
-                      icon: Icon(Icons.cancel, size: 16),
-                      label: Text('Reject', style: TextStyle(fontSize: 11)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        minimumSize: Size(90, 36),
-                      ),
-                    ),
-                  ],
-                )
-              : Container(
-                  padding: EdgeInsets.all(8),
-                  child: Text(
-                    userAlreadyApproved ? '✓ Done' : '-',
-                    style: TextStyle(color: userAlreadyApproved ? Colors.green : Colors.grey, fontWeight: FontWeight.w600, fontSize: 12),
-                  ),
-                ),
-        );
-      
-      default:
-        return DataCell(Text('-'));
-    }
+      ),
+      _ => const DataCell(Text('-')),
+    };
   }
 
   Widget _buildStoreTable() {
@@ -1186,8 +1195,10 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getPrimaryColor(currentTheme))),
-            SizedBox(height: 16),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getPrimaryColor(currentTheme)),
+            ),
+            const SizedBox(height: 16),
             Text('Loading stores...', style: TextStyle(color: Colors.grey[600])),
           ],
         ),
@@ -1195,58 +1206,69 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     }
 
     if (_allStores.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.store, size: 80, color: Colors.grey[400]),
+            Icon(Icons.store, size: 80, color: Colors.grey),
             SizedBox(height: 16),
-            Text('No stores found', style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.w500)),
+            Text('No stores found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
           ],
         ),
       );
     }
 
     final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final visibleColumns = _getVisibleColumns(true);
 
-    List<DataColumn> columns = [];
-    for (var columnDef in _storeColumns) {
-      if (columnDef['visible']) {
-        columns.add(DataColumn(label: Text(columnDef['label'])));
-      }
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadStores,
-      color: primaryColor,
-      child: SingleChildScrollView(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width),
-            child: DataTable(
-              headingRowColor: MaterialStateProperty.all(primaryColor.withOpacity(0.1)),
-              headingRowHeight: 56,
-              dataRowHeight: 80,
-              border: TableBorder.all(color: Colors.grey[300]!, width: 1),
-              columnSpacing: 16,
-              horizontalMargin: 12,
-              headingTextStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: primaryColor),
-              dataTextStyle: TextStyle(fontSize: 12, color: Colors.black87),
-              columns: columns,
-              rows: _allStores.map((store) {
-                List<DataCell> cells = [];
-                for (var columnDef in _storeColumns) {
-                  if (columnDef['visible']) {
-                    cells.add(_buildStoreCell(columnDef['key'], store, primaryColor));
-                  }
-                }
-                return DataRow(cells: cells);
-              }).toList(),
+    return Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadStores,
+            color: primaryColor,
+            child: SingleChildScrollView(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width),
+                  child: DataTable(
+                    headingRowColor: MaterialStateProperty.all(primaryColor.withOpacity(0.1)),
+                    headingRowHeight: 56,
+                    dataRowHeight: 80,
+                    border: TableBorder.all(color: Colors.grey[300]!, width: 1),
+                    columnSpacing: 16,
+                    horizontalMargin: 12,
+                    headingTextStyle: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: primaryColor,
+                    ),
+                    dataTextStyle: const TextStyle(fontSize: 12, color: Colors.black87),
+                    columns: visibleColumns.map((col) => DataColumn(label: Text(col['label']))).toList(),
+                    rows: _paginatedStores.map((store) {
+                      return DataRow(
+                        cells: visibleColumns
+                          .map((col) => _buildStoreCell(col['key'], store, primaryColor))
+                          .toList(),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-      ),
+        _buildPaginationControls(
+          currentPage: _currentStorePage,
+          totalPages: _totalStorePages,
+          itemsPerPage: _storesPerPage,
+          totalItems: _allStores.length,
+          onPageChanged: _goToStorePage,
+          onItemsPerPageChanged: _changeStoresPerPage,
+          primaryColor: primaryColor,
+        ),
+      ],
     );
   }
 
@@ -1256,8 +1278,10 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getPrimaryColor(currentTheme))),
-            SizedBox(height: 16),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(ThemeConfig.getPrimaryColor(currentTheme)),
+            ),
+            const SizedBox(height: 16),
             Text('Loading terminals...', style: TextStyle(color: Colors.grey[600])),
           ],
         ),
@@ -1265,63 +1289,75 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     }
 
     if (_allTerminals.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.phone_android, size: 80, color: Colors.grey[400]),
+            Icon(Icons.phone_android, size: 80, color: Colors.grey),
             SizedBox(height: 16),
-            Text('No terminals found', style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.w500)),
+            Text('No terminals found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
           ],
         ),
       );
     }
 
     final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
+    final visibleColumns = _getVisibleColumns(false);
 
-    List<DataColumn> columns = [];
-    for (var columnDef in _terminalColumns) {
-      if (columnDef['visible']) {
-        columns.add(DataColumn(label: Text(columnDef['label'])));
-      }
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadTerminals,
-      color: primaryColor,
-      child: SingleChildScrollView(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width),
-            child: DataTable(
-              headingRowColor: MaterialStateProperty.all(primaryColor.withOpacity(0.1)),
-              headingRowHeight: 56,
-              dataRowHeight: 80,
-              border: TableBorder.all(color: Colors.grey[300]!, width: 1),
-              columnSpacing: 16,
-              horizontalMargin: 12,
-              headingTextStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: primaryColor),
-              dataTextStyle: TextStyle(fontSize: 12, color: Colors.black87),
-              columns: columns,
-              rows: _allTerminals.map((terminal) {
-                List<DataCell> cells = [];
-                for (var columnDef in _terminalColumns) {
-                  if (columnDef['visible']) {
-                    cells.add(_buildTerminalCell(columnDef['key'], terminal, primaryColor));
-                  }
-                }
-                return DataRow(cells: cells);
-              }).toList(),
+    return Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadTerminals,
+            color: primaryColor,
+            child: SingleChildScrollView(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width),
+                  child: DataTable(
+                    headingRowColor: MaterialStateProperty.all(primaryColor.withOpacity(0.1)),
+                    headingRowHeight: 56,
+                    dataRowHeight: 80,
+                    border: TableBorder.all(color: Colors.grey[300]!, width: 1),
+                    columnSpacing: 16,
+                    horizontalMargin: 12,
+                    headingTextStyle: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: primaryColor,
+                    ),
+                    dataTextStyle: const TextStyle(fontSize: 12, color: Colors.black87),
+                    columns: visibleColumns.map((col) => DataColumn(label: Text(col['label']))).toList(),
+                    rows: _paginatedTerminals.map((terminal) {
+                      return DataRow(
+                        cells: visibleColumns
+                          .map((col) => _buildTerminalCell(col['key'], terminal, primaryColor))
+                          .toList(),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-      ),
+        _buildPaginationControls(
+          currentPage: _currentTerminalPage,
+          totalPages: _totalTerminalPages,
+          itemsPerPage: _terminalsPerPage,
+          totalItems: _allTerminals.length,
+          onPageChanged: _goToTerminalPage,
+          onItemsPerPageChanged: _changeTerminalsPerPage,
+          primaryColor: primaryColor,
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final primaryColor = ThemeConfig.getPrimaryColor(currentTheme);
     final isStoreTab = _tabController.index == 0;
     final itemCount = isStoreTab ? _allStores.length : _allTerminals.length;
@@ -1329,36 +1365,33 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Approval Management', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: const Text(
+          'Approval Management',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
         backgroundColor: primaryColor,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
           indicatorWeight: 3,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
-          labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-          tabs: [
-            Tab(
-              icon: Icon(Icons.store),
-              text: 'Stores',
-            ),
-            Tab(
-              icon: Icon(Icons.phone_android),
-              text: 'Terminals',
-            ),
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          tabs: const [
+            Tab(icon: Icon(Icons.store), text: 'Stores'),
+            Tab(icon: Icon(Icons.phone_android), text: 'Terminals'),
           ],
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.view_column),
+            icon: const Icon(Icons.view_column),
             onPressed: _showColumnSettings,
             tooltip: 'Manage Columns',
           ),
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: () {
               if (_tabController.index == 0) {
                 _loadStores();
@@ -1369,14 +1402,21 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
             tooltip: 'Refresh',
           ),
           Padding(
-            padding: EdgeInsets.only(right: 16, top: 16, bottom: 16),
+            padding: const EdgeInsets.only(right: 16, top: 16, bottom: 16),
             child: Center(
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 child: Text(
                   '$itemCount ${itemCount == 1 ? (isStoreTab ? 'Store' : 'Terminal') : (isStoreTab ? 'Stores' : 'Terminals')}',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ),
@@ -1390,6 +1430,139 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
           _buildTerminalTable(),
         ],
       ),
+    );
+  }
+}
+
+// Extracted widgets for better performance
+class _PaginationButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final String tooltip;
+
+  const _PaginationButton({
+    required this.icon,
+    required this.onPressed,
+    required this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon),
+      onPressed: onPressed,
+      tooltip: tooltip,
+    );
+  }
+}
+
+class _ApproverBadge extends StatelessWidget {
+  final String? approver;
+
+  const _ApproverBadge({required this.approver});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasApprover = approver != null && approver!.isNotEmpty;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: hasApprover ? Colors.green[50] : Colors.orange[50],
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: hasApprover ? Colors.green[300]! : Colors.orange[300]!,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasApprover) ...[
+            Icon(Icons.check_circle, size: 12, color: Colors.green[700]),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            approver ?? 'Pending',
+            style: TextStyle(
+              fontSize: 11,
+              color: hasApprover ? Colors.green[800] : Colors.orange[800],
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String status;
+  final Color color;
+
+  const _StatusBadge({
+    required this.status,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButtons extends StatelessWidget {
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  const _ActionButtons({
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ElevatedButton.icon(
+          onPressed: onApprove,
+          icon: const Icon(Icons.check_circle, size: 16),
+          label: const Text('Approve', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            minimumSize: const Size(90, 36),
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(
+          onPressed: onReject,
+          icon: const Icon(Icons.cancel, size: 16),
+          label: const Text('Reject', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            minimumSize: const Size(90, 36),
+          ),
+        ),
+      ],
     );
   }
 }

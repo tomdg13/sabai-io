@@ -10,7 +10,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:typed_data';
+// Import the PDF page
+import 'package:inventory/business/TerminalPdfPage.dart' show TerminalPdfPage;
 
 class TerminalEditPage extends StatefulWidget {
   final Map<String, dynamic> TerminalData;
@@ -32,6 +37,13 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
   String? _base64Image;
   String? _currentImageUrl;
   File? _imageFile;
+  
+  // PDF related variables
+  String? _base64Pdf;
+  String? _currentPdfUrl;
+  String? _pdfFileName;
+  File? _pdfFile;
+  
   bool _isLoading = false;
   bool _isDeleting = false;
   String currentTheme = ThemeConfig.defaultTheme;
@@ -56,6 +68,8 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
     _serialNumberController = TextEditingController(text: widget.TerminalData['serial_number'] ?? '');
     _simNumberController = TextEditingController(text: widget.TerminalData['sim_number'] ?? '');
     _currentImageUrl = widget.TerminalData['image_url'];
+    _currentPdfUrl = widget.TerminalData['pdf_url'];
+    _pdfFileName = widget.TerminalData['pdf_filename'];
     
     if (widget.TerminalData['expire_date'] != null && widget.TerminalData['expire_date'].toString().isNotEmpty) {
       try {
@@ -73,6 +87,231 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
     _serialNumberController.dispose();
     _simNumberController.dispose();
     super.dispose();
+  }
+
+  bool _isDownloading = false;
+
+  // Open/Download PDF function with proper file saving
+  Future<void> _downloadPdf(String pdfUrl, String? filename) async {
+    setState(() {
+      _isDownloading = true;
+    });
+
+    try {
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              Text('Downloading PDF...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+        ),
+      );
+
+      if (kIsWeb) {
+        // For web, open in new tab
+        final Uri url = Uri.parse(pdfUrl);
+        if (await canLaunchUrl(url)) {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+        } else {
+          throw Exception('Could not open PDF');
+        }
+      } else {
+        // For mobile, download the file
+        final response = await http.get(Uri.parse(pdfUrl));
+        
+        if (response.statusCode == 200) {
+          // Get the directory to save the file
+          Directory? directory;
+          if (Platform.isAndroid) {
+            directory = await getExternalStorageDirectory();
+          } else {
+            directory = await getApplicationDocumentsDirectory();
+          }
+
+          if (directory != null) {
+            // Create filename
+            final fileName = filename ?? 'terminal_document_${DateTime.now().millisecondsSinceEpoch}.pdf';
+            final filePath = '${directory.path}/$fileName';
+            
+            // Save file
+            final file = File(filePath);
+            await file.writeAsBytes(response.bodyBytes);
+
+            // Hide loading snackbar
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+            // Show success message with options
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.white),
+                        SizedBox(width: 8),
+                        Expanded(child: Text('PDF downloaded successfully!')),
+                      ],
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Saved to: ${directory.path}',
+                      style: TextStyle(fontSize: 12, color: Colors.white70),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: 'Open',
+                  textColor: Colors.white,
+                  onPressed: () => _openFile(filePath),
+                ),
+              ),
+            );
+          } else {
+            throw Exception('Could not access storage directory');
+          }
+        } else {
+          throw Exception('Failed to download PDF: ${response.statusCode}');
+        }
+      }
+    } catch (e) {
+      // Hide loading snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Error downloading PDF: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      setState(() {
+        _isDownloading = false;
+      });
+    }
+  }
+
+  // Open downloaded file
+  Future<void> _openFile(String filePath) async {
+    try {
+      final Uri fileUri = Uri.file(filePath);
+      if (await canLaunchUrl(fileUri)) {
+        await launchUrl(fileUri, mode: LaunchMode.externalApplication);
+      } else {
+        throw Exception('Could not open file');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open PDF. File saved at: $filePath'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  // PDF picker function
+  Future<void> _pickPdf() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        withData: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        PlatformFile file = result.files.first;
+        
+        // Check file size (limit to 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('PDF file size must be less than 10MB')),
+                ],
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        Uint8List? fileBytes;
+        
+        if (kIsWeb) {
+          fileBytes = file.bytes;
+        } else {
+          if (file.path != null) {
+            final pdfFile = File(file.path!);
+            fileBytes = await pdfFile.readAsBytes();
+            setState(() {
+              _pdfFile = pdfFile;
+            });
+          }
+        }
+
+        if (fileBytes != null) {
+          final String base64String = base64Encode(fileBytes);
+          
+          setState(() {
+            _base64Pdf = 'data:application/pdf;base64,$base64String';
+            _pdfFileName = file.name;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('PDF selected: ${file.name}')),
+                ],
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Error selecting PDF: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _scanBarcode() async {
@@ -327,6 +566,12 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
       if (_base64Image != null) {
         terminalData['image'] = _base64Image;
       }
+      
+      // Add PDF data
+      if (_base64Pdf != null) {
+        terminalData['terminal_pdf'] = _base64Pdf;
+        terminalData['pdf_filename'] = _pdfFileName;
+      }
 
       final response = await http.put(
         Uri.parse(url.toString()),
@@ -477,6 +722,331 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
         _isDeleting = false;
       });
     }
+  }
+
+  // PDF section widget
+  Widget _buildPdfSection() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.picture_as_pdf,
+                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                  size: 24,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'PDF Document',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+            
+            // Main PDF display area
+            GestureDetector(
+              onTap: _pickPdf,
+              child: Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: (_pdfFileName != null || _currentPdfUrl != null)
+                        ? ThemeConfig.getPrimaryColor(currentTheme)
+                        : Colors.grey[300]!,
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: _pdfFileName != null
+                    ? _buildNewPdfDisplay()
+                    : _currentPdfUrl != null && _currentPdfUrl!.isNotEmpty
+                        ? _buildExistingPdfDisplay()
+                        : _buildNoPdfDisplay(),
+              ),
+            ),
+            
+            // Action buttons - Always visible when PDF exists
+            if (_currentPdfUrl != null && _currentPdfUrl!.isNotEmpty) ...[
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.cloud_download, color: Colors.blue, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Current PDF Available',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blue[900],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _isDownloading 
+                                ? null 
+                                : () => _downloadPdf(
+                                      _currentPdfUrl!, 
+                                      widget.TerminalData['pdf_filename'],
+                                    ),
+                            icon: _isDownloading
+                                ? SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : Icon(Icons.download, size: 18),
+                            label: Text(
+                              _isDownloading ? 'Downloading...' : 'Download',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                              foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TerminalPdfPage(
+                                    pdfUrl: _currentPdfUrl!,
+                                    pdfFilename: widget.TerminalData['pdf_filename'],
+                                    terminalName: widget.TerminalData['terminal_name'] ?? 'Terminal',
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: Icon(Icons.open_in_new, size: 18),
+                            label: Text(
+                              'Open',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              side: BorderSide(
+                                color: ThemeConfig.getPrimaryColor(currentTheme),
+                                width: 2,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Widget for newly selected PDF
+  Widget _buildNewPdfDisplay() {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.picture_as_pdf,
+            color: Colors.red,
+            size: 32,
+          ),
+        ),
+        SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _pdfFileName!,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              SizedBox(height: 4),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'New PDF Selected',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.green[700],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          icon: Icon(Icons.clear, color: Colors.grey[600]),
+          onPressed: () {
+            setState(() {
+              _pdfFileName = null;
+              _base64Pdf = null;
+              _pdfFile = null;
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  // Widget for existing PDF from server
+  Widget _buildExistingPdfDisplay() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.picture_as_pdf,
+                color: Colors.red,
+                size: 32,
+              ),
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.TerminalData['pdf_filename'] ?? 'Current PDF',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green, size: 14),
+                      SizedBox(width: 4),
+                      Text(
+                        'PDF Available',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.edit,
+              color: ThemeConfig.getPrimaryColor(currentTheme),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // Widget for no PDF
+  Widget _buildNoPdfDisplay() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.upload_file,
+          size: 48,
+          color: ThemeConfig.getPrimaryColor(currentTheme),
+        ),
+        SizedBox(height: 12),
+        Text(
+          'Tap to upload PDF',
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        SizedBox(height: 4),
+        Text(
+          'Max size: 10MB',
+          style: TextStyle(
+            color: Colors.grey[500],
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildImageSection() {
@@ -684,6 +1254,11 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
             children: [
               _buildImageSection(),
               
+              SizedBox(height: 20),
+              
+              // PDF section
+              _buildPdfSection(),
+
               SizedBox(height: 20),
 
               Card(
@@ -965,6 +1540,54 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
 
               SizedBox(height: 30),
 
+              // Action buttons at bottom
+              if (_currentPdfUrl != null && _currentPdfUrl!.isNotEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Download PDF button
+                    Container(
+                      height: 56,
+                      child: OutlinedButton.icon(
+                        onPressed: _isDownloading 
+                            ? null 
+                            : () => _downloadPdf(
+                                  _currentPdfUrl!, 
+                                  widget.TerminalData['pdf_filename'],
+                                ),
+                        icon: _isDownloading
+                            ? SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    ThemeConfig.getPrimaryColor(currentTheme),
+                                  ),
+                                ),
+                              )
+                            : Icon(Icons.download, size: 24),
+                        label: Text(
+                          _isDownloading ? 'Downloading PDF...' : 'Download PDF Document',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                          side: BorderSide(
+                            color: ThemeConfig.getPrimaryColor(currentTheme),
+                            width: 2,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                  ],
+                ),
+
+              // Update Terminal button
               Container(
                 height: 56,
                 child: ElevatedButton(
