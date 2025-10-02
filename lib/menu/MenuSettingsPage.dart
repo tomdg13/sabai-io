@@ -12,7 +12,7 @@ import 'package:inventory/business/UserPage.dart';
 import 'package:inventory/business/VendorPage.dart';
 import 'package:inventory/csv_upload/csv_upload_page.dart';
 import 'package:inventory/login/login_page.dart' show LoginPage;
-import 'package:inventory/upload/SettlementUploadMenu.dart';
+import 'package:inventory/upload/settlement_upload_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart';
 import '../utils/simple_translations.dart';

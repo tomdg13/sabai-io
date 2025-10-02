@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart'; // Add this import for Clipboard
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/company_config.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'package:inventory/config/settlement_column.dart';
 import 'package:inventory/config/missing_column_detector.dart';
-import 'package:inventory/widgets/column_analysis_display_widget.dart'; // Add this import
+import 'package:inventory/widgets/column_analysis_display_widget.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -64,6 +64,9 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   int _successCount = 0;
   int _errorCount = 0;
   List<String> _errorMessages = [];
+  
+  // Validation tracking
+  int _skippedRows = 0;
 
   @override
   void initState() {
@@ -103,60 +106,74 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         .replaceAll('\u00EF\u00BB\u00BF', '')
         .trim()).toList();
   }
-
-  String _detectFileType(List<String> headers) {
-    print('=== FILE TYPE DETECTION ===');
-    print('Configuration Version: ${SettlementColumn.getConfigVersion()}');
-    String detectedType = SettlementColumn.detectFileType(headers);
+String _detectFileType(List<String> headers) {
+  print('=== FILE TYPE DETECTION ===');
+  print('Configuration Version: ${SettlementColumn.getConfigVersion()}');
+  
+  // FORCE SETTLEMENT TYPE: If file has System Txn ID, treat as settlement
+  // This prevents misclassification of settlement files that happen to have PSP ID column
+  if (headers.any((h) => h.toLowerCase().trim().contains('system txn id'))) {
+    print('✓ Detected as SETTLEMENT file (has System Txn ID column)');
+    String detectedType = 'settlement';
     
-    // Perform detailed column analysis
     _columnAnalysis = MissingColumnDetector.analyzeMissingColumns(headers, detectedType);
     
-    // Print detailed report to console (still useful for debugging)
     String detailedReport = MissingColumnDetector.generateDetailedReport(_columnAnalysis!);
     print(detailedReport);
     
-    // Add console output for key metrics
     print('=== CONSOLE SUMMARY ===');
-    print('File Type: ${_columnAnalysis!.fileType.toUpperCase()}');
+    print('File Type: SETTLEMENT (forced)');
     print('Mapping Success Rate: ${(_columnAnalysis!.mappingSuccessRate * 100).toStringAsFixed(1)}%');
     print('Successfully Mapped: ${_columnAnalysis!.foundColumns.length}/${_columnAnalysis!.totalExpectedColumns}');
     print('Required Missing: ${_columnAnalysis!.requiredMissingCount}');
-    print('Unmapped CSV Columns: ${_columnAnalysis!.unmappedColumns.length}');
     print('Status: ${_columnAnalysis!.canProceed ? "READY FOR UPLOAD" : "MISSING REQUIRED COLUMNS"}');
-    
-    if (_columnAnalysis!.unmappedColumns.isNotEmpty) {
-      print('--- UNMAPPED COLUMNS ---');
-      for (var unmapped in _columnAnalysis!.unmappedColumns) {
-        print('• ${unmapped.columnName}');
-        if (unmapped.possibleApiField != null) {
-          print('  Possible match: ${unmapped.possibleApiField}');
-        }
-      }
-    }
-    
-    if (_columnAnalysis!.requiredMissingCount > 0) {
-      print('--- REQUIRED MISSING ---');
-      var requiredMissing = _columnAnalysis!.missingColumns.where((col) => col.isRequired).toList();
-      for (var missing in requiredMissing) {
-        print('• ${missing.expectedColumn} (${missing.apiField})');
-      }
-    }
-    
     print('=== END CONSOLE SUMMARY ===');
     
-    setState(() {
-      // Trigger UI update to show the analysis in the text field
-    });
+    setState(() {});
     
     return detectedType;
   }
-
-  // Remove the old snackbar method
-  // void _showColumnAnalysisSnackBar(String message, bool canProceed) {
-  //   // This method is no longer needed
-  // }
-
+  
+  // Original detection logic as fallback
+  String detectedType = SettlementColumn.detectFileType(headers);
+  
+  _columnAnalysis = MissingColumnDetector.analyzeMissingColumns(headers, detectedType);
+  
+  String detailedReport = MissingColumnDetector.generateDetailedReport(_columnAnalysis!);
+  print(detailedReport);
+  
+  print('=== CONSOLE SUMMARY ===');
+  print('File Type: ${_columnAnalysis!.fileType.toUpperCase()}');
+  print('Mapping Success Rate: ${(_columnAnalysis!.mappingSuccessRate * 100).toStringAsFixed(1)}%');
+  print('Successfully Mapped: ${_columnAnalysis!.foundColumns.length}/${_columnAnalysis!.totalExpectedColumns}');
+  print('Required Missing: ${_columnAnalysis!.requiredMissingCount}');
+  print('Unmapped CSV Columns: ${_columnAnalysis!.unmappedColumns.length}');
+  print('Status: ${_columnAnalysis!.canProceed ? "READY FOR UPLOAD" : "MISSING REQUIRED COLUMNS"}');
+  
+  if (_columnAnalysis!.unmappedColumns.isNotEmpty) {
+    print('--- UNMAPPED COLUMNS ---');
+    for (var unmapped in _columnAnalysis!.unmappedColumns) {
+      print('• ${unmapped.columnName}');
+      if (unmapped.possibleApiField != null) {
+        print('  Possible match: ${unmapped.possibleApiField}');
+      }
+    }
+  }
+  
+  if (_columnAnalysis!.requiredMissingCount > 0) {
+    print('--- REQUIRED MISSING ---');
+    var requiredMissing = _columnAnalysis!.missingColumns.where((col) => col.isRequired).toList();
+    for (var missing in requiredMissing) {
+      print('• ${missing.expectedColumn} (${missing.apiField})');
+    }
+  }
+  
+  print('=== END CONSOLE SUMMARY ===');
+  
+  setState(() {});
+  
+  return detectedType;
+}
   void _showColumnAnalysisDialog() {
     if (_columnAnalysis == null) return;
 
@@ -424,7 +441,6 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   }
 
   Widget _buildColumnAnalysisSection() {
-    // This is the new text field section that replaces notifications
     return ColumnAnalysisDisplayWidget(
       analysis: _columnAnalysis,
       currentTheme: currentTheme,
@@ -491,7 +507,6 @@ static const Map<String, String> ${_fileType}FieldMapping = {
         actions: [
           TextButton(
             onPressed: () {
-              // Copy to clipboard functionality could be added here
               _showSnackBar('Copy the suggestions and update your SettlementColumn.dart file', isError: false);
               Navigator.of(context).pop();
             },
@@ -539,7 +554,202 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     return suggestions.toString();
   }
 
-  // Rest of your existing file processing methods remain the same...
+  // NEW: Validation methods
+  List<ValidationError> _validateDataBeforeUpload() {
+  List<ValidationError> errors = [];
+  
+  if (_parsedData == null || _parsedData!.isEmpty) {
+    return errors;
+  }
+  
+  for (int i = 0; i < _parsedData!.length; i++) {
+    var record = _parsedData![i];
+    int rowNumber = i + 2; // +1 for header, +1 for 0-index
+    
+    // ONLY check truly critical fields that backend requires
+    // Check if row has ANY meaningful data
+    bool hasAnyData = false;
+    int filledFields = 0;
+    
+    for (var value in record.values) {
+      if (value != null && value.toString().trim().isNotEmpty) {
+        filledFields++;
+        hasAnyData = true;
+      }
+    }
+    
+    // Skip completely empty rows
+    if (!hasAnyData || filledFields < 3) {
+      errors.add(ValidationError(
+        rowNumber: rowNumber,
+        fieldName: 'row_data',
+        errorMessage: 'Row is empty or has insufficient data',
+        suggestion: 'This row will be skipped during upload',
+      ));
+      continue;
+    }
+    
+    // Check for company_id (can come from PSP ID column)
+    if (_isEmpty(record['company_id']) && _isEmpty(record['psp_id'])) {
+      errors.add(ValidationError(
+        rowNumber: rowNumber,
+        fieldName: 'company_id',
+        errorMessage: 'Company/PSP ID is missing',
+        suggestion: 'This row will be skipped during upload',
+      ));
+    }
+    
+    // Transaction time - very lenient check
+    if (_isEmpty(record['transaction_time']) && _isEmpty(record['merchant_txn_time'])) {
+      errors.add(ValidationError(
+        rowNumber: rowNumber,
+        fieldName: 'transaction_time',
+        errorMessage: 'Transaction time is missing',
+        suggestion: 'This row will be skipped during upload',
+      ));
+    }
+  }
+  
+  return errors;
+}
+
+
+  bool _isEmpty(dynamic value) {
+    if (value == null) return true;
+    if (value is String) return value.trim().isEmpty;
+    return value.toString().trim().isEmpty;
+  }
+
+  void _showValidationErrorDialog(List<ValidationError> errors) {
+    // Count critical vs warning errors
+    final criticalErrors = errors.where((e) => 
+      e.fieldName == 'system_txn_id' || 
+      e.fieldName == 'merchant_id' || 
+      e.fieldName == 'merchant_txn_amt'
+    ).toList();
+    
+    final warnings = errors.where((e) => e.fieldName == 'terminal_id').toList();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Validation Issues Found'),
+          ],
+        ),
+        content: Container(
+          width: double.maxFinite,
+          constraints: BoxConstraints(maxHeight: 450),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (criticalErrors.isNotEmpty) ...[
+                Text(
+                  'Found ${criticalErrors.length} row(s) with critical errors that will be skipped:',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                ),
+                SizedBox(height: 8),
+              ],
+              if (warnings.isNotEmpty) ...[
+                Text(
+                  'Found ${warnings.length} row(s) with warnings (may fail on backend):',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                ),
+                SizedBox(height: 8),
+              ],
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: errors.length,
+                  itemBuilder: (context, index) {
+                    var error = errors[index];
+                    final isCritical = error.fieldName != 'terminal_id';
+                    
+                    return Card(
+                      color: isCritical ? Colors.red[50] : Colors.orange[50],
+                      margin: EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: isCritical ? Colors.red : Colors.orange,
+                          child: Text(
+                            '${error.rowNumber}',
+                            style: TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                        title: Text(
+                          '${error.fieldName}: ${error.errorMessage}',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        subtitle: Text(
+                          error.suggestion,
+                          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                        ),
+                        isThreeLine: true,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Upload Summary:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 4),
+                    Text('Total rows: ${_parsedData!.length}'),
+                    Text(
+                      'Rows that will be skipped: ${criticalErrors.length}',
+                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'Rows that will be attempted: ${_parsedData!.length - criticalErrors.length}',
+                      style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                    ),
+                    if (warnings.isNotEmpty)
+                      Text(
+                        'Rows with warnings: ${warnings.length}',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancel Upload'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _proceedWithUpload(skipInvalid: true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+            ),
+            child: Text('Upload Valid Rows'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // File handling methods
   Future<void> _pickFile() async {
     try {
       _resetState();
@@ -606,7 +816,8 @@ static const Map<String, String> ${_fileType}FieldMapping = {
       _fileName = fileName;
       _fileBytes = bytes;
       _isParsing = true;
-      _columnAnalysis = null; // Reset previous analysis
+      _columnAnalysis = null;
+      _skippedRows = 0;
     });
 
     try {
@@ -671,7 +882,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     List<String> rawHeaders = tableData.first.map((cell) => cell.toString()).toList();
     List<String> headers = _cleanHeaders(rawHeaders);
     
-    _fileType = _detectFileType(headers); // This sets _columnAnalysis
+    _fileType = _detectFileType(headers);
     
     if (!_columnAnalysis!.canProceed) {
       _showSnackBar('Cannot proceed: ${_columnAnalysis!.requiredMissingCount} required columns missing. Check analysis for details.', isError: true);
@@ -686,7 +897,6 @@ static const Map<String, String> ${_fileType}FieldMapping = {
   }
 
   Future<void> _processPSPData(List<List<dynamic>> tableData) async {
-    // Your existing PSP processing logic remains the same
     List<String> headers = _cleanHeaders(tableData.first.map((cell) => cell.toString()).toList());
     List<Map<String, dynamic>> pspData = [];
     
@@ -780,10 +990,14 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     
     List<Map<String, dynamic>> parsedData = [];
     final defaultValues = SettlementColumn.getDefaultValues();
+    int skippedEmpty = 0;
     
     for (int i = 1; i < tableData.length; i++) {
       var row = tableData[i];
-      if (_isEmptyRow(row)) continue;
+      if (_isEmptyRow(row)) {
+        skippedEmpty++;
+        continue;
+      }
 
       Map<String, dynamic> rowData = Map.from(defaultValues);
       
@@ -796,14 +1010,42 @@ static const Map<String, String> ${_fileType}FieldMapping = {
         }
       }
       
-      parsedData.add(rowData);
+      // NEW: Check if row has meaningful data before adding
+      if (_hasMeaningfulData(rowData)) {
+        parsedData.add(rowData);
+      } else {
+        print('Skipping empty row ${i + 1}');
+        skippedEmpty++;
+      }
     }
 
     setState(() {
       _parsedData = parsedData;
+      _skippedRows = skippedEmpty;
     });
 
-    _showSnackBar('Settlement file parsed successfully! Found ${parsedData.length} records.', isError: false);
+    String message = 'Settlement file parsed successfully! Found ${parsedData.length} valid records';
+    if (skippedEmpty > 0) {
+      message += ' (${skippedEmpty} empty rows skipped)';
+    }
+    _showSnackBar(message, isError: false);
+  }
+
+  // NEW: Helper method to check if row has meaningful data
+  bool _hasMeaningfulData(Map<String, dynamic> rowData) {
+    // A row is meaningful if it has at least one critical field filled
+    final criticalFields = [
+      'system_txn_id',
+      'merchant_id',
+      'merchant_txn_amt',
+    ];
+    
+    return criticalFields.any((field) {
+      var value = rowData[field];
+      return value != null && 
+             value.toString().isNotEmpty && 
+             value.toString().trim().isNotEmpty;
+    });
   }
 
   bool _isEmptyRow(List<dynamic> row) {
@@ -821,13 +1063,26 @@ static const Map<String, String> ${_fileType}FieldMapping = {
         .replaceAll(RegExp(r'^_|_'), '');
   }
 
-  // Upload methods remain the same...
+  // Upload methods with validation
   Future<void> _uploadData() async {
     if (_parsedData == null || _parsedData!.isEmpty) {
       _showSnackBar('No data to upload. Please select and parse a file first.', isError: true);
       return;
     }
+    
+    // NEW: Validate data before upload
+    List<ValidationError> validationErrors = _validateDataBeforeUpload();
+    
+    if (validationErrors.isNotEmpty) {
+      _showValidationErrorDialog(validationErrors);
+      return; // Don't proceed automatically, let user decide
+    }
+    
+    // If validation passed, proceed with upload
+    await _proceedWithUpload(skipInvalid: false);
+  }
 
+  Future<void> _proceedWithUpload({bool skipInvalid = false}) async {
     _resetUploadState();
 
     try {
@@ -843,12 +1098,28 @@ static const Map<String, String> ${_fileType}FieldMapping = {
       
       final url = AppConfig.api('/api/settlement-details');
       
-      for (int i = 0; i < _parsedData!.length; i++) {
-        await _uploadSingleRecord(i, url.toString(), token, companyId);
-        _updateProgress(i + 1);
+      // NEW: Filter out invalid rows if skipInvalid is true
+      List<Map<String, dynamic>> dataToUpload = _parsedData!;
+      int skipped = 0;
+      
+      if (skipInvalid) {
+        dataToUpload = _parsedData!.where((record) {
+          bool isValid = !_isEmpty(record['system_txn_id']) &&
+                        !_isEmpty(record['merchant_id']) &&
+                        !_isEmpty(record['merchant_txn_amt']);
+          if (!isValid) skipped++;
+          return isValid;
+        }).toList();
+        
+        print('Uploading ${dataToUpload.length} valid rows, skipping $skipped invalid rows');
+      }
+      
+      for (int i = 0; i < dataToUpload.length; i++) {
+        await _uploadSingleRecord(i, url.toString(), token, companyId, dataToUpload);
+        _updateProgress(i + 1, dataToUpload.length);
       }
 
-      _showUploadResultDialog();
+      _showUploadResultDialog(totalRows: _parsedData!.length, skippedRows: skipped);
     } catch (e) {
       _showSnackBar('Error uploading data: $e', isError: true);
     } finally {
@@ -878,40 +1149,126 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     }
   }
 
-  Future<void> _uploadSingleRecord(int index, String apiUrl, String? token, dynamic companyId) async {
-    try {
-      Map<String, dynamic> settlementData = Map.from(_parsedData![index]);
-      settlementData['company_id'] = companyId;
-      
-      Map<String, String> headers = {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
-      
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: headers,
-        body: jsonEncode(settlementData),
-      );
-      
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _successCount++;
-      } else {
-        _errorCount++;
-        try {
-          final errorData = jsonDecode(response.body);
-          _errorMessages.add('Row ${index + 1}: ${errorData['message'] ?? 'Unknown error'}');
-        } catch (e) {
-          _errorMessages.add('Row ${index + 1}: HTTP ${response.statusCode}');
-        }
-      }
-    } catch (e) {
-      _errorCount++;
-      _errorMessages.add('Row ${index + 1}: $e');
+ Future<void> _uploadSingleRecord(
+  int index, 
+  String apiUrl, 
+  String? token, 
+  dynamic companyId,
+  [List<Map<String, dynamic>>? customData]
+) async {
+  try {
+    final dataSource = customData ?? _parsedData!;
+    Map<String, dynamic> settlementData = Map.from(dataSource[index]);
+    
+    // FIX: Remove pspid if it exists, ensure company_id is set
+    if (settlementData.containsKey('pspid')) {
+      settlementData['company_id'] = settlementData['pspid'];
+      settlementData.remove('pspid');
     }
+    
+    // Ensure company_id is set
+    settlementData['company_id'] = companyId ?? settlementData['company_id'];
+    
+    // FIX: Convert batch_number and terminal_trace_number to integers
+    if (settlementData['batch_number'] != null) {
+      settlementData['batch_number'] = int.tryParse(settlementData['batch_number'].toString()) ?? 1;
+    }
+    
+    if (settlementData['terminal_trace_number'] != null) {
+      settlementData['terminal_trace_number'] = int.tryParse(settlementData['terminal_trace_number'].toString()) ?? 1;
+    }
+    
+    // ✅ NEW: Detailed logging BEFORE request
+    print('=== UPLOAD REQUEST DEBUG (Row ${index + 1}) ===');
+    print('API URL: $apiUrl');
+    print('Has Token: ${token != null}');
+    if (token != null) {
+      print('Token (first 20 chars): ${token.substring(0, 20)}...');
+    }
+    print('Company ID: $companyId');
+    print('');
+    print('REQUEST BODY:');
+    
+    // Pretty print the JSON body
+    String prettyJson = JsonEncoder.withIndent('  ').convert(settlementData);
+    print(prettyJson);
+    print('');
+    print('CRITICAL FIELDS CHECK:');
+    print('  - company_id: ${settlementData['company_id']}');
+    print('  - transaction_time: ${settlementData['transaction_time']}');
+    print('  - system_transaction_id: ${settlementData['system_transaction_id']}');
+    print('  - merchant_id: ${settlementData['merchant_id']}');
+    print('  - terminal_id: ${settlementData['terminal_id']}');
+    print('=== END REQUEST DEBUG ===');
+    print('');
+    
+    Map<String, String> headers = {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+    
+    // Make the request
+    final response = await http.post(
+      Uri.parse(apiUrl),
+      headers: headers,
+      body: jsonEncode(settlementData),
+    );
+    
+    // ✅ NEW: Detailed logging AFTER response
+    print('=== UPLOAD RESPONSE DEBUG (Row ${index + 1}) ===');
+    print('Status Code: ${response.statusCode}');
+    print('Status Message: ${response.reasonPhrase}');
+    print('');
+    print('RESPONSE HEADERS:');
+    response.headers.forEach((key, value) {
+      print('  $key: $value');
+    });
+    print('');
+    print('RESPONSE BODY:');
+    try {
+      // Try to pretty print JSON response
+      var responseJson = jsonDecode(response.body);
+      String prettyResponse = JsonEncoder.withIndent('  ').convert(responseJson);
+      print(prettyResponse);
+    } catch (e) {
+      // If not JSON, print raw
+      print(response.body);
+    }
+    print('=== END RESPONSE DEBUG ===');
+    print('');
+    
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      _successCount++;
+      print('✅ Row ${index + 1}: SUCCESS');
+    } else {
+      _errorCount++;
+      try {
+        final errorData = jsonDecode(response.body);
+        String errorMsg = 'Row ${index + 1}: ${errorData['message'] ?? 'Unknown error'}';
+        
+        // ✅ NEW: Include validation errors if present
+        if (errorData['errors'] != null) {
+          errorMsg += '\n  Validation: ${errorData['errors']}';
+        }
+        
+        _errorMessages.add(errorMsg);
+        print('❌ Row ${index + 1}: FAILED - $errorMsg');
+      } catch (e) {
+        String errorMsg = 'Row ${index + 1}: HTTP ${response.statusCode} - ${response.reasonPhrase}';
+        _errorMessages.add(errorMsg);
+        print('❌ Row ${index + 1}: FAILED - $errorMsg');
+      }
+    }
+  } catch (e, stackTrace) {
+    _errorCount++;
+    String errorMsg = 'Row ${index + 1}: Exception - $e';
+    _errorMessages.add(errorMsg);
+    print('❌ Row ${index + 1}: EXCEPTION');
+    print('Error: $e');
+    print('Stack trace: $stackTrace');
   }
+}
 
-  
 
   void _resetState() {
     setState(() {
@@ -920,6 +1277,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
       _errorMessages.clear();
       _fileType = 'settlement';
       _columnAnalysis = null;
+      _skippedRows = 0;
     });
   }
 
@@ -933,9 +1291,9 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     });
   }
 
-  void _updateProgress(int completedCount) {
+  void _updateProgress(int completedCount, [int? total]) {
     setState(() {
-      _uploadProgress = completedCount / _parsedData!.length;
+      _uploadProgress = completedCount / (total ?? _parsedData!.length);
     });
   }
 
@@ -955,7 +1313,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     );
   }
 
-  void _showUploadResultDialog() {
+  void _showUploadResultDialog({int? totalRows, int? skippedRows}) {
     String errorReport = _generateErrorReport();
     
     showDialog(
@@ -983,9 +1341,17 @@ static const Map<String, String> ${_fileType}FieldMapping = {
             children: [
               Text('Upload Summary:', style: TextStyle(fontWeight: FontWeight.bold)),
               SizedBox(height: 8),
-              Text('Successful: $_successCount records'),
-              Text('Failed: $_errorCount records'),
-              Text('Total Processed: ${_parsedData?.length ?? 0} records'),
+              if (totalRows != null) ...[
+                Text('Total Records in File: $totalRows'),
+                if (skippedRows != null && skippedRows > 0)
+                  Text('Skipped Before Upload: $skippedRows', 
+                       style: TextStyle(color: Colors.orange)),
+              ],
+              Text('Successful: $_successCount records', 
+                   style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+              Text('Failed: $_errorCount records', 
+                   style: TextStyle(color: _errorCount > 0 ? Colors.red : Colors.grey)),
+              Text('Total Attempted: ${_successCount + _errorCount} records'),
               if (_errorMessages.isNotEmpty) ...[
                 SizedBox(height: 16),
                 Text('Error Details:', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1063,10 +1429,16 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     report.writeln('');
     
     report.writeln('SUMMARY:');
-    report.writeln('Total Records Processed: ${_parsedData?.length ?? 0}');
+    report.writeln('Total Records in File: ${_parsedData?.length ?? 0}');
+    if (_skippedRows > 0) {
+      report.writeln('Empty Rows Skipped: $_skippedRows');
+    }
+    report.writeln('Records Attempted: ${_successCount + _errorCount}');
     report.writeln('Successful Uploads: $_successCount');
     report.writeln('Failed Uploads: $_errorCount');
-    report.writeln('Success Rate: ${_parsedData != null && _parsedData!.isNotEmpty ? ((_successCount / _parsedData!.length) * 100).toStringAsFixed(1) : 0}%');
+    if (_successCount + _errorCount > 0) {
+      report.writeln('Success Rate: ${((_successCount / (_successCount + _errorCount)) * 100).toStringAsFixed(1)}%');
+    }
     report.writeln('');
     
     if (_columnAnalysis != null) {
@@ -1172,7 +1544,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     );
   }
 
-  // UI Building methods with enhanced column analysis info...
+  // UI Building methods
   Widget _buildFileUploadSection() {
     return Card(
       elevation: 2,
@@ -1313,6 +1685,11 @@ static const Map<String, String> ${_fileType}FieldMapping = {
             '${_parsedData!.length} records found',
             style: TextStyle(color: Colors.green, fontSize: 12),
           ),
+          if (_skippedRows > 0)
+            Text(
+              '($_skippedRows empty rows skipped)',
+              style: TextStyle(color: Colors.orange, fontSize: 10),
+            ),
           if (_fileType == 'psp')
             Text(
               '(Converted from PSP format)',
@@ -1582,7 +1959,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
                 children: [
                   _buildFileUploadSection(),
                   SizedBox(height: 20),
-                  _buildColumnAnalysisSection(), // New text field section
+                  _buildColumnAnalysisSection(),
                   SizedBox(height: 20),
                   _buildDataPreview(),
                   SizedBox(height: 20),

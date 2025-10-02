@@ -206,7 +206,46 @@ class SettlementColumn {
     'extra_info': 'Extra Info',
   };
 
-  // Required columns for validation
+  // ADDED: Alternative column names for Settlement files
+  static const Map<String, List<String>> settlementAlternativeColumns = {
+    'Transaction Time': ['Merchant Txn Time', 'merchant_txn_time'],
+    'Order Number': ['Merchant Txn ID', 'merchant_txn_id'],
+    'Transaction Amount': ['Merchant Txn Amt', 'merchant_txn_amt'],
+    'Transaction Currency': ['Merchant Txn Curr', 'merchant_txn_curr'],
+    'Merchant Settlement Amount': ['Merchant Sttl Amt', 'merchant_sttl_amt'],
+    'Merchant Settlement Currency': ['Merchant Sttl Curr', 'merchant_sttl_curr'],
+    'Reconciliation Flag': ['Txn Status', 'txn_status'],
+    'Transaction Type': ['Txn Type', 'txn_type'],
+    'Company ID': ['PSP ID', 'psp_id', 'Acquirer ID', 'acquirer_id'],
+    'Payment Time': ['Txn Pay Time', 'txn_pay_time'],
+    'PSP Order Number': ['PSP Txn ID', 'psp_txn_id'],
+    'System Transaction ID': ['System Txn ID', 'system_txn_id'],
+    'System Transaction Time': ['System Txn Time', 'system_txn_time'],
+    'Original Order Number': ['Original Merchant Txn ID', 'original_merchant_txn_id'],
+    'Original System Transaction ID': ['Original System Txn ID', 'original_system_txn_id'],
+    'Original PSP Order Number': ['Original PSP Txn ID', 'original_psp_txn_id'],
+    'Merchant Local Amount': ['Merchant Local Amt', 'merchant_local_amt'],
+    'Merchant Local Currency': ['Merchant Local Curr', 'merchant_local_curr'],
+    'Local Tips Amount': ['Local Tips Amt', 'local_tips_amt'],
+    'Local Surcharge Fee Amount': ['Local Surcharge Fee Amt', 'local_surcharge_fee_amt'],
+    'Local Capture Amount': ['Local Capture Amt', 'local_capture_amt'],
+    'Rate Local to Transaction': ['Rate of Local to Txn', 'rate_of_local_to_txn'],
+    'Surcharge Fee Amount': ['Surcharge Fee Amt', 'surcharge_fee_amt'],
+    'Merchant Capture Amount': ['Merchant Capture Amt', 'merchant_capture_amt'],
+    'Merchant Discount Amount': ['Merchant Discount Amt', 'merchant_discount_amt'],
+    'Rate Transaction to Settlement': ['Rate from Merchant Txn to Sttl', 'rate_from_merchant_txn_to_sttl'],
+    'User Billing Amount': ['User Billing Amt', 'user_billing_amt'],
+    'User Billing Currency': ['User Billing Curr', 'user_billing_curr'],
+    'Transaction Initiation Mode': ['Txn Initiation Mode', 'txn_initiation_mode'],
+    'Transaction Status': ['Txn Status', 'txn_status'],
+    'Authorization Code': ['PSP Authorization Code', 'psp_authorization_code'],
+    'Interchange Fee Amount': ['PSP Interchange Fee', 'psp_interchange_fee'],
+    'Transaction Service Fee': ['Txn Service Fee', 'txn_service_fee'],
+    'Net Merchant Settlement Amount': ['Net Merchant Sttl Amt', 'net_merchant_sttl_amt'],
+    'MCC': ['Store MCC', 'store_mcc'],
+  };
+
+  // Required columns for validation (removed terminal_id from required)
   static const List<String> requiredColumns = [
     'company_id', 
     'transaction_time', 
@@ -222,8 +261,7 @@ class SettlementColumn {
     'merchant_id', 
     'merchant_name', 
     'store_id', 
-    'store_name', 
-    'terminal_id'
+    'store_name',
   ];
 
   // Data type configurations
@@ -232,6 +270,14 @@ class SettlementColumn {
     'payment_time', 
     'terminal_settlement_time', 
     'system_transaction_time'
+  };
+
+  // Integer columns that should be parsed as int
+  static const Set<String> integerColumns = {
+    'psp_order_number',
+    'original_psp_order_number',
+    'batch_number',
+    'terminal_trace_number',
   };
 
   // Only numeric fields that should remain numeric
@@ -250,9 +296,11 @@ class SettlementColumn {
   static const Map<String, int> stringLengthLimits = {
     'order_number': 100,
     'original_order_number': 100,
-    'transaction_currency': 100,
-    'merchant_settlement_currency': 100,
-    'brand_settlement_currency': 100,
+    'transaction_currency': 10,
+    'merchant_settlement_currency': 10,
+    'brand_settlement_currency': 10,
+    'merchant_local_currency': 10,
+    'user_billing_currency': 10,
     'reconciliation_flag': 50,
     'transaction_type': 50,
     'psp_name': 255,
@@ -279,8 +327,6 @@ class SettlementColumn {
     'merchant_order_reference': 255,
     'system_transaction_id': 255,
     'original_system_transaction_id': 255,
-    'merchant_local_currency': 100,
-    'user_billing_currency': 100,
     'mdr_rules': 255,
     'eci': 50,
     'transaction_initiation_mode': 100,
@@ -342,33 +388,33 @@ class SettlementColumn {
       'order_number': '92025082815352484721885',
       'original_order_number': '4bc95ee7ce524907a61e311d322b6703',
       'authorization_code': 'AUTH123456789',
-      'mcc': '744 - Financial Services',
+      'mcc': '744',
       'terminal_id': 'TERMINAL001',
       'transaction_amount': 0.0,
       'merchant_settlement_amount': 0.0,
       'net_merchant_settlement_amount': 0.0,
-      'merchant_nation': 'LAO - Lao People\'s Democratic Republic',
-      'issuer_country': 'LAO - Lao People\'s Democratic Republic',
-      'merchant_city': 'Vientiane Capital',
+      'merchant_nation': 'LAO',
+      'issuer_country': 'LAO',
+      'merchant_city': 'Vientiane',
       'transaction_initiation_mode': 'manual',
-      'system_result_code': 'S0000 - Success',
-      'psp_name': 'UnionPay International',
-      'payment_brand': 'UnionPay Credit Card',
+      'system_result_code': 'S0000',
+      'psp_name': 'UnionPay',
+      'payment_brand': 'UnionPay',
       'card_number': '623479******0250',
-      'group_id': 'LDB001 - Lao Development Bank',
-      'group_name': 'LDB Merchant Services Division',
+      'group_id': 'LDB001',
+      'group_name': 'LDB Merchant',
       'merchant_id': 'M020HQV00000001',
-      'merchant_name': 'Tomshop Retail Chain',
+      'merchant_name': 'Tomshop',
       'store_id': 'S020HQV00000002',
-      'store_name': 'TomAuto Settle Store 02 - Vientiane',
-      'mdr_rules': 'Combination Pricing Model',
+      'store_name': 'TomAuto Settle_02',
+      'mdr_rules': 'Combination',
       'metadata': 'Additional transaction metadata information',
       'api_code': 'STANDARD_API_V2',
-      'transaction_currency': 'United States Dollar - Primary Currency',
-      'merchant_settlement_currency': 'United States Dollar - Primary Currency',
-      'brand_settlement_currency': 'United States Dollar - Primary Currency',
-      'merchant_local_currency': 'United States Dollar - Primary Currency',
-      'user_billing_currency': 'United States Dollar - Primary Currency',
+      'transaction_currency': 'USD',
+      'merchant_settlement_currency': 'USD',
+      'brand_settlement_currency': 'USD',
+      'merchant_local_currency': 'USD',
+      'user_billing_currency': 'USD',
       'system_transaction_id': '95c137158fba48d0a0a6159682896c6e',
       'original_system_transaction_id': '45a55959fa504be293c73d1bd0f98314',
       'system_transaction_time': DateTime.now().toIso8601String(),
@@ -392,10 +438,10 @@ class SettlementColumn {
       'wht_amount': 0.0,
       'rate_local_to_transaction': 1.0,
       'rate_transaction_to_settlement': 1.0,
-      'psp_order_number': 'PSP_ORDER_123456789',
-      'original_psp_order_number': 'ORIGINAL_PSP_ORDER_987654321',
-      'batch_number': 'BATCH-001-2024',
-      'terminal_trace_number': 'TRACE-001-2024',
+      'psp_order_number': null,
+      'original_psp_order_number': null,
+      'batch_number': 1,
+      'terminal_trace_number': 1,
       'transaction_time': DateTime.now().toIso8601String(),
       'extra_info': 'Additional information and notes about this transaction',
     };
@@ -457,9 +503,11 @@ class SettlementColumn {
     return pspMatches >= settlementMatches ? 'psp' : 'settlement';
   }
 
+  // UPDATED: createHeaderMapping with settlement alternatives support
   static Map<String, String> createHeaderMapping(List<String> headers) {
     Map<String, String> headerToApiField = {};
     
+    // First pass: exact matches
     for (String header in headers) {
       for (String apiField in settlementColumnMapping.keys) {
         String? expectedHeader = settlementColumnMapping[apiField];
@@ -468,16 +516,42 @@ class SettlementColumn {
           break;
         }
       }
+    }
+    
+    // Second pass: check settlement alternative columns
+    for (String header in headers) {
+      if (headerToApiField.containsKey(header)) continue;
       
-      if (!headerToApiField.containsKey(header)) {
-        for (String apiField in settlementColumnMapping.keys) {
-          String normalizedHeader = _normalizeColumnName(header);
-          String normalizedApiField = _normalizeColumnName(apiField);
+      for (var entry in settlementAlternativeColumns.entries) {
+        String standardName = entry.key;
+        List<String> alternatives = entry.value;
+        
+        if (alternatives.any((alt) => alt.trim().toLowerCase() == header.trim().toLowerCase())) {
+          // Find the API field for this standard name
+          var matchingEntry = settlementColumnMapping.entries.firstWhere(
+            (e) => e.value == standardName,
+            orElse: () => MapEntry('', ''),
+          );
           
-          if (normalizedHeader == normalizedApiField) {
-            headerToApiField[header] = apiField;
+          if (matchingEntry.key.isNotEmpty) {
+            headerToApiField[header] = matchingEntry.key;
             break;
           }
+        }
+      }
+    }
+    
+    // Third pass: normalized matching
+    for (String header in headers) {
+      if (headerToApiField.containsKey(header)) continue;
+      
+      for (String apiField in settlementColumnMapping.keys) {
+        String normalizedHeader = _normalizeColumnName(header);
+        String normalizedApiField = _normalizeColumnName(apiField);
+        
+        if (normalizedHeader == normalizedApiField) {
+          headerToApiField[header] = apiField;
+          break;
         }
       }
     }
@@ -504,6 +578,15 @@ class SettlementColumn {
     String valueStr = value.toString().trim();
     if (valueStr.isEmpty) return null;
 
+    // Integer conversion for specific fields
+    if (integerColumns.contains(columnName)) {
+      try {
+        return int.tryParse(valueStr.replaceAll(RegExp(r'[^0-9]'), ''));
+      } catch (e) {
+        return null;
+      }
+    }
+
     // Date/time conversion
     if (dateTimeColumns.contains(columnName)) {
       try {
@@ -516,24 +599,32 @@ class SettlementColumn {
     }
 
     // Numeric conversion only for actual numeric fields
-    if (numericColumns.contains(columnName)) {
-      try {
-        String cleanedValue = valueStr.replaceAll(RegExp(r'[^0-9.-]'), '');
-        if (cleanedValue.isEmpty) return 0.0;
-        
-        double? doubleValue = double.tryParse(cleanedValue);
-        if (doubleValue != null) {
-          if (columnName == 'rate_local_to_transaction' || columnName == 'rate_transaction_to_settlement') {
-            return double.parse(doubleValue.toStringAsFixed(6));
-          } else {
-            return double.parse(doubleValue.toStringAsFixed(2));
-          }
+   // Numeric conversion only for actual numeric fields
+if (numericColumns.contains(columnName)) {
+  try {
+    String cleanedValue = valueStr.replaceAll(RegExp(r'[^0-9.-]'), '');
+    if (cleanedValue.isEmpty) return 0.0;
+    
+    double? doubleValue = double.tryParse(cleanedValue);
+    if (doubleValue != null) {
+      // Special handling for exchange rate columns - cap at database limit
+      if (columnName == 'rate_local_to_transaction' || columnName == 'rate_transaction_to_settlement') {
+        // Cap at 9999.999999 to fit DECIMAL(10,6) database column
+        if (doubleValue > 9999.999999) {
+          doubleValue = 9999.999999;
+        } else if (doubleValue < -9999.999999) {
+          doubleValue = -9999.999999;
         }
-        return 0.0;
-      } catch (e) {
-        return 0.0;
+        return double.parse(doubleValue.toStringAsFixed(6));
+      } else {
+        return double.parse(doubleValue.toStringAsFixed(2));
       }
     }
+    return 0.0;
+  } catch (e) {
+    return 0.0;
+  }
+}
     
     // For all other fields, preserve original string value with length validation
     int? maxLength = stringLengthLimits[columnName];
@@ -582,7 +673,7 @@ class SettlementColumn {
 
   // Method to get the current configuration version
   static String getConfigVersion() {
-    return '2.0.0';
+    return '2.0.2'; // Updated version
   }
 
   // Method to get mapping statistics for debugging
@@ -591,6 +682,7 @@ class SettlementColumn {
       'psp_field_mappings': pspFieldMapping.length,
       'psp_alternatives': pspAlternativeColumns.length,
       'settlement_columns': settlementColumnMapping.length,
+      'settlement_alternatives': settlementAlternativeColumns.length,
       'required_columns': requiredColumns.length,
       'config_version': getConfigVersion(),
       'preserve_original_strings': true,

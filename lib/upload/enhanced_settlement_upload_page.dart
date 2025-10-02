@@ -727,58 +727,125 @@ class _EnhancedSettlementUploadPageState extends State<EnhancedSettlementUploadP
     }
   }
 
-  Future<void> _uploadSingleRecord(int index, String apiUrl, String? token, dynamic companyId) async {
-    try {
-      Map<String, dynamic> settlementData = Map.from(_parsedData![index]);
-      settlementData['company_id'] = companyId;
-      
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(settlementData),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _successCount++;
-      } else if (response.statusCode == 401 && index == 0) {
-        // Try without Bearer prefix
-        final retryResponse = await http.post(
-          Uri.parse(apiUrl),
-          headers: {
-            'Content-Type': 'application/json',
-            if (token != null) 'Authorization': token,
-          },
-          body: jsonEncode(settlementData),
-        );
-        
-        if (retryResponse.statusCode == 200 || retryResponse.statusCode == 201) {
-          _successCount++;
-        } else {
-          _errorCount++;
-          try {
-            final errorData = jsonDecode(response.body);
-            _errorMessages.add('Row ${index + 1}: ${errorData['message'] ?? 'Unknown error'}');
-          } catch (e) {
-            _errorMessages.add('Row ${index + 1}: HTTP ${response.statusCode} - ${response.body}');
-          }
-        }
-      } else {
-        _errorCount++;
-        try {
-          final errorData = jsonDecode(response.body);
-          _errorMessages.add('Row ${index + 1}: ${errorData['message'] ?? 'Unknown error'}');
-        } catch (e) {
-          _errorMessages.add('Row ${index + 1}: HTTP ${response.statusCode} - ${response.body}');
-        }
-      }
-    } catch (e) {
-      _errorCount++;
-      _errorMessages.add('Row ${index + 1}: $e');
+Future<void> _uploadSingleRecord(
+  int index, 
+  String apiUrl, 
+  String? token, 
+  dynamic companyId,
+  [List<Map<String, dynamic>>? customData]
+) async {
+  try {
+    final dataSource = customData ?? _parsedData!;
+    Map<String, dynamic> settlementData = Map.from(dataSource[index]);
+    
+    // FIX: Remove pspid if it exists, ensure company_id is set
+    if (settlementData.containsKey('pspid')) {
+      settlementData['company_id'] = settlementData['pspid'];
+      settlementData.remove('pspid');
     }
+    
+    // Ensure company_id is set
+    settlementData['company_id'] = companyId ?? settlementData['company_id'];
+    
+    // FIX: Convert batch_number and terminal_trace_number to integers
+    if (settlementData['batch_number'] != null) {
+      settlementData['batch_number'] = int.tryParse(settlementData['batch_number'].toString()) ?? 1;
+    }
+    
+    if (settlementData['terminal_trace_number'] != null) {
+      settlementData['terminal_trace_number'] = int.tryParse(settlementData['terminal_trace_number'].toString()) ?? 1;
+    }
+    
+    // ✅ NEW: Detailed logging BEFORE request
+    print('=== UPLOAD REQUEST DEBUG (Row ${index + 1}) ===');
+    print('API URL: $apiUrl');
+    print('Has Token: ${token != null}');
+    if (token != null) {
+      print('Token (first 20 chars): ${token.substring(0, 20)}...');
+    }
+    print('Company ID: $companyId');
+    print('');
+    print('REQUEST BODY:');
+    
+    // Pretty print the JSON body
+    String prettyJson = JsonEncoder.withIndent('  ').convert(settlementData);
+    print(prettyJson);
+    print('');
+    print('CRITICAL FIELDS CHECK:');
+    print('  - company_id: ${settlementData['company_id']}');
+    print('  - transaction_time: ${settlementData['transaction_time']}');
+    print('  - system_transaction_id: ${settlementData['system_transaction_id']}');
+    print('  - merchant_id: ${settlementData['merchant_id']}');
+    print('  - terminal_id: ${settlementData['terminal_id']}');
+    print('=== END REQUEST DEBUG ===');
+    print('');
+    
+    Map<String, String> headers = {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+    
+    // Make the request
+    final response = await http.post(
+      Uri.parse(apiUrl),
+      headers: headers,
+      body: jsonEncode(settlementData),
+    );
+    
+    // ✅ NEW: Detailed logging AFTER response
+    print('=== UPLOAD RESPONSE DEBUG (Row ${index + 1}) ===');
+    print('Status Code: ${response.statusCode}');
+    print('Status Message: ${response.reasonPhrase}');
+    print('');
+    print('RESPONSE HEADERS:');
+    response.headers.forEach((key, value) {
+      print('  $key: $value');
+    });
+    print('');
+    print('RESPONSE BODY:');
+    try {
+      // Try to pretty print JSON response
+      var responseJson = jsonDecode(response.body);
+      String prettyResponse = JsonEncoder.withIndent('  ').convert(responseJson);
+      print(prettyResponse);
+    } catch (e) {
+      // If not JSON, print raw
+      print(response.body);
+    }
+    print('=== END RESPONSE DEBUG ===');
+    print('');
+    
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      _successCount++;
+      print('✅ Row ${index + 1}: SUCCESS');
+    } else {
+      _errorCount++;
+      try {
+        final errorData = jsonDecode(response.body);
+        String errorMsg = 'Row ${index + 1}: ${errorData['message'] ?? 'Unknown error'}';
+        
+        // ✅ NEW: Include validation errors if present
+        if (errorData['errors'] != null) {
+          errorMsg += '\n  Validation: ${errorData['errors']}';
+        }
+        
+        _errorMessages.add(errorMsg);
+        print('❌ Row ${index + 1}: FAILED - $errorMsg');
+      } catch (e) {
+        String errorMsg = 'Row ${index + 1}: HTTP ${response.statusCode} - ${response.reasonPhrase}';
+        _errorMessages.add(errorMsg);
+        print('❌ Row ${index + 1}: FAILED - $errorMsg');
+      }
+    }
+  } catch (e, stackTrace) {
+    _errorCount++;
+    String errorMsg = 'Row ${index + 1}: Exception - $e';
+    _errorMessages.add(errorMsg);
+    print('❌ Row ${index + 1}: EXCEPTION');
+    print('Error: $e');
+    print('Stack trace: $stackTrace');
   }
+}
 
   // State management methods
   void _resetState() {
