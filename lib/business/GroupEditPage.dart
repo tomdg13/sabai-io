@@ -24,6 +24,7 @@ class GroupEditPage extends StatefulWidget {
 class _GroupEditPageState extends State<GroupEditPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _groupNameController;
+  late final TextEditingController _mobileNumberController;
 
   String? _base64Image;
   String? _currentImageUrl;
@@ -50,17 +51,30 @@ class _GroupEditPageState extends State<GroupEditPage> {
   }
 
   void _initializeControllers() {
-    _groupNameController = TextEditingController(text: widget.GroupData['group'] ?? '');
+    // Handle both 'group' and 'group_name' field names from API
+    _groupNameController = TextEditingController(
+      text: widget.GroupData['group_name'] ?? widget.GroupData['group'] ?? ''
+    );
+    
+    // Handle both 'mobile' and 'mobile_number' field names from API
+    _mobileNumberController = TextEditingController(
+      text: widget.GroupData['mobile'] ?? widget.GroupData['mobile_number'] ?? ''
+    );
+    
     _currentImageUrl = widget.GroupData['image_url'];
     
-    print('🔧 DEBUG: Initialized edit form with Group: ${widget.GroupData['group']}');
-    print('🔧 DEBUG: Group ID: ${widget.GroupData['group_id']}');
-    print('🔧 DEBUG: Company ID: ${widget.GroupData['company_id']}');
+    print('🔧 DEBUG: Initialized edit form');
+    print('   Group Name: ${_groupNameController.text}');
+    print('   Group ID: ${widget.GroupData['group_id']}');
+    print('   Company ID: ${widget.GroupData['company_id']}');
+    print('   Mobile: ${_mobileNumberController.text}');
+    print('   Image URL: $_currentImageUrl');
   }
 
   @override
   void dispose() {
     _groupNameController.dispose();
+    _mobileNumberController.dispose();
     super.dispose();
   }
 
@@ -102,7 +116,7 @@ class _GroupEditPageState extends State<GroupEditPage> {
           _base64Image = 'data:${file.type};base64,$base64String';
         });
 
-        print('📷 DEBUG: New web image selected for Group update');
+        print('📷 DEBUG: New web image selected');
         _showSnackBar(
           message: 'Image selected successfully',
           isError: false,
@@ -180,7 +194,7 @@ class _GroupEditPageState extends State<GroupEditPage> {
         _base64Image = 'data:image/jpeg;base64,$base64String';
       });
 
-      print('📷 DEBUG: New mobile image selected for Group update');
+      print('📷 DEBUG: New mobile image selected');
       _showSnackBar(
         message: 'Image selected successfully',
         isError: false,
@@ -317,6 +331,7 @@ class _GroupEditPageState extends State<GroupEditPage> {
               width: double.infinity,
               height: double.infinity,
               errorBuilder: (context, error, stackTrace) {
+                print('⚠️ Error loading image: $error');
                 return _buildImagePlaceholder();
               },
             ),
@@ -361,20 +376,27 @@ class _GroupEditPageState extends State<GroupEditPage> {
       final url = AppConfig.api('/api/iogroup/$groupId');
       print('🌐 DEBUG: Updating Group at: $url');
 
+      // IMPORTANT: Use field names that match the database schema
       final groupData = <String, dynamic>{
         'company_id': CompanyConfig.getCompanyId(),
       };
       
-      // Only include fields that have values
+      // Send 'group_name' to match database schema
       if (_groupNameController.text.trim().isNotEmpty) {
-        groupData['group'] = _groupNameController.text.trim();
+        groupData['group_name'] = _groupNameController.text.trim();
+      }
+      
+      // Send 'mobile' to match database schema
+      if (_mobileNumberController.text.trim().isNotEmpty) {
+        groupData['mobile'] = _mobileNumberController.text.trim();
       }
       
       if (_base64Image != null) {
         groupData['image'] = _base64Image;
       }
 
-      print('📝 DEBUG: Update data: ${groupData.toString()}');
+      print('📝 DEBUG: Update payload:');
+      print('   ${jsonEncode(groupData)}');
 
       final response = await http.put(
         Uri.parse(url.toString()),
@@ -385,8 +407,8 @@ class _GroupEditPageState extends State<GroupEditPage> {
         body: jsonEncode(groupData),
       );
 
-      print('📡 DEBUG: Update Response Status: ${response.statusCode}');
-      print('📝 DEBUG: Update Response Body: ${response.body}');
+      print('📡 DEBUG: Response Status: ${response.statusCode}');
+      print('📝 DEBUG: Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
@@ -395,6 +417,9 @@ class _GroupEditPageState extends State<GroupEditPage> {
             message: 'Group updated successfully!',
             isError: false,
           );
+          
+          // Wait a moment before popping to show success message
+          await Future.delayed(Duration(milliseconds: 500));
           Navigator.pop(context, true); // Return true to indicate success
         } else {
           throw Exception(responseData['message'] ?? 'Unknown error');
@@ -410,9 +435,11 @@ class _GroupEditPageState extends State<GroupEditPage> {
         isError: true,
       );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -430,13 +457,16 @@ class _GroupEditPageState extends State<GroupEditPage> {
               Text('Delete Group'),
             ],
           ),
-          content: Text('Are you sure you want to delete "${_groupNameController.text}"? This action cannot be undone.'),
+          content: Text(
+            'Are you sure you want to delete "${_groupNameController.text}"? This action cannot be undone.',
+            style: TextStyle(fontSize: 16),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
               child: Text(
                 'Cancel',
-                style: TextStyle(color: Colors.grey[600]),
+                style: TextStyle(color: Colors.grey[600], fontSize: 16),
               ),
             ),
             ElevatedButton(
@@ -445,7 +475,7 @@ class _GroupEditPageState extends State<GroupEditPage> {
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
               ),
-              child: Text('Delete'),
+              child: Text('Delete', style: TextStyle(fontSize: 16)),
             ),
           ],
         );
@@ -484,6 +514,9 @@ class _GroupEditPageState extends State<GroupEditPage> {
             message: 'Group deleted successfully!',
             isError: false,
           );
+          
+          // Wait a moment before popping to show success message
+          await Future.delayed(Duration(milliseconds: 500));
           Navigator.pop(context, 'deleted'); // Return 'deleted' to indicate deletion
         } else {
           throw Exception(responseData['message'] ?? 'Unknown error');
@@ -499,9 +532,11 @@ class _GroupEditPageState extends State<GroupEditPage> {
         isError: true,
       );
     } finally {
-      setState(() {
-        _isDeleting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
     }
   }
 
@@ -708,6 +743,7 @@ class _GroupEditPageState extends State<GroupEditPage> {
                           ),
                           SizedBox(height: 20),
                           
+                          // Group Name Field
                           TextFormField(
                             controller: _groupNameController,
                             decoration: InputDecoration(
@@ -738,6 +774,50 @@ class _GroupEditPageState extends State<GroupEditPage> {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Group name is required';
                               }
+                              if (value.trim().length < 2) {
+                                return 'Group name must be at least 2 characters';
+                              }
+                              return null;
+                            },
+                          ),
+                          
+                          SizedBox(height: 16),
+                          
+                          // Mobile Number Field
+                          TextFormField(
+                            controller: _mobileNumberController,
+                            keyboardType: TextInputType.phone,
+                            decoration: InputDecoration(
+                              labelText: 'Mobile Number *',
+                              hintText: 'Enter mobile number',
+                              prefixIcon: Icon(
+                                Icons.phone_android,
+                                color: ThemeConfig.getPrimaryColor(currentTheme),
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: ThemeConfig.getPrimaryColor(currentTheme),
+                                  width: 2,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.grey[300]!),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Mobile number is required';
+                              }
+                              if (value.trim().length < 8) {
+                                return 'Mobile number must be at least 8 digits';
+                              }
                               return null;
                             },
                           ),
@@ -759,12 +839,27 @@ class _GroupEditPageState extends State<GroupEditPage> {
                                   color: Colors.grey[600],
                                 ),
                                 SizedBox(width: 12),
-                                Text(
-                                  'Company ID: ${widget.GroupData['company_id']}',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey[700],
-                                    fontWeight: FontWeight.w500,
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Company ID',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        '${widget.GroupData['company_id']}',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey[700],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -790,6 +885,7 @@ class _GroupEditPageState extends State<GroupEditPage> {
                         ),
                         elevation: 4,
                         shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+                        disabledBackgroundColor: Colors.grey[300],
                       ),
                       child: _isLoading
                           ? Row(

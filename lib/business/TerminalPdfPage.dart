@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:inventory/config/theme.dart';
+// ignore: unused_import
 import 'dart:convert';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +18,7 @@ class TerminalPdfPage extends StatefulWidget {
     Key? key,
     required this.pdfUrl,
     this.pdfFilename,
-    required this.terminalName,
+    required this.terminalName, required serialNumber, required simNumber, required String expire_date,
   }) : super(key: key);
 
   @override

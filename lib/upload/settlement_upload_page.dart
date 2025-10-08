@@ -48,11 +48,13 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   bool _isParsing = false;
   bool _isUploading = false;
   bool _isConverting = false;
+  bool _isCheckingDuplicates = false;
   String _fileType = 'settlement';
   String currentTheme = ThemeConfig.defaultTheme;
   
   // Missing column analysis
   MissingColumnAnalysis? _columnAnalysis;
+  // ignore: unused_field
   bool _showColumnDetails = false;
   
   // Animation
@@ -65,8 +67,9 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
   int _errorCount = 0;
   List<String> _errorMessages = [];
   
-  // Validation tracking
+  // Validation and duplicate tracking
   int _skippedRows = 0;
+  List<String> _duplicateIds = [];
 
   @override
   void initState() {
@@ -106,74 +109,336 @@ class _SettlementUploadPageState extends State<SettlementUploadPage> with Ticker
         .replaceAll('\u00EF\u00BB\u00BF', '')
         .trim()).toList();
   }
-String _detectFileType(List<String> headers) {
-  print('=== FILE TYPE DETECTION ===');
-  print('Configuration Version: ${SettlementColumn.getConfigVersion()}');
-  
-  // FORCE SETTLEMENT TYPE: If file has System Txn ID, treat as settlement
-  // This prevents misclassification of settlement files that happen to have PSP ID column
-  if (headers.any((h) => h.toLowerCase().trim().contains('system txn id'))) {
-    print('✓ Detected as SETTLEMENT file (has System Txn ID column)');
-    String detectedType = 'settlement';
+
+  String _detectFileType(List<String> headers) {
+    if (kDebugMode) {
+      print('=== FILE TYPE DETECTION ===');
+      print('Configuration Version: ${SettlementColumn.getConfigVersion()}');
+    }
     
+    // FORCE SETTLEMENT TYPE: If file has System Txn ID, treat as settlement
+    if (headers.any((h) => h.toLowerCase().trim().contains('system txn id'))) {
+      if (kDebugMode) {
+        print('✓ Detected as SETTLEMENT file (has System Txn ID column)');
+      }
+      String detectedType = 'settlement';
+      
+      _columnAnalysis = MissingColumnDetector.analyzeMissingColumns(headers, detectedType);
+      
+      if (kDebugMode) {
+        String detailedReport = MissingColumnDetector.generateDetailedReport(_columnAnalysis!);
+        print(detailedReport);
+        
+        print('=== CONSOLE SUMMARY ===');
+        print('File Type: SETTLEMENT (forced)');
+        print('Mapping Success Rate: ${(_columnAnalysis!.mappingSuccessRate * 100).toStringAsFixed(1)}%');
+        print('Successfully Mapped: ${_columnAnalysis!.foundColumns.length}/${_columnAnalysis!.totalExpectedColumns}');
+        print('Required Missing: ${_columnAnalysis!.requiredMissingCount}');
+        print('Status: ${_columnAnalysis!.canProceed ? "READY FOR UPLOAD" : "MISSING REQUIRED COLUMNS"}');
+        print('=== END CONSOLE SUMMARY ===');
+      }
+      
+      setState(() {});
+      return detectedType;
+    }
+    
+    // Original detection logic as fallback
+    String detectedType = SettlementColumn.detectFileType(headers);
     _columnAnalysis = MissingColumnDetector.analyzeMissingColumns(headers, detectedType);
     
-    String detailedReport = MissingColumnDetector.generateDetailedReport(_columnAnalysis!);
-    print(detailedReport);
-    
-    print('=== CONSOLE SUMMARY ===');
-    print('File Type: SETTLEMENT (forced)');
-    print('Mapping Success Rate: ${(_columnAnalysis!.mappingSuccessRate * 100).toStringAsFixed(1)}%');
-    print('Successfully Mapped: ${_columnAnalysis!.foundColumns.length}/${_columnAnalysis!.totalExpectedColumns}');
-    print('Required Missing: ${_columnAnalysis!.requiredMissingCount}');
-    print('Status: ${_columnAnalysis!.canProceed ? "READY FOR UPLOAD" : "MISSING REQUIRED COLUMNS"}');
-    print('=== END CONSOLE SUMMARY ===');
+    if (kDebugMode) {
+      String detailedReport = MissingColumnDetector.generateDetailedReport(_columnAnalysis!);
+      print(detailedReport);
+      
+      print('=== CONSOLE SUMMARY ===');
+      print('File Type: ${_columnAnalysis!.fileType.toUpperCase()}');
+      print('Mapping Success Rate: ${(_columnAnalysis!.mappingSuccessRate * 100).toStringAsFixed(1)}%');
+      print('Successfully Mapped: ${_columnAnalysis!.foundColumns.length}/${_columnAnalysis!.totalExpectedColumns}');
+      print('Required Missing: ${_columnAnalysis!.requiredMissingCount}');
+      print('Status: ${_columnAnalysis!.canProceed ? "READY FOR UPLOAD" : "MISSING REQUIRED COLUMNS"}');
+      print('=== END CONSOLE SUMMARY ===');
+    }
     
     setState(() {});
-    
     return detectedType;
   }
-  
-  // Original detection logic as fallback
-  String detectedType = SettlementColumn.detectFileType(headers);
-  
-  _columnAnalysis = MissingColumnDetector.analyzeMissingColumns(headers, detectedType);
-  
-  String detailedReport = MissingColumnDetector.generateDetailedReport(_columnAnalysis!);
-  print(detailedReport);
-  
-  print('=== CONSOLE SUMMARY ===');
-  print('File Type: ${_columnAnalysis!.fileType.toUpperCase()}');
-  print('Mapping Success Rate: ${(_columnAnalysis!.mappingSuccessRate * 100).toStringAsFixed(1)}%');
-  print('Successfully Mapped: ${_columnAnalysis!.foundColumns.length}/${_columnAnalysis!.totalExpectedColumns}');
-  print('Required Missing: ${_columnAnalysis!.requiredMissingCount}');
-  print('Unmapped CSV Columns: ${_columnAnalysis!.unmappedColumns.length}');
-  print('Status: ${_columnAnalysis!.canProceed ? "READY FOR UPLOAD" : "MISSING REQUIRED COLUMNS"}');
-  
-  if (_columnAnalysis!.unmappedColumns.isNotEmpty) {
-    print('--- UNMAPPED COLUMNS ---');
-    for (var unmapped in _columnAnalysis!.unmappedColumns) {
-      print('• ${unmapped.columnName}');
-      if (unmapped.possibleApiField != null) {
-        print('  Possible match: ${unmapped.possibleApiField}');
+
+  // NEW: Check for duplicates API call
+  Future<List<String>> _checkForDuplicates() async {
+    if (_parsedData == null || _parsedData!.isEmpty) {
+      return [];
+    }
+
+    setState(() {
+      _isCheckingDuplicates = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final companyId = CompanyConfig.getCompanyId();
+
+      // Extract system_transaction_ids from parsed data
+      List<String> transactionIds = _parsedData!
+          .map((row) => row['system_transaction_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      if (transactionIds.isEmpty) {
+        _showSnackBar('No valid transaction IDs to check', isError: true);
+        return [];
       }
+
+      final url = AppConfig.api('/api/settlement-details/check-duplicates');
+      
+      if (kDebugMode) {
+        print('Checking ${transactionIds.length} transaction IDs for duplicates');
+      }
+      
+      final response = await http.post(
+        // ignore: unnecessary_type_check
+        url is Uri ? url : Uri.parse(url.toString()),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'company_id': companyId,
+          'system_transaction_ids': transactionIds,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        List<String> duplicates = List<String>.from(data['data']['duplicates'] ?? []);
+        
+        if (kDebugMode) {
+          print('Found ${duplicates.length} duplicates');
+        }
+        
+        return duplicates;
+      } else {
+        throw Exception('Failed to check duplicates: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error checking duplicates: $e');
+      }
+      _showSnackBar('Could not check duplicates. Proceeding with upload.', isError: false);
+      // Return empty list on error - don't block upload
+      return [];
+    } finally {
+      setState(() {
+        _isCheckingDuplicates = false;
+      });
     }
   }
-  
-  if (_columnAnalysis!.requiredMissingCount > 0) {
-    print('--- REQUIRED MISSING ---');
-    var requiredMissing = _columnAnalysis!.missingColumns.where((col) => col.isRequired).toList();
-    for (var missing in requiredMissing) {
-      print('• ${missing.expectedColumn} (${missing.apiField})');
-    }
+
+  // NEW: Show duplicate BLOCKED dialog - NO UPLOAD OPTIONS
+  void _showDuplicateBlockedDialog(List<String> duplicates) {
+    int duplicateCount = duplicates.length;
+    int totalCount = _parsedData!.length;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.block, color: Colors.red, size: 32),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Upload Blocked',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+        content: Container(
+          width: double.maxFinite,
+          constraints: BoxConstraints(maxHeight: 500),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red[300]!, width: 2),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.error, color: Colors.red, size: 24),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Duplicate transactions detected!',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.red[900],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      'Found $duplicateCount transaction(s) that already exist in the database.',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Upload has been blocked to prevent duplicate data.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red[800],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Summary:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    SizedBox(height: 4),
+                    Text('Total records in file: $totalCount'),
+                    Text(
+                      'Already in database: $duplicateCount',
+                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Duplicate Transaction IDs:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              SizedBox(height: 8),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white,
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: duplicates.length,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Colors.grey[200]!,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: ListTile(
+                          dense: true,
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.red[100],
+                            radius: 12,
+                            child: Text(
+                              '${index + 1}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.red[900],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            duplicates[index],
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'monospace',
+                              color: Colors.red[900],
+                            ),
+                          ),
+                          trailing: Icon(
+                            Icons.warning,
+                            color: Colors.red,
+                            size: 16,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[800], size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Please remove duplicate transactions from your file and try again.',
+                        style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              // Copy duplicate IDs to clipboard
+              String duplicateList = duplicates.join('\n');
+              await Clipboard.setData(ClipboardData(text: duplicateList));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Duplicate IDs copied to clipboard'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            icon: Icon(Icons.copy, size: 18),
+            label: Text('Copy IDs'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+              foregroundColor: Colors.white,
+            ),
+            child: Text('OK, I Understand'),
+          ),
+        ],
+      ),
+    );
   }
-  
-  print('=== END CONSOLE SUMMARY ===');
-  
-  setState(() {});
-  
-  return detectedType;
-}
+
   void _showColumnAnalysisDialog() {
     if (_columnAnalysis == null) return;
 
@@ -389,53 +654,11 @@ String _detectFileType(List<String> headers) {
                       ),
                     ],
                   ),
-                  trailing: PopupMenuButton<String>(
-                    icon: Icon(Icons.more_vert, size: 16),
-                    onSelected: (value) {
-                      if (value == 'ignore') {
-                        _showSnackBar('Column "${unmapped.columnName}" will be ignored during processing', isError: false);
-                      } else if (value == 'suggest') {
-                        _showConfigurationSuggestionForColumn(unmapped);
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'ignore',
-                        child: Text('Ignore this column'),
-                      ),
-                      PopupMenuItem(
-                        value: 'suggest',
-                        child: Text('Show mapping suggestion'),
-                      ),
-                    ],
-                  ),
                 ),
               );
             },
           ),
         ),
-        if (_columnAnalysis!.unmappedColumns.isNotEmpty) ...[
-          SizedBox(height: 8),
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue[100],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.blue[800], size: 16),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Unmapped columns will be ignored during upload. To use them, add mappings to SettlementColumn.dart',
-                    style: TextStyle(fontSize: 12, color: Colors.blue[800]),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -444,44 +667,6 @@ String _detectFileType(List<String> headers) {
     return ColumnAnalysisDisplayWidget(
       analysis: _columnAnalysis,
       currentTheme: currentTheme,
-    );
-  }
-
-  void _showConfigurationSuggestionForColumn(UnmappedColumnDetail unmapped) {
-    String suggestion = '''
-// Add this to SettlementColumn.dart to map "${unmapped.columnName}"
-
-// Option 1: Add as alternative name for existing field
-'${unmapped.possibleApiField ?? 'existing_field_name'}': [
-  '${unmapped.columnName}',  // Your CSV column name
-],
-
-// Option 2: Add as new field (if needed)
-static const Map<String, String> ${_fileType}FieldMapping = {
-  'new_field_name': '${unmapped.columnName}',
-};
-''';
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Mapping Suggestion for "${unmapped.columnName}"'),
-        content: Container(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Text(
-              suggestion,
-              style: TextStyle(fontFamily: 'monospace', fontSize: 12),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -506,13 +691,6 @@ static const Map<String, String> ${_fileType}FieldMapping = {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              _showSnackBar('Copy the suggestions and update your SettlementColumn.dart file', isError: false);
-              Navigator.of(context).pop();
-            },
-            child: Text('Copy Code'),
-          ),
-          TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text('Close'),
           ),
@@ -534,7 +712,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
         if (missing.suggestions.isNotEmpty) {
           suggestions.writeln("'${missing.expectedColumn}': [");
           for (var suggestion in missing.suggestions) {
-            suggestions.writeln("  '$suggestion',  // Found in your CSV");
+            suggestions.writeln("  '$suggestion',");
           }
           suggestions.writeln('],');
         }
@@ -554,65 +732,58 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     return suggestions.toString();
   }
 
-  // NEW: Validation methods
   List<ValidationError> _validateDataBeforeUpload() {
-  List<ValidationError> errors = [];
-  
-  if (_parsedData == null || _parsedData!.isEmpty) {
-    return errors;
-  }
-  
-  for (int i = 0; i < _parsedData!.length; i++) {
-    var record = _parsedData![i];
-    int rowNumber = i + 2; // +1 for header, +1 for 0-index
+    List<ValidationError> errors = [];
     
-    // ONLY check truly critical fields that backend requires
-    // Check if row has ANY meaningful data
-    bool hasAnyData = false;
-    int filledFields = 0;
+    if (_parsedData == null || _parsedData!.isEmpty) {
+      return errors;
+    }
     
-    for (var value in record.values) {
-      if (value != null && value.toString().trim().isNotEmpty) {
-        filledFields++;
-        hasAnyData = true;
+    for (int i = 0; i < _parsedData!.length; i++) {
+      var record = _parsedData![i];
+      int rowNumber = i + 2;
+      
+      bool hasAnyData = false;
+      int filledFields = 0;
+      
+      for (var value in record.values) {
+        if (value != null && value.toString().trim().isNotEmpty) {
+          filledFields++;
+          hasAnyData = true;
+        }
+      }
+      
+      if (!hasAnyData || filledFields < 3) {
+        errors.add(ValidationError(
+          rowNumber: rowNumber,
+          fieldName: 'row_data',
+          errorMessage: 'Row is empty or has insufficient data',
+          suggestion: 'This row will be skipped during upload',
+        ));
+        continue;
+      }
+      
+      if (_isEmpty(record['company_id']) && _isEmpty(record['psp_id'])) {
+        errors.add(ValidationError(
+          rowNumber: rowNumber,
+          fieldName: 'company_id',
+          errorMessage: 'Company/PSP ID is missing',
+          suggestion: 'This row will be skipped during upload',
+        ));
+      }
+      
+      if (_isEmpty(record['transaction_time']) && _isEmpty(record['merchant_txn_time'])) {
+        errors.add(ValidationError(
+          rowNumber: rowNumber,
+          fieldName: 'transaction_time',
+          errorMessage: 'Transaction time is missing',
+          suggestion: 'This row will be skipped during upload',
+        ));
       }
     }
     
-    // Skip completely empty rows
-    if (!hasAnyData || filledFields < 3) {
-      errors.add(ValidationError(
-        rowNumber: rowNumber,
-        fieldName: 'row_data',
-        errorMessage: 'Row is empty or has insufficient data',
-        suggestion: 'This row will be skipped during upload',
-      ));
-      continue;
-    }
-    
-    // Check for company_id (can come from PSP ID column)
-    if (_isEmpty(record['company_id']) && _isEmpty(record['psp_id'])) {
-      errors.add(ValidationError(
-        rowNumber: rowNumber,
-        fieldName: 'company_id',
-        errorMessage: 'Company/PSP ID is missing',
-        suggestion: 'This row will be skipped during upload',
-      ));
-    }
-    
-    // Transaction time - very lenient check
-    if (_isEmpty(record['transaction_time']) && _isEmpty(record['merchant_txn_time'])) {
-      errors.add(ValidationError(
-        rowNumber: rowNumber,
-        fieldName: 'transaction_time',
-        errorMessage: 'Transaction time is missing',
-        suggestion: 'This row will be skipped during upload',
-      ));
-    }
+    return errors;
   }
-  
-  return errors;
-}
-
 
   bool _isEmpty(dynamic value) {
     if (value == null) return true;
@@ -620,8 +791,51 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     return value.toString().trim().isEmpty;
   }
 
+  // NEW: Truncate fields to match database column limits
+  Map<String, dynamic> _truncateFields(Map<String, dynamic> data) {
+    // Define max lengths for common problematic fields
+    final Map<String, int> fieldLimits = {
+      'brand_settlement_currency': 3,      // Currency codes (USD, EUR, etc.)
+      'merchant_txn_currency': 3,
+      'cardholder_billing_currency': 3,
+      'transaction_currency': 3,
+      'terminal_id': 50,
+      'retrieval_reference_number': 50,
+      'authorization_code': 20,
+      'card_acceptor_id': 50,
+      'merchant_name': 100,
+      'terminal_name': 100,
+      'merchant_category_code': 10,
+      'system_transaction_id': 255,
+      'merchant_transaction_id': 255,
+      'source_filename': 255,
+      'transaction_type': 50,
+      'card_scheme': 50,
+      'card_type': 50,
+      'funding_type': 20,
+      'card_subtype': 50,
+      'crossborder_flag': 20,
+      'transaction_status': 50,
+    };
+    
+    Map<String, dynamic> truncatedData = Map.from(data);
+    
+    fieldLimits.forEach((field, maxLength) {
+      if (truncatedData.containsKey(field) && truncatedData[field] != null) {
+        String value = truncatedData[field].toString();
+        if (value.length > maxLength) {
+          truncatedData[field] = value.substring(0, maxLength);
+          if (kDebugMode) {
+            print('⚠️ Truncated $field from ${value.length} to $maxLength chars');
+          }
+        }
+      }
+    });
+    
+    return truncatedData;
+  }
+
   void _showValidationErrorDialog(List<ValidationError> errors) {
-    // Count critical vs warning errors
     final criticalErrors = errors.where((e) => 
       e.fieldName == 'system_txn_id' || 
       e.fieldName == 'merchant_id' || 
@@ -656,7 +870,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
               ],
               if (warnings.isNotEmpty) ...[
                 Text(
-                  'Found ${warnings.length} row(s) with warnings (may fail on backend):',
+                  'Found ${warnings.length} row(s) with warnings:',
                   style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
                 ),
                 SizedBox(height: 8),
@@ -718,11 +932,6 @@ static const Map<String, String> ${_fileType}FieldMapping = {
                       'Rows that will be attempted: ${_parsedData!.length - criticalErrors.length}',
                       style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
                     ),
-                    if (warnings.isNotEmpty)
-                      Text(
-                        'Rows with warnings: ${warnings.length}',
-                        style: TextStyle(color: Colors.orange),
-                      ),
                   ],
                 ),
               ),
@@ -749,7 +958,6 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     );
   }
 
-  // File handling methods
   Future<void> _pickFile() async {
     try {
       _resetState();
@@ -810,7 +1018,9 @@ static const Map<String, String> ${_fileType}FieldMapping = {
   }
 
   Future<void> _processFile(String fileName, Uint8List bytes) async {
-    print('=== FILE PROCESSING START ===');
+    if (kDebugMode) {
+      print('=== FILE PROCESSING START ===');
+    }
     
     setState(() {
       _fileName = fileName;
@@ -818,6 +1028,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
       _isParsing = true;
       _columnAnalysis = null;
       _skippedRows = 0;
+      _duplicateIds = [];
     });
 
     try {
@@ -829,7 +1040,9 @@ static const Map<String, String> ${_fileType}FieldMapping = {
         await _parseExcelFile();
       }
     } catch (e) {
-      print('ERROR in file processing: $e');
+      if (kDebugMode) {
+        print('ERROR in file processing: $e');
+      }
       _showSnackBar('Error processing file: $e', isError: true);
     } finally {
       setState(() {
@@ -885,7 +1098,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     _fileType = _detectFileType(headers);
     
     if (!_columnAnalysis!.canProceed) {
-      _showSnackBar('Cannot proceed: ${_columnAnalysis!.requiredMissingCount} required columns missing. Check analysis for details.', isError: true);
+      _showSnackBar('Cannot proceed: ${_columnAnalysis!.requiredMissingCount} required columns missing.', isError: true);
       return;
     }
     
@@ -1010,11 +1223,9 @@ static const Map<String, String> ${_fileType}FieldMapping = {
         }
       }
       
-      // NEW: Check if row has meaningful data before adding
       if (_hasMeaningfulData(rowData)) {
         parsedData.add(rowData);
       } else {
-        print('Skipping empty row ${i + 1}');
         skippedEmpty++;
       }
     }
@@ -1031,9 +1242,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     _showSnackBar(message, isError: false);
   }
 
-  // NEW: Helper method to check if row has meaningful data
   bool _hasMeaningfulData(Map<String, dynamic> rowData) {
-    // A row is meaningful if it has at least one critical field filled
     final criticalFields = [
       'system_txn_id',
       'merchant_id',
@@ -1063,26 +1272,42 @@ static const Map<String, String> ${_fileType}FieldMapping = {
         .replaceAll(RegExp(r'^_|_'), '');
   }
 
-  // Upload methods with validation
+  // UPDATED: Upload method with duplicate checking - BLOCKS upload if duplicates found
   Future<void> _uploadData() async {
     if (_parsedData == null || _parsedData!.isEmpty) {
       _showSnackBar('No data to upload. Please select and parse a file first.', isError: true);
       return;
     }
     
-    // NEW: Validate data before upload
+    // Validate data before upload
     List<ValidationError> validationErrors = _validateDataBeforeUpload();
     
     if (validationErrors.isNotEmpty) {
       _showValidationErrorDialog(validationErrors);
-      return; // Don't proceed automatically, let user decide
+      return;
     }
     
-    // If validation passed, proceed with upload
-    await _proceedWithUpload(skipInvalid: false);
+    // Check for duplicates
+    _showSnackBar('Checking for duplicates...', isError: false);
+    List<String> duplicates = await _checkForDuplicates();
+    
+    if (duplicates.isNotEmpty) {
+      _duplicateIds = duplicates;
+      // BLOCK UPLOAD - Show error and stop
+      _showDuplicateBlockedDialog(duplicates);
+      return;
+    }
+    
+    // No duplicates, proceed with upload
+    _showSnackBar('No duplicates found. Starting upload...', isError: false);
+    await _proceedWithUpload(skipInvalid: false, skipDuplicates: false);
   }
 
-  Future<void> _proceedWithUpload({bool skipInvalid = false}) async {
+  // UPDATED: Proceed with upload (with duplicate handling)
+  Future<void> _proceedWithUpload({
+    bool skipInvalid = false, 
+    bool skipDuplicates = false
+  }) async {
     _resetUploadState();
 
     try {
@@ -1091,27 +1316,47 @@ static const Map<String, String> ${_fileType}FieldMapping = {
       final companyId = CompanyConfig.getCompanyId();
       
       if (token != null && _isTokenExpired(token)) {
-        _showSnackBar('Session expired. Please login again and try uploading.', isError: true);
+        _showSnackBar('Session expired. Please login again.', isError: true);
         setState(() { _isUploading = false; });
         return;
       }
       
       final url = AppConfig.api('/api/settlement-details');
       
-      // NEW: Filter out invalid rows if skipInvalid is true
+      // Filter data
       List<Map<String, dynamic>> dataToUpload = _parsedData!;
-      int skipped = 0;
+      int skippedInvalid = 0;
+      int skippedDuplicatesCount = 0;
       
-      if (skipInvalid) {
+      if (skipInvalid || skipDuplicates) {
         dataToUpload = _parsedData!.where((record) {
-          bool isValid = !_isEmpty(record['system_txn_id']) &&
-                        !_isEmpty(record['merchant_id']) &&
-                        !_isEmpty(record['merchant_txn_amt']);
-          if (!isValid) skipped++;
-          return isValid;
+          // Check validation
+          if (skipInvalid) {
+            bool isValid = !_isEmpty(record['system_transaction_id']) &&
+                          !_isEmpty(record['merchant_id']) &&
+                          !_isEmpty(record['merchant_txn_amt']);
+            if (!isValid) {
+              skippedInvalid++;
+              return false;
+            }
+          }
+          
+          // Check duplicates
+          if (skipDuplicates) {
+            String txnId = record['system_transaction_id']?.toString() ?? '';
+            if (_duplicateIds.contains(txnId)) {
+              skippedDuplicatesCount++;
+              return false;
+            }
+          }
+          
+          return true;
         }).toList();
         
-        print('Uploading ${dataToUpload.length} valid rows, skipping $skipped invalid rows');
+        if (kDebugMode) {
+          print('Uploading ${dataToUpload.length} records');
+          print('Skipped invalid: $skippedInvalid, Skipped duplicates: $skippedDuplicatesCount');
+        }
       }
       
       for (int i = 0; i < dataToUpload.length; i++) {
@@ -1119,7 +1364,11 @@ static const Map<String, String> ${_fileType}FieldMapping = {
         _updateProgress(i + 1, dataToUpload.length);
       }
 
-      _showUploadResultDialog(totalRows: _parsedData!.length, skippedRows: skipped);
+      _showUploadResultDialog(
+        totalRows: _parsedData!.length, 
+        skippedRows: skippedInvalid,
+        skippedDuplicates: skippedDuplicatesCount,
+      );
     } catch (e) {
       _showSnackBar('Error uploading data: $e', isError: true);
     } finally {
@@ -1149,126 +1398,75 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     }
   }
 
- Future<void> _uploadSingleRecord(
-  int index, 
-  String apiUrl, 
-  String? token, 
-  dynamic companyId,
-  [List<Map<String, dynamic>>? customData]
-) async {
-  try {
-    final dataSource = customData ?? _parsedData!;
-    Map<String, dynamic> settlementData = Map.from(dataSource[index]);
-    
-    // FIX: Remove pspid if it exists, ensure company_id is set
-    if (settlementData.containsKey('pspid')) {
-      settlementData['company_id'] = settlementData['pspid'];
-      settlementData.remove('pspid');
-    }
-    
-    // Ensure company_id is set
-    settlementData['company_id'] = companyId ?? settlementData['company_id'];
-    
-    // FIX: Convert batch_number and terminal_trace_number to integers
-    if (settlementData['batch_number'] != null) {
-      settlementData['batch_number'] = int.tryParse(settlementData['batch_number'].toString()) ?? 1;
-    }
-    
-    if (settlementData['terminal_trace_number'] != null) {
-      settlementData['terminal_trace_number'] = int.tryParse(settlementData['terminal_trace_number'].toString()) ?? 1;
-    }
-    
-    // ✅ NEW: Detailed logging BEFORE request
-    print('=== UPLOAD REQUEST DEBUG (Row ${index + 1}) ===');
-    print('API URL: $apiUrl');
-    print('Has Token: ${token != null}');
-    if (token != null) {
-      print('Token (first 20 chars): ${token.substring(0, 20)}...');
-    }
-    print('Company ID: $companyId');
-    print('');
-    print('REQUEST BODY:');
-    
-    // Pretty print the JSON body
-    String prettyJson = JsonEncoder.withIndent('  ').convert(settlementData);
-    print(prettyJson);
-    print('');
-    print('CRITICAL FIELDS CHECK:');
-    print('  - company_id: ${settlementData['company_id']}');
-    print('  - transaction_time: ${settlementData['transaction_time']}');
-    print('  - system_transaction_id: ${settlementData['system_transaction_id']}');
-    print('  - merchant_id: ${settlementData['merchant_id']}');
-    print('  - terminal_id: ${settlementData['terminal_id']}');
-    print('=== END REQUEST DEBUG ===');
-    print('');
-    
-    Map<String, String> headers = {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
-    
-    // Make the request
-    final response = await http.post(
-      Uri.parse(apiUrl),
-      headers: headers,
-      body: jsonEncode(settlementData),
-    );
-    
-    // ✅ NEW: Detailed logging AFTER response
-    print('=== UPLOAD RESPONSE DEBUG (Row ${index + 1}) ===');
-    print('Status Code: ${response.statusCode}');
-    print('Status Message: ${response.reasonPhrase}');
-    print('');
-    print('RESPONSE HEADERS:');
-    response.headers.forEach((key, value) {
-      print('  $key: $value');
-    });
-    print('');
-    print('RESPONSE BODY:');
+  Future<void> _uploadSingleRecord(
+    int index, 
+    dynamic apiUrl,  // Changed to dynamic to accept both Uri and String
+    String? token, 
+    dynamic companyId,
+    [List<Map<String, dynamic>>? customData]
+  ) async {
     try {
-      // Try to pretty print JSON response
-      var responseJson = jsonDecode(response.body);
-      String prettyResponse = JsonEncoder.withIndent('  ').convert(responseJson);
-      print(prettyResponse);
-    } catch (e) {
-      // If not JSON, print raw
-      print(response.body);
-    }
-    print('=== END RESPONSE DEBUG ===');
-    print('');
-    
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      _successCount++;
-      print('✅ Row ${index + 1}: SUCCESS');
-    } else {
-      _errorCount++;
-      try {
-        final errorData = jsonDecode(response.body);
-        String errorMsg = 'Row ${index + 1}: ${errorData['message'] ?? 'Unknown error'}';
-        
-        // ✅ NEW: Include validation errors if present
-        if (errorData['errors'] != null) {
-          errorMsg += '\n  Validation: ${errorData['errors']}';
-        }
-        
-        _errorMessages.add(errorMsg);
-        print('❌ Row ${index + 1}: FAILED - $errorMsg');
-      } catch (e) {
-        String errorMsg = 'Row ${index + 1}: HTTP ${response.statusCode} - ${response.reasonPhrase}';
-        _errorMessages.add(errorMsg);
-        print('❌ Row ${index + 1}: FAILED - $errorMsg');
+      final dataSource = customData ?? _parsedData!;
+      Map<String, dynamic> settlementData = Map.from(dataSource[index]);
+      
+      // Remove pspid if exists, ensure company_id is set
+      if (settlementData.containsKey('pspid')) {
+        settlementData['company_id'] = settlementData['pspid'];
+        settlementData.remove('pspid');
       }
+      
+      settlementData['company_id'] = companyId ?? settlementData['company_id'];
+      
+      // Convert batch_number and terminal_trace_number to integers
+      if (settlementData['batch_number'] != null) {
+        settlementData['batch_number'] = int.tryParse(settlementData['batch_number'].toString()) ?? 1;
+      }
+      
+      if (settlementData['terminal_trace_number'] != null) {
+        settlementData['terminal_trace_number'] = int.tryParse(settlementData['terminal_trace_number'].toString()) ?? 1;
+      }
+      
+      // FIX: Truncate fields that exceed database limits
+      settlementData = _truncateFields(settlementData);
+      
+      Map<String, String> headers = {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+      
+      // Handle both Uri and String types
+      Uri finalUri = apiUrl is Uri ? apiUrl : Uri.parse(apiUrl.toString());
+      
+      final response = await http.post(
+        finalUri,
+        headers: headers,
+        body: jsonEncode(settlementData),
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _successCount++;
+      } else {
+        _errorCount++;
+        try {
+          final errorData = jsonDecode(response.body);
+          String errorMsg = 'Row ${index + 1}: ${errorData['message'] ?? 'Unknown error'}';
+          
+          if (errorData['errors'] != null) {
+            errorMsg += '\n  Validation: ${errorData['errors']}';
+          }
+          
+          _errorMessages.add(errorMsg);
+        } catch (e) {
+          String errorMsg = 'Row ${index + 1}: HTTP ${response.statusCode}';
+          _errorMessages.add(errorMsg);
+        }
+      }
+    } catch (e) {
+      _errorCount++;
+      String errorMsg = 'Row ${index + 1}: Exception - $e';
+      _errorMessages.add(errorMsg);
     }
-  } catch (e, stackTrace) {
-    _errorCount++;
-    String errorMsg = 'Row ${index + 1}: Exception - $e';
-    _errorMessages.add(errorMsg);
-    print('❌ Row ${index + 1}: EXCEPTION');
-    print('Error: $e');
-    print('Stack trace: $stackTrace');
   }
-}
-
 
   void _resetState() {
     setState(() {
@@ -1278,6 +1476,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
       _fileType = 'settlement';
       _columnAnalysis = null;
       _skippedRows = 0;
+      _duplicateIds = [];
     });
   }
 
@@ -1313,8 +1512,13 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     );
   }
 
-  void _showUploadResultDialog({int? totalRows, int? skippedRows}) {
-    String errorReport = _generateErrorReport();
+  // UPDATED: Result dialog with duplicate info
+  void _showUploadResultDialog({
+    int? totalRows, 
+    int? skippedRows,
+    int? skippedDuplicates,
+  }) {
+    String errorReport = _generateErrorReport(skippedDuplicates: skippedDuplicates);
     
     showDialog(
       context: context,
@@ -1344,8 +1548,11 @@ static const Map<String, String> ${_fileType}FieldMapping = {
               if (totalRows != null) ...[
                 Text('Total Records in File: $totalRows'),
                 if (skippedRows != null && skippedRows > 0)
-                  Text('Skipped Before Upload: $skippedRows', 
+                  Text('Skipped (Invalid): $skippedRows', 
                        style: TextStyle(color: Colors.orange)),
+                if (skippedDuplicates != null && skippedDuplicates > 0)
+                  Text('Skipped (Duplicates): $skippedDuplicates', 
+                       style: TextStyle(color: Colors.blue)),
               ],
               Text('Successful: $_successCount records', 
                    style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
@@ -1390,13 +1597,6 @@ static const Map<String, String> ${_fileType}FieldMapping = {
               icon: Icon(Icons.copy),
               label: Text('Copy Errors'),
             ),
-            TextButton.icon(
-              onPressed: () {
-                _showDetailedErrorDialog(errorReport);
-              },
-              icon: Icon(Icons.info_outline),
-              label: Text('Full Report'),
-            ),
           ],
           TextButton(
             onPressed: () {
@@ -1418,7 +1618,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     );
   }
 
-  String _generateErrorReport() {
+  String _generateErrorReport({int? skippedDuplicates}) {
     StringBuffer report = StringBuffer();
     
     report.writeln('=== UPLOAD ERROR REPORT ===');
@@ -1432,6 +1632,9 @@ static const Map<String, String> ${_fileType}FieldMapping = {
     report.writeln('Total Records in File: ${_parsedData?.length ?? 0}');
     if (_skippedRows > 0) {
       report.writeln('Empty Rows Skipped: $_skippedRows');
+    }
+    if (skippedDuplicates != null && skippedDuplicates > 0) {
+      report.writeln('Duplicate Rows Skipped: $skippedDuplicates');
     }
     report.writeln('Records Attempted: ${_successCount + _errorCount}');
     report.writeln('Successful Uploads: $_successCount');
@@ -1448,7 +1651,6 @@ static const Map<String, String> ${_fileType}FieldMapping = {
       report.writeln('Successfully Mapped: ${_columnAnalysis!.foundColumns.length}');
       report.writeln('Missing Columns: ${_columnAnalysis!.missingColumns.length}');
       report.writeln('Required Missing: ${_columnAnalysis!.requiredMissingCount}');
-      report.writeln('Unmapped CSV Columns: ${_columnAnalysis!.unmappedColumns.length}');
       report.writeln('Mapping Success Rate: ${(_columnAnalysis!.mappingSuccessRate * 100).toStringAsFixed(1)}%');
       report.writeln('');
     }
@@ -1461,90 +1663,11 @@ static const Map<String, String> ${_fileType}FieldMapping = {
       report.writeln('');
     }
     
-    report.writeln('CONFIGURATION USED:');
-    report.writeln('Theme: $currentTheme');
-    report.writeln('Company ID: ${CompanyConfig.getCompanyId()}');
-    report.writeln('API Endpoint: ${AppConfig.api('/api/settlement-details')}');
-    report.writeln('');
-    
     report.writeln('=== END REPORT ===');
     
     return report.toString();
   }
 
-  void _showDetailedErrorDialog(String errorReport) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.bug_report, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Detailed Error Report'),
-          ],
-        ),
-        content: Container(
-          width: double.maxFinite,
-          height: 500,
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Full diagnostic information for troubleshooting:',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () async {
-                      await Clipboard.setData(ClipboardData(text: errorReport));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Full report copied to clipboard'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    icon: Icon(Icons.copy),
-                    tooltip: 'Copy Full Report',
-                  ),
-                ],
-              ),
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8),
-                    color: Colors.grey[50],
-                  ),
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.all(12),
-                    child: Text(
-                      errorReport,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'monospace',
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // UI Building methods
   Widget _buildFileUploadSection() {
     return Card(
       elevation: 2,
@@ -1627,7 +1750,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
 
   Widget _buildUploadArea() {
     return GestureDetector(
-      onTap: (_isParsing || _isConverting) ? null : _pickFile,
+      onTap: (_isParsing || _isConverting || _isCheckingDuplicates) ? null : _pickFile,
       child: Container(
         width: double.infinity,
         constraints: BoxConstraints(minHeight: 120),
@@ -1642,8 +1765,12 @@ static const Map<String, String> ${_fileType}FieldMapping = {
             width: 2,
           ),
         ),
-        child: (_isParsing || _isConverting)
-            ? _buildLoadingIndicator(_isConverting ? 'Converting PSP file...' : 'Parsing file...')
+        child: (_isParsing || _isConverting || _isCheckingDuplicates)
+            ? _buildLoadingIndicator(
+                _isCheckingDuplicates ? 'Checking duplicates...' :
+                _isConverting ? 'Converting PSP file...' : 
+                'Parsing file...'
+              )
             : _fileName != null
                 ? _buildFileInfo()
                 : _buildUploadPrompt(),
@@ -1866,6 +1993,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
                     _parsedData!.isNotEmpty && 
                     !_isUploading && 
                     !_isConverting &&
+                    !_isCheckingDuplicates &&
                     (_columnAnalysis?.canProceed ?? true);
 
     return Container(
@@ -1879,7 +2007,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
           elevation: 4,
           shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
         ),
-        child: _isUploading
+        child: _isUploading || _isCheckingDuplicates
             ? Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -1895,7 +2023,7 @@ static const Map<String, String> ${_fileType}FieldMapping = {
                   ),
                   SizedBox(width: 16),
                   Text(
-                    'Uploading Data...',
+                    _isCheckingDuplicates ? 'Checking Duplicates...' : 'Uploading Data...',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ],

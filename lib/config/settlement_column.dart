@@ -1,7 +1,8 @@
 import 'package:inventory/config/company_config.dart';
+import 'package:uuid/uuid.dart';
 
 /// Central configuration for Settlement file column mappings and validations
-/// Updated to preserve original string values without extraction or cleaning
+/// Updated to use appropriate null/dynamic defaults instead of hardcoded test data
 class SettlementColumn {
   // PSP to Settlement field mapping
   static const Map<String, String> pspFieldMapping = {
@@ -206,14 +207,14 @@ class SettlementColumn {
     'extra_info': 'Extra Info',
   };
 
-  // ADDED: Alternative column names for Settlement files
+  // Alternative column names for Settlement files
   static const Map<String, List<String>> settlementAlternativeColumns = {
     'Transaction Time': ['Merchant Txn Time', 'merchant_txn_time'],
     'Order Number': ['Merchant Txn ID', 'merchant_txn_id'],
     'Transaction Amount': ['Merchant Txn Amt', 'merchant_txn_amt'],
     'Transaction Currency': ['Merchant Txn Curr', 'merchant_txn_curr'],
-    'Merchant Settlement Amount': ['Merchant Sttl Amt', 'merchant_sttl_amt'],
-    'Merchant Settlement Currency': ['Merchant Sttl Curr', 'merchant_sttl_curr'],
+    'Merchant Settlement Amount': ['Merchant Sttl Amt', 'merchant_sttl_amt', 'Merchant Local Amt', 'merchant_local_amt'],
+    'Merchant Settlement Currency': ['Merchant Sttl Curr', 'merchant_sttl_curr', 'Merchant Local Curr', 'merchant_local_curr'],
     'Reconciliation Flag': ['Txn Status', 'txn_status'],
     'Transaction Type': ['Txn Type', 'txn_type'],
     'Company ID': ['PSP ID', 'psp_id', 'Acquirer ID', 'acquirer_id'],
@@ -232,7 +233,7 @@ class SettlementColumn {
     'Rate Local to Transaction': ['Rate of Local to Txn', 'rate_of_local_to_txn'],
     'Surcharge Fee Amount': ['Surcharge Fee Amt', 'surcharge_fee_amt'],
     'Merchant Capture Amount': ['Merchant Capture Amt', 'merchant_capture_amt'],
-    'Merchant Discount Amount': ['Merchant Discount Amt', 'merchant_discount_amt'],
+    'Merchant Discount Amount': ['Merchant Discount Amt', 'merchant_discount_amt', 'Acquirer Discount Amt'],
     'Rate Transaction to Settlement': ['Rate from Merchant Txn to Sttl', 'rate_from_merchant_txn_to_sttl'],
     'User Billing Amount': ['User Billing Amt', 'user_billing_amt'],
     'User Billing Currency': ['User Billing Curr', 'user_billing_curr'],
@@ -243,9 +244,14 @@ class SettlementColumn {
     'Transaction Service Fee': ['Txn Service Fee', 'txn_service_fee'],
     'Net Merchant Settlement Amount': ['Net Merchant Sttl Amt', 'net_merchant_sttl_amt'],
     'MCC': ['Store MCC', 'store_mcc'],
+    'VAT Amount': ['PSP VAT Amount', 'psp_vat_amount'],
+    'WHT Amount': ['PSP WHT Amount', 'psp_wht_amount'],
+    'Brand Settlement Amount': ['PSP Sttl Amt', 'psp_sttl_amt'],
+    'Brand Settlement Currency': ['PSP Sttl Curr', 'psp_sttl_curr'],
+    'Net Brand Settlement Amount': ['PSP Net Sttl Amt', 'psp_net_sttl_amt', 'Net PSP Sttl Amt'],
   };
 
-  // Required columns for validation (removed terminal_id from required)
+  // Required columns for validation
   static const List<String> requiredColumns = [
     'company_id', 
     'transaction_time', 
@@ -272,7 +278,7 @@ class SettlementColumn {
     'system_transaction_time'
   };
 
-  // Integer columns that should be parsed as int
+  // Integer columns
   static const Set<String> integerColumns = {
     'psp_order_number',
     'original_psp_order_number',
@@ -280,7 +286,7 @@ class SettlementColumn {
     'terminal_trace_number',
   };
 
-  // Only numeric fields that should remain numeric
+  // Numeric columns
   static const Set<String> numericColumns = {
     'transaction_amount', 'tips_amount', 'merchant_settlement_amount',
     'mdr_amount', 'net_merchant_settlement_amount', 'brand_settlement_amount',
@@ -376,49 +382,29 @@ class SettlementColumn {
     },
   };
 
-  // Default values for fields
+  // UPDATED: Default values - using null or dynamic values instead of hardcoded test data
   static Map<String, dynamic> getDefaultValues() {
+    final timestamp = DateTime.now();
+    
     return {
+      // Required with sensible defaults
       'company_id': CompanyConfig.getCompanyId(),
+      'transaction_time': timestamp.toIso8601String(),
       'crossborder_flag': 'Domestic',
       'reconciliation_flag': 'Matched',
       'transaction_type': 'PURCHASE',
-      'funding_type': 'Debit',
       'transaction_status': 'Success',
-      'order_number': '92025082815352484721885',
-      'original_order_number': '4bc95ee7ce524907a61e311d322b6703',
-      'authorization_code': 'AUTH123456789',
-      'mcc': '744',
+      
+      // Terminal/batch defaults
       'terminal_id': 'TERMINAL001',
+      'batch_number': 1,
+      'terminal_trace_number': 1,
+      
+      // Numeric defaults (zero)
       'transaction_amount': 0.0,
+      'tips_amount': 0.0,
       'merchant_settlement_amount': 0.0,
       'net_merchant_settlement_amount': 0.0,
-      'merchant_nation': 'LAO',
-      'issuer_country': 'LAO',
-      'merchant_city': 'Vientiane',
-      'transaction_initiation_mode': 'manual',
-      'system_result_code': 'S0000',
-      'psp_name': 'UnionPay',
-      'payment_brand': 'UnionPay',
-      'card_number': '623479******0250',
-      'group_id': 'LDB001',
-      'group_name': 'LDB Merchant',
-      'merchant_id': 'M020HQV00000001',
-      'merchant_name': 'Tomshop',
-      'store_id': 'S020HQV00000002',
-      'store_name': 'TomAuto Settle_02',
-      'mdr_rules': 'Combination',
-      'metadata': 'Additional transaction metadata information',
-      'api_code': 'STANDARD_API_V2',
-      'transaction_currency': 'USD',
-      'merchant_settlement_currency': 'USD',
-      'brand_settlement_currency': 'USD',
-      'merchant_local_currency': 'USD',
-      'user_billing_currency': 'USD',
-      'system_transaction_id': '95c137158fba48d0a0a6159682896c6e',
-      'original_system_transaction_id': '45a55959fa504be293c73d1bd0f98314',
-      'system_transaction_time': DateTime.now().toIso8601String(),
-      'tips_amount': 0.0,
       'mdr_amount': 0.0,
       'brand_settlement_amount': 0.0,
       'interchange_fee_amount': 0.0,
@@ -438,12 +424,62 @@ class SettlementColumn {
       'wht_amount': 0.0,
       'rate_local_to_transaction': 1.0,
       'rate_transaction_to_settlement': 1.0,
+      
+      // Currency defaults
+      'transaction_currency': 'USD',
+      'merchant_settlement_currency': 'USD',
+      'brand_settlement_currency': 'USD',
+      'merchant_local_currency': 'USD',
+      'user_billing_currency': 'USD',
+      
+      // Geographic defaults  
+      'merchant_nation': 'LAO',
+      'merchant_city': 'Vientiane',
+      'issuer_country': 'LAO',
+      
+      // Transaction mode defaults
+      'funding_type': 'Debit',
+      'transaction_initiation_mode': 'manual',
+      
+      // System defaults
+      'system_result_code': 'S0000',
+      'api_code': 'STANDARD_API_V2',
+      'mdr_rules': 'Combination',
+      'system_transaction_time': timestamp.toIso8601String(),
+      
+      // NULL for IDs that should come from CSV (NOT hardcoded test data)
+      'order_number': null,
       'psp_order_number': null,
+      'original_order_number': null,
       'original_psp_order_number': null,
-      'batch_number': 1,
-      'terminal_trace_number': 1,
-      'transaction_time': DateTime.now().toIso8601String(),
-      'extra_info': 'Additional information and notes about this transaction',
+      'system_transaction_id': null,
+      'original_system_transaction_id': null,
+      'psp_name': null,
+      'payment_brand': null,
+      'card_number': null,
+      'authorization_code': null,
+      'mcc': null,
+      'group_id': null,
+      'group_name': null,
+      'merchant_id': null,
+      'merchant_name': null,
+      'store_id': null,
+      'store_name': null,
+      'metadata': null,
+      'extra_info': null,
+      'payment_time': null,
+      'terminal_settlement_time': null,
+      'merchant_order_reference': null,
+      'linkpay_order_id': null,
+      'psp_result_code': null,
+      'product_id': null,
+      'product_type_id': null,
+      'payment_method_variant': null,
+      'eci': null,
+      'settlement_account_name': null,
+      'settlement_account_number': null,
+      'remark': null,
+      'api_type': null,
     };
   }
 
@@ -503,7 +539,6 @@ class SettlementColumn {
     return pspMatches >= settlementMatches ? 'psp' : 'settlement';
   }
 
-  // UPDATED: createHeaderMapping with settlement alternatives support
   static Map<String, String> createHeaderMapping(List<String> headers) {
     Map<String, String> headerToApiField = {};
     
@@ -527,7 +562,6 @@ class SettlementColumn {
         List<String> alternatives = entry.value;
         
         if (alternatives.any((alt) => alt.trim().toLowerCase() == header.trim().toLowerCase())) {
-          // Find the API field for this standard name
           var matchingEntry = settlementColumnMapping.entries.firstWhere(
             (e) => e.value == standardName,
             orElse: () => MapEntry('', ''),
@@ -578,7 +612,7 @@ class SettlementColumn {
     String valueStr = value.toString().trim();
     if (valueStr.isEmpty) return null;
 
-    // Integer conversion for specific fields
+    // Integer conversion
     if (integerColumns.contains(columnName)) {
       try {
         return int.tryParse(valueStr.replaceAll(RegExp(r'[^0-9]'), ''));
@@ -593,40 +627,36 @@ class SettlementColumn {
         DateTime dateTime = DateTime.parse(valueStr);
         return dateTime.toIso8601String();
       } catch (e) {
-        // Return original string if parsing fails
         return valueStr;
       }
     }
 
-    // Numeric conversion only for actual numeric fields
-   // Numeric conversion only for actual numeric fields
-if (numericColumns.contains(columnName)) {
-  try {
-    String cleanedValue = valueStr.replaceAll(RegExp(r'[^0-9.-]'), '');
-    if (cleanedValue.isEmpty) return 0.0;
-    
-    double? doubleValue = double.tryParse(cleanedValue);
-    if (doubleValue != null) {
-      // Special handling for exchange rate columns - cap at database limit
-      if (columnName == 'rate_local_to_transaction' || columnName == 'rate_transaction_to_settlement') {
-        // Cap at 9999.999999 to fit DECIMAL(10,6) database column
-        if (doubleValue > 9999.999999) {
-          doubleValue = 9999.999999;
-        } else if (doubleValue < -9999.999999) {
-          doubleValue = -9999.999999;
+    // Numeric conversion
+    if (numericColumns.contains(columnName)) {
+      try {
+        String cleanedValue = valueStr.replaceAll(RegExp(r'[^0-9.-]'), '');
+        if (cleanedValue.isEmpty) return 0.0;
+        
+        double? doubleValue = double.tryParse(cleanedValue);
+        if (doubleValue != null) {
+          if (columnName == 'rate_local_to_transaction' || columnName == 'rate_transaction_to_settlement') {
+            if (doubleValue > 9999.999999) {
+              doubleValue = 9999.999999;
+            } else if (doubleValue < -9999.999999) {
+              doubleValue = -9999.999999;
+            }
+            return double.parse(doubleValue.toStringAsFixed(6));
+          } else {
+            return double.parse(doubleValue.toStringAsFixed(2));
+          }
         }
-        return double.parse(doubleValue.toStringAsFixed(6));
-      } else {
-        return double.parse(doubleValue.toStringAsFixed(2));
+        return 0.0;
+      } catch (e) {
+        return 0.0;
       }
     }
-    return 0.0;
-  } catch (e) {
-    return 0.0;
-  }
-}
     
-    // For all other fields, preserve original string value with length validation
+    // String validation
     int? maxLength = stringLengthLimits[columnName];
     if (maxLength != null) {
       if (maxLength == -1) {
@@ -637,7 +667,7 @@ if (numericColumns.contains(columnName)) {
       }
     }
     
-    // Enum validation with case-insensitive matching
+    // Enum validation
     final enumConfig = enumValidations[columnName];
     if (enumConfig != null) {
       final validValues = enumConfig['valid_values'] as List<String>;
@@ -671,12 +701,10 @@ if (numericColumns.contains(columnName)) {
         .replaceAll(RegExp(r'^_|_$'), '');
   }
 
-  // Method to get the current configuration version
   static String getConfigVersion() {
-    return '2.0.2'; // Updated version
+    return '2.1.0'; // Updated version
   }
 
-  // Method to get mapping statistics for debugging
   static Map<String, dynamic> getMappingStats() {
     return {
       'psp_field_mappings': pspFieldMapping.length,
@@ -686,6 +714,7 @@ if (numericColumns.contains(columnName)) {
       'required_columns': requiredColumns.length,
       'config_version': getConfigVersion(),
       'preserve_original_strings': true,
+      'uses_dynamic_defaults': true,
     };
   }
 }

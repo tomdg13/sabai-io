@@ -77,9 +77,11 @@ class _GroupPageState extends State<GroupPage> {
         final nameLower = group.groupName.toLowerCase();
         final codeLower = group.groupCode?.toLowerCase() ?? '';
         final phoneLower = group.phone?.toLowerCase() ?? '';
+        final mobileLower = group.mobile?.toLowerCase() ?? '';
         bool matches = nameLower.contains(lowerQuery) || 
                       codeLower.contains(lowerQuery) || 
-                      phoneLower.contains(lowerQuery);
+                      phoneLower.contains(lowerQuery) ||
+                      mobileLower.contains(lowerQuery);
         return matches;
       }).toList();
       print('Filtered groups count: ${filteredGroups.length}');
@@ -644,12 +646,20 @@ class _GroupPageState extends State<GroupPage> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-        if (!compact && group.phone != null && group.phone!.isNotEmpty)
-          Text(
-            'Phone: ${group.phone}',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+        if (!compact && group.mobile != null && group.mobile!.isNotEmpty)
+          Row(
+            children: [
+              Icon(Icons.phone_android, size: 14, color: Colors.grey[600]),
+              SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  group.mobile!,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         if (!compact)
           Text(
@@ -692,13 +702,14 @@ class _GroupPageState extends State<GroupPage> {
   }
 }
 
-// Fixed IoGroup model with proper create_by handling
+// Updated IoGroup model with mobile field
 class IoGroup {
   final int groupId;
   final int companyId;
   final String groupName;
   final String? groupCode;
   final String? phone;
+  final String? mobile; // NEW: Added mobile field
   final String? imageUrl;
   final int? createBy;
   final String? createdDate;
@@ -710,6 +721,7 @@ class IoGroup {
     required this.groupName,
     this.groupCode,
     this.phone,
+    this.mobile, // NEW: Added to constructor
     this.imageUrl,
     this.createBy,
     this.createdDate,
@@ -736,11 +748,12 @@ class IoGroup {
       final group = IoGroup(
         groupId: json['group_id'] ?? 0,
         companyId: json['company_id'] ?? CompanyConfig.getCompanyId(),
-        groupName: json['group_name'] ?? '',
+        groupName: json['group_name'] ?? json['group'] ?? '',
         groupCode: json['group_code'],
         phone: json['phone'],
+        mobile: json['mobile'] ?? json['mobile_number'], // NEW: Handle both field names
         imageUrl: json['image_url'],
-        createBy: parseCreateBy(json['create_by']), // Safe parsing for string/int conversion
+        createBy: parseCreateBy(json['create_by']),
         createdDate: json['created_date'],
         updatedDate: json['updated_date'],
       );
@@ -758,9 +771,10 @@ class IoGroup {
     return {
       'group_id': groupId,
       'company_id': companyId,
-      'group_name': groupName,
+      'group': groupName, // Use 'group' for consistency with edit page
       'group_code': groupCode,
       'phone': phone,
+      'mobile_number': mobile, // NEW: Added to JSON output
       'image_url': imageUrl,
       'create_by': createBy,
       'created_date': createdDate,

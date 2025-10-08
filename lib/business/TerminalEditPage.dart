@@ -20,7 +20,8 @@ import 'package:inventory/business/TerminalPdfPage.dart' show TerminalPdfPage;
 class TerminalEditPage extends StatefulWidget {
   final Map<String, dynamic> TerminalData;
 
-  const TerminalEditPage({Key? key, required this.TerminalData}) : super(key: key);
+  const TerminalEditPage({Key? key, required this.TerminalData})
+    : super(key: key);
 
   @override
   State<TerminalEditPage> createState() => _TerminalEditPageState();
@@ -37,13 +38,14 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
   String? _base64Image;
   String? _currentImageUrl;
   File? _imageFile;
-  
+
   // PDF related variables
   String? _base64Pdf;
   String? _currentPdfUrl;
   String? _pdfFileName;
+  // ignore: unused_field
   File? _pdfFile;
-  
+
   bool _isLoading = false;
   bool _isDeleting = false;
   String currentTheme = ThemeConfig.defaultTheme;
@@ -58,22 +60,34 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
   void _loadCurrentTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      currentTheme = prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
+      currentTheme =
+          prefs.getString('selectedTheme') ?? ThemeConfig.defaultTheme;
     });
   }
 
   void _initializeControllers() {
-    _terminalNameController = TextEditingController(text: widget.TerminalData['terminal_name'] ?? '');
-    _phoneController = TextEditingController(text: widget.TerminalData['terminal_phone'] ?? '');
-    _serialNumberController = TextEditingController(text: widget.TerminalData['serial_number'] ?? '');
-    _simNumberController = TextEditingController(text: widget.TerminalData['sim_number'] ?? '');
+    _terminalNameController = TextEditingController(
+      text: widget.TerminalData['terminal_name'] ?? '',
+    );
+    _phoneController = TextEditingController(
+      text: widget.TerminalData['terminal_phone'] ?? '',
+    );
+    _serialNumberController = TextEditingController(
+      text: widget.TerminalData['serial_number'] ?? '',
+    );
+    _simNumberController = TextEditingController(
+      text: widget.TerminalData['sim_number'] ?? '',
+    );
     _currentImageUrl = widget.TerminalData['image_url'];
     _currentPdfUrl = widget.TerminalData['pdf_url'];
     _pdfFileName = widget.TerminalData['pdf_filename'];
-    
-    if (widget.TerminalData['expire_date'] != null && widget.TerminalData['expire_date'].toString().isNotEmpty) {
+
+    if (widget.TerminalData['expire_date'] != null &&
+        widget.TerminalData['expire_date'].toString().isNotEmpty) {
       try {
-        _selectedExpireDate = DateTime.parse(widget.TerminalData['expire_date']);
+        _selectedExpireDate = DateTime.parse(
+          widget.TerminalData['expire_date'],
+        );
       } catch (e) {
         _selectedExpireDate = null;
       }
@@ -131,7 +145,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
       } else {
         // For mobile, download the file
         final response = await http.get(Uri.parse(pdfUrl));
-        
+
         if (response.statusCode == 200) {
           // Get the directory to save the file
           Directory? directory;
@@ -143,9 +157,11 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
 
           if (directory != null) {
             // Create filename
-            final fileName = filename ?? 'terminal_document_${DateTime.now().millisecondsSinceEpoch}.pdf';
+            final fileName =
+                filename ??
+                'terminal_document_${DateTime.now().millisecondsSinceEpoch}.pdf';
             final filePath = '${directory.path}/$fileName';
-            
+
             // Save file
             final file = File(filePath);
             await file.writeAsBytes(response.bodyBytes);
@@ -193,7 +209,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
     } catch (e) {
       // Hide loading snackbar
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -244,7 +260,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
 
       if (result != null && result.files.isNotEmpty) {
         PlatformFile file = result.files.first;
-        
+
         // Check file size (limit to 10MB)
         if (file.size > 10 * 1024 * 1024) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -263,7 +279,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
         }
 
         Uint8List? fileBytes;
-        
+
         if (kIsWeb) {
           fileBytes = file.bytes;
         } else {
@@ -278,7 +294,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
 
         if (fileBytes != null) {
           final String base64String = base64Encode(fileBytes);
-          
+
           setState(() {
             _base64Pdf = 'data:application/pdf;base64,$base64String';
             _pdfFileName = file.name;
@@ -322,7 +338,9 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
             children: [
               Icon(Icons.error, color: Colors.white),
               SizedBox(width: 8),
-              Text('Barcode scanning is not available on web. Please enter manually.'),
+              Text(
+                'Barcode scanning is not available on web. Please enter manually.',
+              ),
             ],
           ),
           backgroundColor: Colors.red,
@@ -335,11 +353,9 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
     try {
       final result = await Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => _BarcodeScannerPage(),
-        ),
+        MaterialPageRoute(builder: (context) => _BarcodeScannerPage()),
       );
-      
+
       if (result != null && result is String && result.isNotEmpty) {
         setState(() {
           _serialNumberController.text = result;
@@ -378,7 +394,8 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
   Future<void> _selectExpireDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedExpireDate ?? DateTime.now().add(Duration(days: 365)),
+      initialDate:
+          _selectedExpireDate ?? DateTime.now().add(Duration(days: 365)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(Duration(days: 3650)),
       builder: (context, child) {
@@ -464,7 +481,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
         final File imageFile = File(image.path);
         final Uint8List imageBytes = await imageFile.readAsBytes();
         final String base64String = base64Encode(imageBytes);
-        
+
         setState(() {
           _imageFile = imageFile;
           _base64Image = 'data:image/jpeg;base64,$base64String';
@@ -542,31 +559,33 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
       final terminalData = <String, dynamic>{
         'company_id': CompanyConfig.getCompanyId(),
       };
-      
+
       if (_terminalNameController.text.trim().isNotEmpty) {
         terminalData['terminal_name'] = _terminalNameController.text.trim();
       }
-      
+
       if (_phoneController.text.trim().isNotEmpty) {
         terminalData['phone'] = _phoneController.text.trim();
       }
-      
+
       if (_serialNumberController.text.trim().isNotEmpty) {
         terminalData['serial_number'] = _serialNumberController.text.trim();
       }
-      
+
       if (_simNumberController.text.trim().isNotEmpty) {
         terminalData['sim_number'] = _simNumberController.text.trim();
       }
-      
+
       if (_selectedExpireDate != null) {
-        terminalData['expire_date'] = _selectedExpireDate!.toIso8601String().split('T')[0];
+        terminalData['expire_date'] = _selectedExpireDate!
+            .toIso8601String()
+            .split('T')[0];
       }
-      
+
       if (_base64Image != null) {
         terminalData['image'] = _base64Image;
       }
-      
+
       // Add PDF data
       if (_base64Pdf != null) {
         terminalData['terminal_pdf'] = _base64Pdf;
@@ -603,7 +622,9 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
         }
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
+        throw Exception(
+          errorData['message'] ?? 'Server error: ${response.statusCode}',
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -630,7 +651,9 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Row(
             children: [
               Icon(Icons.warning, color: Colors.red, size: 28),
@@ -638,14 +661,13 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
               Text('Delete Terminal'),
             ],
           ),
-          content: Text('Are you sure you want to delete "${_terminalNameController.text}"? This action cannot be undone.'),
+          content: Text(
+            'Are you sure you want to delete "${_terminalNameController.text}"? This action cannot be undone.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                'Cancel',
-                style: TextStyle(color: Colors.grey[600]),
-              ),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
@@ -702,7 +724,9 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
         }
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Server error: ${response.statusCode}');
+        throw Exception(
+          errorData['message'] ?? 'Server error: ${response.statusCode}',
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -728,9 +752,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
   Widget _buildPdfSection() {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: EdgeInsets.all(20),
         child: Column(
@@ -754,7 +776,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
               ],
             ),
             SizedBox(height: 20),
-            
+
             // Main PDF display area
             GestureDetector(
               onTap: _pickPdf,
@@ -781,11 +803,11 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                 child: _pdfFileName != null
                     ? _buildNewPdfDisplay()
                     : _currentPdfUrl != null && _currentPdfUrl!.isNotEmpty
-                        ? _buildExistingPdfDisplay()
-                        : _buildNoPdfDisplay(),
+                    ? _buildExistingPdfDisplay()
+                    : _buildNoPdfDisplay(),
               ),
             ),
-            
+
             // Action buttons - Always visible when PDF exists
             if (_currentPdfUrl != null && _currentPdfUrl!.isNotEmpty) ...[
               SizedBox(height: 16),
@@ -801,7 +823,11 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.cloud_download, color: Colors.blue, size: 20),
+                        Icon(
+                          Icons.cloud_download,
+                          color: Colors.blue,
+                          size: 20,
+                        ),
                         SizedBox(width: 8),
                         Text(
                           'Current PDF Available',
@@ -818,29 +844,38 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                       children: [
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: _isDownloading 
-                                ? null 
+                            onPressed: _isDownloading
+                                ? null
                                 : () => _downloadPdf(
-                                      _currentPdfUrl!, 
-                                      widget.TerminalData['pdf_filename'],
-                                    ),
+                                    _currentPdfUrl!,
+                                    widget.TerminalData['pdf_filename'],
+                                  ),
                             icon: _isDownloading
                                 ? SizedBox(
                                     width: 16,
                                     height: 16,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
                                     ),
                                   )
                                 : Icon(Icons.download, size: 18),
                             label: Text(
                               _isDownloading ? 'Downloading...' : 'Download',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                              foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                              backgroundColor: ThemeConfig.getPrimaryColor(
+                                currentTheme,
+                              ),
+                              foregroundColor: ThemeConfig.getButtonTextColor(
+                                currentTheme,
+                              ),
                               padding: EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -857,8 +892,25 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                                 MaterialPageRoute(
                                   builder: (context) => TerminalPdfPage(
                                     pdfUrl: _currentPdfUrl!,
-                                    pdfFilename: widget.TerminalData['pdf_filename'],
-                                    terminalName: widget.TerminalData['terminal_name'] ?? 'Terminal',
+                                    pdfFilename:
+                                        widget.TerminalData['pdf_filename'] ??
+                                        'Terminal_Document.pdf',
+                                    terminalName:
+                                        widget.TerminalData['terminal_name'] ??
+                                        'Terminal',
+                                    serialNumber:
+                                        widget.TerminalData['serial_number'] ??
+                                        'N/A',
+                                    simNumber:
+                                        widget.TerminalData['sim_number'] ??
+                                        'N/A',
+                                    expire_date:
+                                        widget.TerminalData['expire_date'] !=
+                                            null
+                                        ? widget.TerminalData['expire_date']
+                                              .toString()
+                                              .split('T')[0]
+                                        : 'N/A',
                                   ),
                                 ),
                               );
@@ -866,13 +918,20 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                             icon: Icon(Icons.open_in_new, size: 18),
                             label: Text(
                               'Open',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                              foregroundColor: ThemeConfig.getPrimaryColor(
+                                currentTheme,
+                              ),
                               padding: EdgeInsets.symmetric(vertical: 12),
                               side: BorderSide(
-                                color: ThemeConfig.getPrimaryColor(currentTheme),
+                                color: ThemeConfig.getPrimaryColor(
+                                  currentTheme,
+                                ),
                                 width: 2,
                               ),
                               shape: RoundedRectangleBorder(
@@ -903,11 +962,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
             color: Colors.red.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(
-            Icons.picture_as_pdf,
-            color: Colors.red,
-            size: 32,
-          ),
+          child: Icon(Icons.picture_as_pdf, color: Colors.red, size: 32),
         ),
         SizedBox(width: 16),
         Expanded(
@@ -969,11 +1024,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                 color: Colors.red.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                Icons.picture_as_pdf,
-                color: Colors.red,
-                size: 32,
-              ),
+              child: Icon(Icons.picture_as_pdf, color: Colors.red, size: 32),
             ),
             SizedBox(width: 16),
             Expanded(
@@ -1008,10 +1059,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                 ],
               ),
             ),
-            Icon(
-              Icons.edit,
-              color: ThemeConfig.getPrimaryColor(currentTheme),
-            ),
+            Icon(Icons.edit, color: ThemeConfig.getPrimaryColor(currentTheme)),
           ],
         ),
       ],
@@ -1040,10 +1088,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
         SizedBox(height: 4),
         Text(
           'Max size: 10MB',
-          style: TextStyle(
-            color: Colors.grey[500],
-            fontSize: 12,
-          ),
+          style: TextStyle(color: Colors.grey[500], fontSize: 12),
         ),
       ],
     );
@@ -1052,9 +1097,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
   Widget _buildImageSection() {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: EdgeInsets.all(20),
         child: Column(
@@ -1088,7 +1131,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: _imageFile != null 
+                      color: _imageFile != null
                           ? ThemeConfig.getPrimaryColor(currentTheme)
                           : Colors.grey[300]!,
                       width: 2,
@@ -1132,39 +1175,39 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                           ),
                         )
                       : _currentImageUrl != null && _currentImageUrl!.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
-                              child: Stack(
-                                children: [
-                                  Image.network(
-                                    _currentImageUrl!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return _buildImagePlaceholder();
-                                    },
-                                  ),
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Container(
-                                      padding: EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.6),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Icon(
-                                        Icons.edit,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Stack(
+                            children: [
+                              Image.network(
+                                _currentImageUrl!,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return _buildImagePlaceholder();
+                                },
                               ),
-                            )
-                          : _buildImagePlaceholder(),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                  padding: EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.6),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Icon(
+                                    Icons.edit,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _buildImagePlaceholder(),
                 ),
               ),
             ),
@@ -1253,9 +1296,9 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildImageSection(),
-              
+
               SizedBox(height: 20),
-              
+
               // PDF section
               _buildPdfSection(),
 
@@ -1290,7 +1333,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                         ],
                       ),
                       SizedBox(height: 20),
-                      
+
                       TextFormField(
                         controller: _terminalNameController,
                         decoration: InputDecoration(
@@ -1324,9 +1367,9 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                           return null;
                         },
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
@@ -1356,16 +1399,18 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                         ),
                         validator: (value) {
                           if (value != null && value.isNotEmpty) {
-                            if (!RegExp(r'^[\+]?[1-9][\d]{0,15}$').hasMatch(value)) {
+                            if (!RegExp(
+                              r'^[\+]?[1-9][\d]{0,15}$',
+                            ).hasMatch(value)) {
                               return 'Please enter a valid phone number';
                             }
                           }
                           return null;
                         },
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _serialNumberController,
                         decoration: InputDecoration(
@@ -1380,7 +1425,10 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                             children: [
                               if (_serialNumberController.text.isNotEmpty)
                                 IconButton(
-                                  icon: Icon(Icons.clear, color: Colors.grey[600]),
+                                  icon: Icon(
+                                    Icons.clear,
+                                    color: Colors.grey[600],
+                                  ),
                                   onPressed: () {
                                     setState(() {
                                       _serialNumberController.clear();
@@ -1391,7 +1439,9 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                                 IconButton(
                                   icon: Icon(
                                     Icons.qr_code_scanner,
-                                    color: ThemeConfig.getPrimaryColor(currentTheme),
+                                    color: ThemeConfig.getPrimaryColor(
+                                      currentTheme,
+                                    ),
                                   ),
                                   onPressed: _scanBarcode,
                                   tooltip: 'Scan Barcode',
@@ -1416,15 +1466,17 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                           fillColor: Colors.grey[50],
                         ),
                         validator: (value) {
-                          if (value != null && value.trim().isNotEmpty && value.trim().length < 3) {
+                          if (value != null &&
+                              value.trim().isNotEmpty &&
+                              value.trim().length < 3) {
                             return 'Serial number must be at least 3 characters';
                           }
                           return null;
                         },
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       TextFormField(
                         controller: _simNumberController,
                         decoration: InputDecoration(
@@ -1453,16 +1505,19 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                         ),
                         validator: (value) {
                           if (value != null && value.isNotEmpty) {
-                            if (!RegExp(r'^[0-9A-F]{8,}$', caseSensitive: false).hasMatch(value)) {
+                            if (!RegExp(
+                              r'^[0-9A-F]{8,}$',
+                              caseSensitive: false,
+                            ).hasMatch(value)) {
                               return 'SIM number must be at least 8 characters';
                             }
                           }
                           return null;
                         },
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       GestureDetector(
                         onTap: _selectExpireDate,
                         child: Container(
@@ -1476,7 +1531,9 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                             children: [
                               Icon(
                                 Icons.calendar_today,
-                                color: ThemeConfig.getPrimaryColor(currentTheme),
+                                color: ThemeConfig.getPrimaryColor(
+                                  currentTheme,
+                                ),
                               ),
                               SizedBox(width: 12),
                               Expanded(
@@ -1486,8 +1543,8 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                                       : 'Select Expire Date (Optional)',
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color: _selectedExpireDate != null 
-                                        ? Colors.black87 
+                                    color: _selectedExpireDate != null
+                                        ? Colors.black87
                                         : Colors.grey[600],
                                   ),
                                 ),
@@ -1499,15 +1556,18 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                                       _selectedExpireDate = null;
                                     });
                                   },
-                                  icon: Icon(Icons.clear, color: Colors.grey[600]),
+                                  icon: Icon(
+                                    Icons.clear,
+                                    color: Colors.grey[600],
+                                  ),
                                 ),
                             ],
                           ),
                         ),
                       ),
-                      
+
                       SizedBox(height: 16),
-                      
+
                       Container(
                         padding: EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -1517,10 +1577,7 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                         ),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.business,
-                              color: Colors.grey[600],
-                            ),
+                            Icon(Icons.business, color: Colors.grey[600]),
                             SizedBox(width: 12),
                             Text(
                               'Company ID: ${widget.TerminalData['company_id']}',
@@ -1549,12 +1606,12 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                     Container(
                       height: 56,
                       child: OutlinedButton.icon(
-                        onPressed: _isDownloading 
-                            ? null 
+                        onPressed: _isDownloading
+                            ? null
                             : () => _downloadPdf(
-                                  _currentPdfUrl!, 
-                                  widget.TerminalData['pdf_filename'],
-                                ),
+                                _currentPdfUrl!,
+                                widget.TerminalData['pdf_filename'],
+                              ),
                         icon: _isDownloading
                             ? SizedBox(
                                 width: 24,
@@ -1568,11 +1625,18 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                               )
                             : Icon(Icons.download, size: 24),
                         label: Text(
-                          _isDownloading ? 'Downloading PDF...' : 'Download PDF Document',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                          _isDownloading
+                              ? 'Downloading PDF...'
+                              : 'Download PDF Document',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                          foregroundColor: ThemeConfig.getPrimaryColor(
+                            currentTheme,
+                          ),
                           side: BorderSide(
                             color: ThemeConfig.getPrimaryColor(currentTheme),
                             width: 2,
@@ -1594,12 +1658,16 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                   onPressed: _isLoading || _isDeleting ? null : _updateTerminal,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
-                    foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
+                    foregroundColor: ThemeConfig.getButtonTextColor(
+                      currentTheme,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                     elevation: 4,
-                    shadowColor: ThemeConfig.getPrimaryColor(currentTheme).withOpacity(0.3),
+                    shadowColor: ThemeConfig.getPrimaryColor(
+                      currentTheme,
+                    ).withOpacity(0.3),
                   ),
                   child: _isLoading
                       ? Row(
@@ -1618,7 +1686,10 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                             SizedBox(width: 16),
                             Text(
                               'Updating Terminal...',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         )
@@ -1629,7 +1700,10 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                             SizedBox(width: 12),
                             Text(
                               'Update Terminal',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -1656,7 +1730,7 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
     facing: CameraFacing.back,
     torchEnabled: false,
   );
-  
+
   bool _isScanning = true;
   String? _scannedCode;
 
@@ -1670,7 +1744,7 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
 
   void _onDetect(BarcodeCapture capture) {
     if (!_isScanning) return;
-    
+
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isNotEmpty) {
       final barcode = barcodes.first;
@@ -1679,9 +1753,9 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
           _isScanning = false;
           _scannedCode = barcode.rawValue;
         });
-        
+
         HapticFeedback.mediumImpact();
-        
+
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
             Navigator.pop(context, _scannedCode);
@@ -1718,13 +1792,10 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
       ),
       body: Stack(
         children: [
-          MobileScanner(
-            controller: cameraController,
-            onDetect: _onDetect,
-          ),
-          
+          MobileScanner(controller: cameraController, onDetect: _onDetect),
+
           _buildScanningOverlay(),
-          
+
           Positioned(
             bottom: 100,
             left: 0,
@@ -1766,7 +1837,7 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
               ),
             ),
           ),
-          
+
           Positioned(
             bottom: 30,
             left: 0,
@@ -1781,7 +1852,10 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
                 ),
                 style: TextButton.styleFrom(
                   backgroundColor: Colors.black.withOpacity(0.7),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
                   ),
@@ -1795,10 +1869,7 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
   }
 
   Widget _buildScanningOverlay() {
-    return CustomPaint(
-      painter: ScannerOverlayPainter(),
-      child: Container(),
-    );
+    return CustomPaint(painter: ScannerOverlayPainter(), child: Container());
   }
 }
 
@@ -1806,29 +1877,31 @@ class ScannerOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()..color = Colors.black.withOpacity(0.5);
-    
+
     final double frameWidth = size.width * 0.7;
     final double frameHeight = frameWidth * 0.6;
     final double left = (size.width - frameWidth) / 2;
     final double top = (size.height - frameHeight) / 2;
     final Rect frameRect = Rect.fromLTWH(left, top, frameWidth, frameHeight);
-    
+
     canvas.drawPath(
       Path.combine(
         PathOperation.difference,
         Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
-        Path()..addRRect(RRect.fromRectAndRadius(frameRect, const Radius.circular(12))),
+        Path()..addRRect(
+          RRect.fromRectAndRadius(frameRect, const Radius.circular(12)),
+        ),
       ),
       paint,
     );
-    
+
     final Paint cornerPaint = Paint()
       ..color = Colors.white
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke;
-    
+
     final double cornerLength = 30;
-    
+
     canvas.drawPath(
       Path()
         ..moveTo(left, top + cornerLength)
@@ -1836,7 +1909,7 @@ class ScannerOverlayPainter extends CustomPainter {
         ..lineTo(left + cornerLength, top),
       cornerPaint,
     );
-    
+
     canvas.drawPath(
       Path()
         ..moveTo(left + frameWidth - cornerLength, top)
@@ -1844,7 +1917,7 @@ class ScannerOverlayPainter extends CustomPainter {
         ..lineTo(left + frameWidth, top + cornerLength),
       cornerPaint,
     );
-    
+
     canvas.drawPath(
       Path()
         ..moveTo(left, top + frameHeight - cornerLength)
@@ -1852,7 +1925,7 @@ class ScannerOverlayPainter extends CustomPainter {
         ..lineTo(left + cornerLength, top + frameHeight),
       cornerPaint,
     );
-    
+
     canvas.drawPath(
       Path()
         ..moveTo(left + frameWidth - cornerLength, top + frameHeight)

@@ -191,6 +191,18 @@ class _TerminalPageState extends State<TerminalPage> {
     }
   }
 
+  // Helper method to format expire date
+  String _formatExpireDate(dynamic expireDate) {
+    if (expireDate == null) return 'N/A';
+    
+    try {
+      final date = DateTime.parse(expireDate.toString());
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return 'N/A';
+    }
+  }
+
   // Download PDF function
   Future<void> _downloadPdf(IoTerminal terminal) async {
     if (terminal.pdfUrl == null || terminal.pdfUrl!.isEmpty) {
@@ -316,7 +328,7 @@ class _TerminalPageState extends State<TerminalPage> {
     }
   }
 
-  // Navigate to PDF page
+  // Navigate to PDF page - UPDATED WITH ALL FIELDS
   void _openPdfPage(IoTerminal terminal) {
     if (terminal.pdfUrl == null || terminal.pdfUrl!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -339,8 +351,11 @@ class _TerminalPageState extends State<TerminalPage> {
       MaterialPageRoute(
         builder: (context) => TerminalPdfPage(
           pdfUrl: terminal.pdfUrl!,
-          pdfFilename: terminal.pdfFilename,
+          pdfFilename: terminal.pdfFilename ?? 'Terminal_Document.pdf',
           terminalName: terminal.terminalName,
+          serialNumber: terminal.serialNumber ?? 'N/A',
+          simNumber: terminal.simNumber ?? 'N/A',
+          expire_date: _formatExpireDate(terminal.expireDate),
         ),
       ),
     );
@@ -881,13 +896,16 @@ class _TerminalPageState extends State<TerminalPage> {
   }
 }
 
-// Updated IoTerminal model with PDF fields
+// Updated IoTerminal model with ALL required fields
 class IoTerminal {
   final int terminalId;
   final int companyId;
   final String terminalName;
   final String? terminalCode;
   final String? phone;
+  final String? serialNumber;
+  final String? simNumber;
+  final String? expireDate;
   final String? imageUrl;
   final String? pdfUrl;
   final String? pdfFilename;
@@ -901,6 +919,9 @@ class IoTerminal {
     required this.terminalName,
     this.terminalCode,
     this.phone,
+    this.serialNumber,
+    this.simNumber,
+    this.expireDate,
     this.imageUrl,
     this.pdfUrl,
     this.pdfFilename,
@@ -929,6 +950,9 @@ class IoTerminal {
         terminalName: json['terminal_name'] ?? '',
         terminalCode: json['terminal_code'],
         phone: json['phone'],
+        serialNumber: json['serial_number'],
+        simNumber: json['sim_number'],
+        expireDate: json['expire_date'],
         imageUrl: json['image_url'],
         pdfUrl: json['pdf_url'],
         pdfFilename: json['pdf_filename'],
@@ -952,6 +976,9 @@ class IoTerminal {
       'terminal_name': terminalName,
       'terminal_code': terminalCode,
       'phone': phone,
+      'serial_number': serialNumber,
+      'sim_number': simNumber,
+      'expire_date': expireDate,
       'image_url': imageUrl,
       'pdf_url': pdfUrl,
       'pdf_filename': pdfFilename,
