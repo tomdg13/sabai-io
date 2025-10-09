@@ -8,7 +8,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -195,7 +195,6 @@ class StoreReportUtils {
       // Add headers
       for (int i = 0; i < visibleColumns.length; i++) {
         final col = visibleColumns[i];
-        // ignore: unused_local_variable
         final columnDef = StoreReportConstants.terminalColumns
             .firstWhere(
               (c) => c.key == col, 
@@ -208,10 +207,10 @@ class StoreReportUtils {
             );
         
         final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
+        cell.value = TextCellValue(columnDef.title);
         cell.cellStyle = CellStyle(
-  bold: true,
-  backgroundColorHex: ExcelColor.grey,
-);
+          bold: true,
+        );
       }
       
       // Add data rows
@@ -242,10 +241,13 @@ class StoreReportUtils {
       }
       
       // Auto-fit columns (approximate width)
-      // Auto-fit columns (approximate width)
-for (int i = 0; i < visibleColumns.length; i++) {
-  sheet.setColumnWidth(i, 15.0);
-}
+      try {
+        for (int i = 0; i < visibleColumns.length; i++) {
+          sheet.setColumnWidth(i, 15.0);
+        }
+      } catch (e) {
+        print('Column width setting not supported');
+      }
       
       return excel.encode();
     } catch (e) {
@@ -542,7 +544,6 @@ class _StoreReportPageState extends State<StoreReportPage>
   }
 
   List<ColumnDefinition> _getCurrentColumns() {
-    // Always return terminal columns
     return StoreReportConstants.terminalColumns;
   }
 
@@ -581,7 +582,6 @@ class _StoreReportPageState extends State<StoreReportPage>
     _setLoadingState(isRefresh);
 
     try {
-      // Always fetch terminals data
       final data = await StoreReportService.fetchTerminals(_companyId);
       
       setState(() {
@@ -625,7 +625,6 @@ class _StoreReportPageState extends State<StoreReportPage>
   }
 
   void _calculateSummaryData() {
-    // Calculate unique counts for terminals
     final uniqueGroupCodes = <String>{};
     final uniqueMerchantCodes = <String>{};
     final uniqueStoreCodes = <String>{};
@@ -732,7 +731,6 @@ class _StoreReportPageState extends State<StoreReportPage>
       final filename = 'terminals_$timestamp.xlsx';
       
       if (kIsWeb) {
-        // Web download
         final blob = html.Blob([excelContent], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         final url = html.Url.createObjectUrlFromBlob(blob);
         // ignore: unused_local_variable
@@ -742,13 +740,11 @@ class _StoreReportPageState extends State<StoreReportPage>
         html.Url.revokeObjectUrl(url);
         _showSnackBar('Excel file downloaded: $filename', Colors.green);
       } else {
-        // Mobile/Desktop - Save and share
         final directory = await getTemporaryDirectory();
         final filePath = '${directory.path}/$filename';
         final file = File(filePath);
         await file.writeAsBytes(excelContent);
         
-        // Share the file
         final result = await Share.shareXFiles(
           [XFile(filePath)],
           subject: 'Terminal Report',
@@ -958,37 +954,13 @@ class _StoreReportPageState extends State<StoreReportPage>
   Widget _buildCellContent(String key, Map<String, dynamic> item) {
     final value = item[key];
     
-    // Handle null or empty values
     if (value == null || value.toString().isEmpty || value.toString() == 'null') {
       return const Text('-', style: TextStyle(fontSize: 11, color: Colors.grey));
     }
     
     switch (key) {
-      case 'terminal_image':
-      case 'merchant_image':
-      case 'group_image':
-      case 'store_image':
-        final imageUrl = item['image_url'];
-        if (imageUrl != null && imageUrl.toString().isNotEmpty) {
-          return Image.network(
-            imageUrl,
-            width: 80,
-            height: 50,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => 
-              const Icon(Icons.broken_image, size: 40, color: Colors.grey),
-          );
-        }
-        return const Icon(Icons.image_not_supported, size: 40, color: Colors.grey);
-      
       case 'terminal_created_date':
       case 'terminal_updated_date':
-      case 'merchant_created_date':
-      case 'merchant_updated_date':
-      case 'group_created_date':
-      case 'group_updated_date':
-      case 'store_created_date':
-      case 'store_updated_date':
       case 'expire_date':
         return Text(
           StoreReportUtils.formatDateTime(value.toString()),
@@ -1089,7 +1061,6 @@ class _StoreReportPageState extends State<StoreReportPage>
       case 'merchant_phone':
       case 'store_phone':
       case 'terminal_phone':
-      case 'mobile':
         return Text(
           value.toString(),
           style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
@@ -1252,41 +1223,231 @@ class _StoreReportPageState extends State<StoreReportPage>
   }
 
   void _showColumnSettingsDialog() {
+    // Create a local copy for editing
+    List<String> tempColumnOrder = List.from(_columnOrder);
+    Map<String, bool> tempColumnVisibility = Map.from(_columnVisibility);
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Column Settings'),
-        content: Container(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: _getCurrentColumns().map((col) {
-              return CheckboxListTile(
-                title: Text(col.title),
-                value: _columnVisibility[col.key] ?? true,
-                onChanged: (bool? value) {
-                  setState(() {
-                    _columnVisibility[col.key] = value ?? true;
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                const Icon(Icons.view_column),
+                const SizedBox(width: 8),
+                const Text('Column Settings'),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () {
+                    setDialogState(() {
+                      for (var key in tempColumnVisibility.keys) {
+                        tempColumnVisibility[key] = true;
+                      }
+                    });
+                  },
+                  icon: const Icon(Icons.visibility, size: 16),
+                  label: const Text('Show All', style: TextStyle(fontSize: 12)),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    setDialogState(() {
+                      for (var key in tempColumnVisibility.keys) {
+                        tempColumnVisibility[key] = false;
+                      }
+                    });
+                  },
+                  icon: const Icon(Icons.visibility_off, size: 16),
+                  label: const Text('Hide All', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+            content: Container(
+              width: double.maxFinite,
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Drag to reorder columns. Toggle visibility with checkbox.',
+                            style: TextStyle(fontSize: 12, color: Colors.blue),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ReorderableListView.builder(
+                      itemCount: tempColumnOrder.length,
+                      onReorder: (oldIndex, newIndex) {
+                        setDialogState(() {
+                          if (newIndex > oldIndex) {
+                            newIndex -= 1;
+                          }
+                          final item = tempColumnOrder.removeAt(oldIndex);
+                          tempColumnOrder.insert(newIndex, item);
+                        });
+                      },
+                      itemBuilder: (context, index) {
+                        final key = tempColumnOrder[index];
+                        final columnDef = StoreReportConstants.terminalColumns
+                            .firstWhere(
+                              (c) => c.key == key,
+                              orElse: () => ColumnDefinition(
+                                key: key,
+                                title: key,
+                                width: 120,
+                                defaultOrder: index,
+                              ),
+                            );
+                        
+                        final isVisible = tempColumnVisibility[key] ?? true;
+                        
+                        return Container(
+                          key: ValueKey(key),
+                          margin: const EdgeInsets.only(bottom: 4),
+                          decoration: BoxDecoration(
+                            color: isVisible ? Colors.white : Colors.grey.shade100,
+                            border: Border.all(
+                              color: isVisible ? Colors.blue.shade200 : Colors.grey.shade300,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: ListTile(
+                            leading: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.drag_indicator,
+                                  color: Colors.grey.shade600,
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue.shade700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            title: Text(
+                              columnDef.title,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: isVisible ? Colors.black : Colors.grey,
+                              ),
+                            ),
+                            subtitle: Text(
+                              key,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isVisible)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade100,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      'Visible',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.green.shade700,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                const SizedBox(width: 8),
+                                Checkbox(
+                                  value: isVisible,
+                                  onChanged: (bool? value) {
+                                    setDialogState(() {
+                                      tempColumnVisibility[key] = value ?? true;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  setDialogState(() {
+                    tempColumnOrder = _getCurrentColumns()
+                        .map((col) => col.key)
+                        .toList()
+                      ..sort((a, b) {
+                        final colA = _getCurrentColumns().firstWhere((c) => c.key == a);
+                        final colB = _getCurrentColumns().firstWhere((c) => c.key == b);
+                        return colA.defaultOrder.compareTo(colB.defaultOrder);
+                      });
                   });
                 },
-              );
-            }).toList(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _saveColumnPreferences();
-              Navigator.pop(context);
-              _showSnackBar('Column preferences saved', Colors.green);
-            },
-            child: const Text('Save'),
-          ),
-        ],
+                child: const Text('Reset Order'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _columnOrder = tempColumnOrder;
+                    _columnVisibility = tempColumnVisibility;
+                  });
+                  _saveColumnPreferences();
+                  Navigator.pop(context);
+                  _showSnackBar('Column settings saved', Colors.green);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1465,20 +1626,20 @@ class _FilterSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: companyIdController,
-                  decoration: InputDecoration(
-                    labelText: 'Company ID',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    isDense: true,
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-              ),
+              // Expanded(
+              //   child: TextField(
+              //     controller: companyIdController,
+              //     decoration: InputDecoration(
+              //       labelText: 'Company ID',
+              //       border: OutlineInputBorder(
+              //         borderRadius: BorderRadius.circular(8),
+              //       ),
+              //       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              //       isDense: true,
+              //     ),
+              //     keyboardType: TextInputType.number,
+              //   ),
+              // ),
               const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: onUpdateCompanyId,

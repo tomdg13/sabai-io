@@ -31,6 +31,27 @@ class _MenuHomePageState extends State<MenuHomePage> {
   final List<String> languages = ['English', 'Lao'];
   List<String> get themes => ThemeConfig.getAvailableThemes();
 
+  // Responsive design helpers (matching MenuSettingsPage)
+  bool get _isWebDesktop => kIsWeb && MediaQuery.of(context).size.width > 1000;
+  bool get _isTablet => MediaQuery.of(context).size.width > 600 && MediaQuery.of(context).size.width <= 1000;
+  
+  int get _crossAxisCount {
+    if (_isWebDesktop) return 5;
+    if (_isTablet) return 4;
+    return 3; // Mobile
+  }
+  
+  double get _childAspectRatio {
+    if (_isWebDesktop) return 1.1;
+    if (_isTablet) return 1.0;
+    return 0.9; // Mobile
+  }
+  
+  double get _maxWidth {
+    if (_isWebDesktop) return 1400;
+    return double.infinity;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,27 +62,6 @@ class _MenuHomePageState extends State<MenuHomePage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reloadThemeIfChanged();
-  }
-
-  // Get responsive layout parameters
-  bool get _isWebDesktop => kIsWeb && MediaQuery.of(context).size.width > 800;
-  bool get _isTablet => MediaQuery.of(context).size.width > 600 && MediaQuery.of(context).size.width <= 800;
-  
-  int get _crossAxisCount {
-    if (_isWebDesktop) return 5;
-    if (_isTablet) return 3;
-    return 3; // Changed to 3 columns for mobile
-  }
-  
-  double get _childAspectRatio {
-    if (_isWebDesktop) return 1.1;
-    if (_isTablet) return 1.0;
-    return 0.8; // Reduced to make items taller on mobile with 3 columns
-  }
-  
-  double get _maxWidth {
-    if (_isWebDesktop) return 1200;
-    return double.infinity;
   }
 
   Future<void> _loadSavedSettings() async {
@@ -164,8 +164,6 @@ class _MenuHomePageState extends State<MenuHomePage> {
     return Scaffold(
       appBar: _buildAppBar(),
       body: _buildBody(),
-      // Add drawer for web if needed
-      drawer: _isWebDesktop ? null : _buildDrawer(),
     );
   }
 
@@ -173,21 +171,18 @@ class _MenuHomePageState extends State<MenuHomePage> {
     return Center(
       child: Container(
         constraints: BoxConstraints(maxWidth: _maxWidth),
-        child: Padding(
-          padding: EdgeInsets.all(_isWebDesktop ? 24.0 : 16.0),
-          child: Column(
-            children: [
-              // Add welcome section for web
-              if (_isWebDesktop) _buildWelcomeSection(),
-              Expanded(child: _buildGridView()),
-            ],
-          ),
+        padding: EdgeInsets.all(_isWebDesktop ? 24.0 : 16.0),
+        child: Column(
+          children: [
+            if (_isWebDesktop) _buildHeaderSection(),
+            Expanded(child: _buildMainGrid()),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildWelcomeSection() {
+  Widget _buildHeaderSection() {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 32),
@@ -213,70 +208,69 @@ class _MenuHomePageState extends State<MenuHomePage> {
               color: Colors.grey.shade700,
             ),
           ),
-          
         ],
       ),
     );
   }
 
-  Widget _buildGridView() {
-  return GridView.count(
-    crossAxisCount: _crossAxisCount,
-    crossAxisSpacing: _isWebDesktop ? 24 : 12,
-    mainAxisSpacing: _isWebDesktop ? 24 : 12,
-    childAspectRatio: _childAspectRatio,
-    children: [
-      _buildGridItem(
-        icon: Icons.storefront, // Approval
-        title: SimpleTranslations.get(_langCode, 'Store'),
-        color: const Color.fromARGB(255, 211, 23, 198),
-        onTap: _navigateToStoreReportService,
-      ),
-      _buildGridItem(
-        icon: Icons.library_add_check, // Approval
-        title: SimpleTranslations.get(_langCode, 'Approve'),
-        color: Colors.green,
-        onTap: _navigateToApprovePage,
-      ),
-      _buildGridItem(
-        icon: Icons.computer, // Terminal
-        title: SimpleTranslations.get(_langCode, 'Terminal'),
-        color: Colors.blue,
-        onTap: _navigateToTerminalPage,
-      ),
-      _buildGridItem(
-        icon: Icons.schedule, // Expiry
-        title: SimpleTranslations.get(_langCode, 'expiry'),
-        color: Colors.red,
-        onTap: _navigateToExpiryPage,
-      ),
-      _buildGridItem(
-        icon: Icons.inventory_2, // Stock
-        title: SimpleTranslations.get(_langCode, 'stock'),
-        color: Colors.orange,
-        onTap: _navigateToStockPage,
-      ),
-      _buildGridItem(
-        icon: Icons.location_on, // Location
-        title: SimpleTranslations.get(_langCode, 'location'),
-        color: Colors.teal,
-        onTap: _navigateToLocationPage,
-      ),
-      _buildGridItem(
-        icon: Icons.shopping_bag, // Product
-        title: SimpleTranslations.get(_langCode, 'product'),
-        color: Colors.amber.shade700,
-        onTap: _navigateToProductsPage,
-      ),
-      _buildGridItem(
-        icon: Icons.account_balance_wallet, // Settlement
-        title: SimpleTranslations.get(_langCode, 'Settle'),
-        color: Colors.indigo,
-        onTap: _navigateToSettlementViewPage,
-      ),
-    ],
-  );
-}
+  Widget _buildMainGrid() {
+    return GridView.count(
+      crossAxisCount: _crossAxisCount,
+      crossAxisSpacing: _isWebDesktop ? 24 : 16,
+      mainAxisSpacing: _isWebDesktop ? 24 : 16,
+      childAspectRatio: _childAspectRatio,
+      children: [
+        _buildGridItem(
+          icon: Icons.storefront,
+          title: SimpleTranslations.get(_langCode, 'Store'),
+          color: const Color.fromARGB(255, 211, 23, 198),
+          onTap: _navigateToStoreReportService,
+        ),
+        _buildGridItem(
+          icon: Icons.library_add_check,
+          title: SimpleTranslations.get(_langCode, 'Approve'),
+          color: Colors.green,
+          onTap: _navigateToApprovePage,
+        ),
+        _buildGridItem(
+          icon: Icons.computer,
+          title: SimpleTranslations.get(_langCode, 'Terminal'),
+          color: Colors.blue,
+          onTap: _navigateToTerminalPage,
+        ),
+        _buildGridItem(
+          icon: Icons.schedule,
+          title: SimpleTranslations.get(_langCode, 'expiry'),
+          color: Colors.red,
+          onTap: _navigateToExpiryPage,
+        ),
+        _buildGridItem(
+          icon: Icons.inventory_2,
+          title: SimpleTranslations.get(_langCode, 'stock'),
+          color: Colors.orange,
+          onTap: _navigateToStockPage,
+        ),
+        _buildGridItem(
+          icon: Icons.location_on,
+          title: SimpleTranslations.get(_langCode, 'location'),
+          color: Colors.teal,
+          onTap: _navigateToLocationPage,
+        ),
+        _buildGridItem(
+          icon: Icons.shopping_bag,
+          title: SimpleTranslations.get(_langCode, 'product'),
+          color: Colors.amber.shade700,
+          onTap: _navigateToProductsPage,
+        ),
+        _buildGridItem(
+          icon: Icons.account_balance_wallet,
+          title: SimpleTranslations.get(_langCode, 'Settle'),
+          color: Colors.indigo,
+          onTap: _navigateToSettlementViewPage,
+        ),
+      ],
+    );
+  }
 
   Widget _buildGridItem({
     required IconData icon,
@@ -289,36 +283,37 @@ class _MenuHomePageState extends State<MenuHomePage> {
     return Card(
       elevation: _isWebDesktop ? 4 : 3,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16), // Match settings page radius
+        borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
       ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(_isWebDesktop ? 20 : 16),
         child: Container(
-          padding: EdgeInsets.all(isLargeScreen ? 16 : 8), // Match settings page padding
+          padding: EdgeInsets.all(isLargeScreen ? 16 : 8),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: EdgeInsets.all(isLargeScreen ? 20 : 12), // Match settings page padding
+                padding: EdgeInsets.all(isLargeScreen ? 20 : 12),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(isLargeScreen ? 16 : 12), // Match settings page radius
+                  borderRadius: BorderRadius.circular(isLargeScreen ? 16 : 12),
                 ),
                 child: Icon(
                   icon,
                   color: color,
-                  size: isLargeScreen ? 40 : 28, // Match settings page icon size
+                  size: isLargeScreen ? 40 : 28,
                 ),
               ),
-              SizedBox(height: isLargeScreen ? 12 : 6), // Match settings page spacing
+              SizedBox(height: isLargeScreen ? 12 : 6),
               Flexible(
                 child: Text(
                   title,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: isLargeScreen ? 14 : 11, // Match settings page font size
+                    fontSize: isLargeScreen ? 14 : 11,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -331,12 +326,7 @@ class _MenuHomePageState extends State<MenuHomePage> {
     );
   }
 
-  Widget? _buildDrawer() {
-    // Optional: Add drawer for mobile navigation or settings
-    return null;
-  }
-
-  // Navigation methods remain the same
+  // Navigation methods
   void _navigateToTerminalPage() {
     Navigator.push(
       context,
@@ -354,7 +344,7 @@ class _MenuHomePageState extends State<MenuHomePage> {
   void _navigateToStoreReportService() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => StoreReportPage()),
+      MaterialPageRoute(builder: (context) => const StoreReportPage()),
     );
   }
 
@@ -373,20 +363,156 @@ class _MenuHomePageState extends State<MenuHomePage> {
   }
 
   void _navigateToLocationPage() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => const LocationPage()),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LocationPage()),
     );
   }
 
   void _navigateToProductsPage() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductPage()),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ProductPage()),
     );
   }
 
   void _navigateToSettlementViewPage() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => const SettlementViewPage()),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SettlementViewPage()),
     );
   }
 
+  void _showLanguageDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(SimpleTranslations.get(_langCode, 'select_language')),
+          content: SizedBox(
+            width: _isWebDesktop ? 400 : double.minPositive,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: languages.length,
+              itemBuilder: (context, index) {
+                final language = languages[index];
+                return ListTile(
+                  title: Text(language),
+                  leading: Radio<String>(
+                    value: language,
+                    groupValue: selectedLanguage,
+                    onChanged: (String? value) async {
+                      if (value != null) {
+                        await _saveLanguage(value);
+                        if (mounted) {
+                          Navigator.of(context).pop();
+                          _showSnackBar('${SimpleTranslations.get(_langCode, 'language_changed')} $value');
+                        }
+                      }
+                    },
+                  ),
+                  onTap: () async {
+                    await _saveLanguage(language);
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                      _showSnackBar('${SimpleTranslations.get(_langCode, 'language_changed')} $language');
+                    }
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(SimpleTranslations.get(_langCode, 'cancel')),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showThemeDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(SimpleTranslations.get(_langCode, 'select_theme')),
+          content: SizedBox(
+            width: _isWebDesktop ? 400 : double.minPositive,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: themes.map((theme) {
+                final displayName = ThemeConfig.getThemeDisplayName(theme);
+                final primaryColor = ThemeConfig.getPrimaryColor(theme);
+
+                return ListTile(
+                  title: Text(displayName),
+                  leading: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Radio<String>(
+                        value: theme,
+                        groupValue: selectedTheme,
+                        onChanged: (String? value) async {
+                          if (value != null) {
+                            await _saveTheme(value);
+                            if (mounted) {
+                              Navigator.of(context).pop();
+                              _showSnackBar(
+                                '${SimpleTranslations.get(_langCode, 'theme_changed')} ${ThemeConfig.getThemeDisplayName(value)}',
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: primaryColor,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                      ),
+                    ],
+                  ),
+                  onTap: () async {
+                    await _saveTheme(theme);
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                      _showSnackBar(
+                        '${SimpleTranslations.get(_langCode, 'theme_changed')} ${ThemeConfig.getThemeDisplayName(theme)}',
+                      );
+                    }
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(SimpleTranslations.get(_langCode, 'cancel')),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        backgroundColor: Colors.green.shade600,
+      ),
+    );
+  }
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -409,102 +535,19 @@ class _MenuHomePageState extends State<MenuHomePage> {
       backgroundColor: _primaryColor,
       foregroundColor: Colors.white,
       elevation: 0,
-      // Add settings button for web
-      actions: _isWebDesktop ? [
+      actions: [
         IconButton(
-          icon: const Icon(Icons.settings),
-          onPressed: _showSettingsDialog,
-          tooltip: SimpleTranslations.get(_langCode, 'settings'),
+          icon: const Icon(Icons.language),
+          onPressed: _showLanguageDialog,
+          tooltip: SimpleTranslations.get(_langCode, 'language'),
+        ),
+        IconButton(
+          icon: const Icon(Icons.palette),
+          onPressed: _showThemeDialog,
+          tooltip: SimpleTranslations.get(_langCode, 'theme'),
         ),
         const SizedBox(width: 8),
-      ] : null,
-    );
-  }
-
-  // Settings dialog for web
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(SimpleTranslations.get(_langCode, 'settings')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.language),
-                title: Text(SimpleTranslations.get(_langCode, 'language')),
-                subtitle: Text(selectedLanguage),
-                onTap: () => _showLanguageDialog(),
-              ),
-              ListTile(
-                leading: const Icon(Icons.palette),
-                title: Text(SimpleTranslations.get(_langCode, 'theme')),
-                subtitle: Text(selectedTheme),
-                onTap: () => _showThemeDialog(),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(SimpleTranslations.get(_langCode, 'close')),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showLanguageDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(SimpleTranslations.get(_langCode, 'select_language')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: languages
-              .map((lang) => RadioListTile<String>(
-                    title: Text(lang),
-                    value: lang,
-                    groupValue: selectedLanguage,
-                    onChanged: (value) {
-                      if (value != null) {
-                        _saveLanguage(value);
-                        Navigator.pop(context);
-                        Navigator.pop(context); // Close settings dialog too
-                      }
-                    },
-                  ))
-              .toList(),
-        ),
-      ),
-    );
-  }
-
-  void _showThemeDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(SimpleTranslations.get(_langCode, 'select_theme')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: themes
-              .map((theme) => RadioListTile<String>(
-                    title: Text(theme),
-                    value: theme,
-                    groupValue: selectedTheme,
-                    onChanged: (value) {
-                      if (value != null) {
-                        _saveTheme(value);
-                        Navigator.pop(context);
-                        Navigator.pop(context); // Close settings dialog too
-                      }
-                    },
-                  ))
-              .toList(),
-        ),
-      ),
+      ],
     );
   }
 }

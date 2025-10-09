@@ -171,6 +171,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
   String? _base64Image;
   File? _imageFile;
   Uint8List? _webImageBytes;
+  // ignore: unused_field
   String? _webImageName;
   bool _isLoading = false;
   bool _isLoadingGroups = false;
@@ -196,6 +197,7 @@ class _StoreAddPageState extends State<StoreAddPage> with TickerProviderStateMix
   Group? _selectedGroup;
   List<Merchant> _merchants = [];
   Merchant? _selectedMerchant;
+  // ignore: unused_field
   List<User> _users = [];
   User? _selectedApprover1;
   User? _selectedApprover2;

@@ -122,6 +122,7 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
   String? _currentImageUrl;
   File? _imageFile;
   Uint8List? _webImageBytes;
+  // ignore: unused_field
   String? _webImageName;
   bool _isLoading = false;
   bool _isDeleting = false;
@@ -145,6 +146,7 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
   // Approval state variables
   List<User> _users = [];
   User? _selectedApprover1;
+  // ignore: unused_field
   User? _selectedApprover2;
   bool _isLoadingUsers = false;
 
@@ -1607,6 +1609,7 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     );
   }
 
+  // ignore: unused_element
   Widget _buildDropdown<T>({
     required String label,
     required IconData icon,
