@@ -1,4 +1,5 @@
 import 'package:inventory/config/company_config.dart';
+// ignore: unused_import
 import 'package:uuid/uuid.dart';
 
 /// Central configuration for Settlement file column mappings and validations

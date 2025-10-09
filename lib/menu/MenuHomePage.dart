@@ -6,6 +6,7 @@ import 'package:inventory/monitor/ProductPage.dart';
 import 'package:inventory/monitor/StockPage.dart';
 import 'package:inventory/monitor/ExpirePage.dart' show ExpirePage;
 import 'package:inventory/monitor/locationPage.dart';
+import 'package:inventory/report/StoreReportPage.dart' show StoreReportPage;
 import 'package:inventory/upload/SettlementViewPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart';
@@ -47,7 +48,7 @@ class _MenuHomePageState extends State<MenuHomePage> {
   bool get _isTablet => MediaQuery.of(context).size.width > 600 && MediaQuery.of(context).size.width <= 800;
   
   int get _crossAxisCount {
-    if (_isWebDesktop) return 4;
+    if (_isWebDesktop) return 5;
     if (_isTablet) return 3;
     return 3; // Changed to 3 columns for mobile
   }
@@ -226,6 +227,12 @@ class _MenuHomePageState extends State<MenuHomePage> {
     childAspectRatio: _childAspectRatio,
     children: [
       _buildGridItem(
+        icon: Icons.storefront, // Approval
+        title: SimpleTranslations.get(_langCode, 'Store'),
+        color: const Color.fromARGB(255, 211, 23, 198),
+        onTap: _navigateToStoreReportService,
+      ),
+      _buildGridItem(
         icon: Icons.library_add_check, // Approval
         title: SimpleTranslations.get(_langCode, 'Approve'),
         color: Colors.green,
@@ -341,6 +348,13 @@ class _MenuHomePageState extends State<MenuHomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const ApprovalPage()),
+    );
+  }
+
+  void _navigateToStoreReportService() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => StoreReportPage()),
     );
   }
 

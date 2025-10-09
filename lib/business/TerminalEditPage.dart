@@ -1371,47 +1371,6 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
                       SizedBox(height: 16),
 
                       TextFormField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: InputDecoration(
-                          labelText: 'Phone Number',
-                          hintText: 'Enter phone number',
-                          prefixIcon: Icon(
-                            Icons.phone,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                              width: 2,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                        ),
-                        validator: (value) {
-                          if (value != null && value.isNotEmpty) {
-                            if (!RegExp(
-                              r'^[\+]?[1-9][\d]{0,15}$',
-                            ).hasMatch(value)) {
-                              return 'Please enter a valid phone number';
-                            }
-                          }
-                          return null;
-                        },
-                      ),
-
-                      SizedBox(height: 16),
-
-                      TextFormField(
                         controller: _serialNumberController,
                         decoration: InputDecoration(
                           labelText: 'Serial Number',
@@ -1568,28 +1527,28 @@ class _TerminalEditPageState extends State<TerminalEditPage> {
 
                       SizedBox(height: 16),
 
-                      Container(
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.business, color: Colors.grey[600]),
-                            SizedBox(width: 12),
-                            Text(
-                              'Company ID: ${widget.TerminalData['company_id']}',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[700],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      // Container(
+                      //   padding: EdgeInsets.all(16),
+                      //   decoration: BoxDecoration(
+                      //     color: Colors.grey[100],
+                      //     borderRadius: BorderRadius.circular(12),
+                      //     border: Border.all(color: Colors.grey[300]!),
+                      //   ),
+                      //   child: Row(
+                      //     children: [
+                      //       Icon(Icons.business, color: Colors.grey[600]),
+                      //       SizedBox(width: 12),
+                      //       Text(
+                      //         'Company ID: ${widget.TerminalData['company_id']}',
+                      //         style: TextStyle(
+                      //           fontSize: 16,
+                      //           color: Colors.grey[700],
+                      //           fontWeight: FontWeight.w500,
+                      //         ),
+                      //       ),
+                      //     ],
+                      //   ),
+                      // ),
                     ],
                   ),
                 ),

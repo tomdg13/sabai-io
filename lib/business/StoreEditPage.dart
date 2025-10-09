@@ -94,6 +94,25 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
   late final TextEditingController _mccCodeController;
   late final TextEditingController _account_nameController;
   late final TextEditingController _cifController;
+  late final TextEditingController _onlineTypeController;
+  late final TextEditingController _offlineTypeController;
+
+  // Store Type Constants - REMOVED (not needed anymore)
+  
+  // Transaction type constants
+  static const List<String> _onlineTransactionTypes = [
+    'Link Pay',
+    'MOTO',
+  ];
+  
+  static const List<String> _offlineTransactionTypes = [
+    'Purchase',
+    'Pre-authorization',
+    'Pre-auth Comp',
+    'Refund',
+    'Cancel',
+    'Reversal',
+  ];
 
   // State Variables
   String? _storeMode;
@@ -103,7 +122,6 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
   String? _currentImageUrl;
   File? _imageFile;
   Uint8List? _webImageBytes;
-  // ignore: unused_field
   String? _webImageName;
   bool _isLoading = false;
   bool _isDeleting = false;
@@ -113,6 +131,12 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
   // Cached data for better performance
   late final List<PostalCode> _cachedPostalCodes;
   late final List<MccCode> _cachedMccCodes;
+
+  // Store types selection - REMOVED (not needed anymore)
+
+  // Transaction types selection
+  Set<String> _selectedOnlineTypes = {};
+  Set<String> _selectedOfflineTypes = {};
 
   // CIF Account Selection
   List<Map<String, dynamic>> _cifAccounts = [];
@@ -271,9 +295,70 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     _mccCodeController = TextEditingController();
     _account_nameController = TextEditingController(text: widget.storeData['account_name'] ?? '');
     _cifController = TextEditingController(text: widget.storeData['cif'] ?? '');
+    _onlineTypeController = TextEditingController();
+    _offlineTypeController = TextEditingController();
     
     _storeMode = widget.storeData['store_mode'];
     _storeModeController = TextEditingController(text: widget.storeData['store_mode'] ?? '');
+    
+    print('\n🔄 ========== INITIALIZING TRANSACTION TYPES ==========');
+    print('Store Mode from data: $_storeMode');
+    print('Store Type from data: ${widget.storeData['store_type']}');
+    
+    // ✅ INITIALIZE TRANSACTION TYPES from store_type field
+    // Clear any existing selections first
+    _selectedOnlineTypes.clear();
+    _selectedOfflineTypes.clear();
+    
+    if (widget.storeData['store_type'] != null) {
+      final storeType = widget.storeData['store_type'].toString().trim();
+      print('Store Type value: "$storeType"');
+      
+      if (storeType.isNotEmpty) {
+        // Split the comma-separated transaction types
+        final types = storeType.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        print('Split into ${types.length} types: $types');
+        
+        // Separate online and offline types
+        print('\nChecking each type:');
+        for (var type in types) {
+          print('  Type: "$type"');
+          
+          final isOnlineType = _onlineTransactionTypes.contains(type);
+          final isOfflineType = _offlineTransactionTypes.contains(type);
+          
+          print('    Is in online list? $isOnlineType');
+          print('    Is in offline list? $isOfflineType');
+          
+          if (isOnlineType) {
+            _selectedOnlineTypes.add(type);
+            print('    ✅ Added to online types');
+          }
+          if (isOfflineType) {
+            _selectedOfflineTypes.add(type);
+            print('    ✅ Added to offline types');
+          }
+          if (!isOnlineType && !isOfflineType) {
+            print('    ⚠️  WARNING: Type "$type" not found in any list!');
+            print('    Available online types: $_onlineTransactionTypes');
+            print('    Available offline types: $_offlineTransactionTypes');
+          }
+        }
+        
+        // Update controllers
+        _onlineTypeController.text = _selectedOnlineTypes.join(', ');
+        _offlineTypeController.text = _selectedOfflineTypes.join(', ');
+        
+        print('\n📊 Final Results:');
+        print('  Online Types Loaded: $_selectedOnlineTypes');
+        print('  Offline Types Loaded: $_selectedOfflineTypes');
+      } else {
+        print('⚠️  Store type is empty string');
+      }
+    } else {
+      print('⚠️  Store type is NULL');
+    }
+    print('========================================\n');
     
     if (widget.storeData['mcc'] != null) {
       final mccCode = widget.storeData['mcc'].toString();
@@ -327,6 +412,8 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     _mccCodeController.dispose();
     _account_nameController.dispose();
     _cifController.dispose();
+    _onlineTypeController.dispose();
+    _offlineTypeController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
@@ -905,6 +992,202 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     );
   }
 
+  // Build Online Transaction Types Checkboxes - REMOVED (_buildStoreTypeCheckboxes removed)
+
+  // Build Online Transaction Types Checkboxes
+  Widget _buildOnlineTransactionTypes() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue[300]!),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.language,
+                  size: 20,
+                  color: Colors.blue[700],
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Online Transaction Types',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[700],
+                  ),
+                ),
+                Spacer(),
+                if (_selectedOnlineTypes.isNotEmpty)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[700],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${_selectedOnlineTypes.length} selected',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          
+          // Checkboxes
+          ...List.generate(_onlineTransactionTypes.length, (index) {
+            final transactionType = _onlineTransactionTypes[index];
+            final isSelected = _selectedOnlineTypes.contains(transactionType);
+            
+            return Column(
+              children: [
+                if (index > 0) Divider(height: 1, thickness: 0.5),
+                CheckboxListTile(
+                  value: isSelected,
+                  onChanged: (bool? checked) {
+                    setState(() {
+                      if (checked == true) {
+                        _selectedOnlineTypes.add(transactionType);
+                      } else {
+                        _selectedOnlineTypes.remove(transactionType);
+                      }
+                      _onlineTypeController.text = _selectedOnlineTypes.join(', ');
+                    });
+                  },
+                  title: Text(
+                    transactionType,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                  activeColor: Colors.blue[700],
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // Build Offline Transaction Types Checkboxes
+  Widget _buildOfflineTransactionTypes() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green[300]!),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.store,
+                  size: 20,
+                  color: Colors.green[700],
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Offline Transaction Types',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green[700],
+                  ),
+                ),
+                Spacer(),
+                if (_selectedOfflineTypes.isNotEmpty)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green[700],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${_selectedOfflineTypes.length} selected',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          
+          // Checkboxes
+          ...List.generate(_offlineTransactionTypes.length, (index) {
+            final transactionType = _offlineTransactionTypes[index];
+            final isSelected = _selectedOfflineTypes.contains(transactionType);
+            
+            return Column(
+              children: [
+                if (index > 0) Divider(height: 1, thickness: 0.5),
+                CheckboxListTile(
+                  value: isSelected,
+                  onChanged: (bool? checked) {
+                    setState(() {
+                      if (checked == true) {
+                        _selectedOfflineTypes.add(transactionType);
+                      } else {
+                        _selectedOfflineTypes.remove(transactionType);
+                      }
+                      _offlineTypeController.text = _selectedOfflineTypes.join(', ');
+                    });
+                  },
+                  title: Text(
+                    transactionType,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                  activeColor: Colors.green[700],
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Future<void> _updateStore() async {
     FocusScope.of(context).unfocus();
     
@@ -916,6 +1199,24 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
     if (_storeMode == null || _storeMode!.isEmpty) {
       _showSnackBar(message: 'Please select a store mode', isError: true);
       return;
+    }
+
+    // Validate transaction types based on store mode
+    if (_storeMode == 'online' && _selectedOnlineTypes.isEmpty) {
+      _showSnackBar(message: 'Please select at least one online transaction type', isError: true);
+      return;
+    }
+
+    if (_storeMode == 'offline' && _selectedOfflineTypes.isEmpty) {
+      _showSnackBar(message: 'Please select at least one offline transaction type', isError: true);
+      return;
+    }
+
+    if (_storeMode == 'hybrid') {
+      if (_selectedOnlineTypes.isEmpty && _selectedOfflineTypes.isEmpty) {
+        _showSnackBar(message: 'Please select at least one transaction type', isError: true);
+        return;
+      }
     }
 
     if (_storeMode == 'online' || _storeMode == 'hybrid') {
@@ -1000,6 +1301,21 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
 
       final url = AppConfig.api('/api/iostore/$storeId');
       
+      // ✅ COMBINE TRANSACTION TYPES INTO store_type
+      List<String> allTransactionTypes = [];
+      
+      if (_storeMode == 'online' || _storeMode == 'hybrid') {
+        allTransactionTypes.addAll(_selectedOnlineTypes);
+      }
+      
+      if (_storeMode == 'offline' || _storeMode == 'hybrid') {
+        allTransactionTypes.addAll(_selectedOfflineTypes);
+      }
+      
+      final combinedStoreType = allTransactionTypes.isNotEmpty 
+          ? allTransactionTypes.join(', ') 
+          : null;
+      
       final storeData = {
         'company_id': CompanyConfig.getCompanyId(),
         'store_name': _storeNameController.text.trim(),
@@ -1013,7 +1329,7 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
         'country': _getTextOrNull(_countryController),
         'postal_code': _getTextOrNull(_postalCodeController),
         'mcc': _selectedMccCode?.code,
-        'store_type': _getTextOrNull(_storeTypeController),
+        'store_type': combinedStoreType,  // ✅ Combined transaction types here
         'status': _getTextOrNull(_statusController),
         'opening_hours': _getTextOrNull(_openingHoursController),
         'square_footage': _parseIntOrNull(_squareFootageController),
@@ -1033,6 +1349,15 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
         'account_name': _getTextOrNull(_account_nameController),
         'cif': _getTextOrNull(_cifController),
       };
+
+      print('📤 ========== SAVING STORE DATA ==========');
+      print('Store ID: $storeId');
+      print('Store Name: ${storeData['store_name']}');
+      print('Store Mode: ${storeData['store_mode']}');
+      print('Store Type (Transaction Types): ${storeData['store_type']}');
+      print('  Online Types: ${_selectedOnlineTypes.join(', ')}');
+      print('  Offline Types: ${_selectedOfflineTypes.join(', ')}');
+      print('==========================================');
 
       if (_base64Image != null) {
         storeData['image'] = _base64Image!;
@@ -1875,6 +2200,59 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
                       ),
                       SizedBox(height: 8),
                       _buildStoreModeRadio(),
+
+                      // Transaction Types Section (Conditional)
+                      if (_storeMode == 'online' || _storeMode == 'hybrid') ...[
+                        SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Text(
+                              'Online Transaction Types',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            Text(
+                              ' *',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        _buildOnlineTransactionTypes(),
+                      ],
+
+                      if (_storeMode == 'offline' || _storeMode == 'hybrid') ...[
+                        SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Text(
+                              'Offline Transaction Types',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            Text(
+                              ' *',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        _buildOfflineTransactionTypes(),
+                      ],
                     ],
                   ),
                 ),
@@ -1971,13 +2349,6 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
                         ),
                       ),
                       SizedBox(height: 16),
-
-                      _buildTextField(
-                        controller: _storeTypeController,
-                        label: 'Store Type',
-                        icon: Icons.category,
-                        hint: 'e.g., Retail, Restaurant, Service',
-                      ),
 
                       _buildMccCodeDropdown(),
 
@@ -2367,118 +2738,6 @@ class _StoreEditPageState extends State<StoreEditPage> with TickerProviderStateM
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-
-                SizedBox(height: 20),
-
-                // Approval Information Section
-                Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.approval,
-                            color: ThemeConfig.getPrimaryColor(currentTheme),
-                            size: 24,
-                          ),
-                          SizedBox(width: 12),
-                          Text(
-                            'Approval Information',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: ThemeConfig.getPrimaryColor(currentTheme),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-
-                      _buildDropdown<User>(
-                        label: 'First Approver',
-                        icon: Icons.person_outline,
-                        value: _selectedApprover1,
-                        items: _users,
-                        getDisplayText: (user) => '${user.userName}${user.phone != null ? " (${user.phone})" : ""}',
-                        onChanged: (User? user) {
-                          setState(() {
-                            _selectedApprover1 = user;
-                          });
-                        },
-                        isLoading: _isLoadingUsers,
-                        hint: 'Select first approver...',
-                      ),
-
-                      _buildDropdown<User>(
-                        label: 'Second Approver',
-                        icon: Icons.person_outline,
-                        value: _selectedApprover2,
-                        items: _users,
-                        getDisplayText: (user) => '${user.userName}${user.phone != null ? " (${user.phone})" : ""}',
-                        onChanged: (User? user) {
-                          setState(() {
-                            _selectedApprover2 = user;
-                          });
-                        },
-                        isLoading: _isLoadingUsers,
-                        hint: 'Select second approver...',
-                      ),
-
-                      if (widget.storeData['approver1_name'] != null || widget.storeData['approver2_name'] != null)
-                        Container(
-                          padding: EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue[200]!),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Current Approvers',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                      color: Colors.blue[700],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 8),
-                              if (widget.storeData['approver1_name'] != null)
-                                Text(
-                                  '1. ${widget.storeData['approver1_name']}',
-                                  style: TextStyle(fontSize: 12, color: Colors.blue[900]),
-                                ),
-                              if (widget.storeData['approver2_name'] != null)
-                                Text(
-                                  '2. ${widget.storeData['approver2_name']}',
-                                  style: TextStyle(fontSize: 12, color: Colors.blue[900]),
-                                ),
-                            ],
-                          ),
-                        ),
                     ],
                   ),
                 ),
