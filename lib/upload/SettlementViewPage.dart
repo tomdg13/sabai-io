@@ -681,6 +681,8 @@ class _SettlementViewPageState extends State<SettlementViewPage>
   // UI Build Methods
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: _buildAppBar(),
@@ -690,7 +692,7 @@ class _SettlementViewPageState extends State<SettlementViewPage>
           opacity: _fadeAnimation,
           child: Column(
             children: [
-              _SummaryCards(summaryData: _summaryData),
+              if (!isMobile) _SummaryCards(summaryData: _summaryData),
               _FilterSection(
                 filterManager: _filterManager,
                 searchController: _searchController,

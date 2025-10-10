@@ -417,106 +417,118 @@ class _ApprovalPageState extends State<ApprovalPage> with SingleTickerProviderSt
   }
 
   Widget _buildPaginationControls({
-    required int currentPage,
-    required int totalPages,
-    required int itemsPerPage,
-    required int totalItems,
-    required Function(int) onPageChanged,
-    required Function(int?) onItemsPerPageChanged,
-    required Color primaryColor,
-  }) {
-    if (totalItems == 0) return const SizedBox.shrink();
+  required int currentPage,
+  required int totalPages,
+  required int itemsPerPage,
+  required int totalItems,
+  required Function(int) onPageChanged,
+  required Function(int?) onItemsPerPageChanged,
+  required Color primaryColor,
+}) {
+  if (totalItems == 0) return const SizedBox.shrink();
 
-    final startItem = (currentPage - 1) * itemsPerPage + 1;
-    final endItem = (currentPage * itemsPerPage).clamp(0, totalItems);
+  final startItem = (currentPage - 1) * itemsPerPage + 1;
+  final endItem = (currentPage * itemsPerPage).clamp(0, totalItems);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        border: Border(top: BorderSide(color: Colors.grey[300]!)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Items per page selector
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Show', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButton<int>(
-                  value: itemsPerPage,
-                  underline: const SizedBox(),
-                  items: _itemsPerPageOptions.map((value) {
-                    return DropdownMenuItem<int>(
-                      value: value,
-                      child: Text('$value'),
-                    );
-                  }).toList(),
-                  onChanged: onItemsPerPageChanged,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text('per page', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
-            ],
-          ),
-          // Page info
-          Text(
-            'Showing $startItem-$endItem of $totalItems',
-            style: TextStyle(fontSize: 14, color: Colors.grey[700], fontWeight: FontWeight.w500),
-          ),
-          // Page navigation
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _PaginationButton(
-                icon: Icons.first_page,
-                onPressed: currentPage > 1 ? () => onPageChanged(1) : null,
-                tooltip: 'First page',
-              ),
-              _PaginationButton(
-                icon: Icons.chevron_left,
-                onPressed: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
-                tooltip: 'Previous',
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '$currentPage / $totalPages',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: primaryColor,
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.grey[50],
+      border: Border(top: BorderSide(color: Colors.grey[300]!)),
+    ),
+    child: Column(
+      children: [
+        // Top row: Items per page and info
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Items per page selector
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Show', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButton<int>(
+                    value: itemsPerPage,
+                    underline: const SizedBox(),
+                    items: _itemsPerPageOptions.map((value) {
+                      return DropdownMenuItem<int>(
+                        value: value,
+                        child: Text('$value'),
+                      );
+                    }).toList(),
+                    onChanged: onItemsPerPageChanged,
                   ),
                 ),
+              ],
+            ),
+            // Page info
+            Flexible(
+              child: Text(
+                '$startItem-$endItem of $totalItems',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
-              _PaginationButton(
-                icon: Icons.chevron_right,
-                onPressed: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
-                tooltip: 'Next',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Bottom row: Page navigation (centered)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _PaginationButton(
+              icon: Icons.first_page,
+              onPressed: currentPage > 1 ? () => onPageChanged(1) : null,
+              tooltip: 'First page',
+            ),
+            _PaginationButton(
+              icon: Icons.chevron_left,
+              onPressed: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
+              tooltip: 'Previous',
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              _PaginationButton(
-                icon: Icons.last_page,
-                onPressed: currentPage < totalPages ? () => onPageChanged(totalPages) : null,
-                tooltip: 'Last page',
+              child: Text(
+                'Page $currentPage / $totalPages',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: primaryColor,
+                  fontSize: 14,
+                ),
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
+            ),
+            _PaginationButton(
+              icon: Icons.chevron_right,
+              onPressed: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
+              tooltip: 'Next',
+            ),
+            _PaginationButton(
+              icon: Icons.last_page,
+              onPressed: currentPage < totalPages ? () => onPageChanged(totalPages) : null,
+              tooltip: 'Last page',
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
   // Approval methods remain the same but use cached headers
   Future<void> _approveStore(Map<String, dynamic> store) async {
     final confirmed = await showDialog<bool>(

@@ -1491,7 +1491,7 @@ class _StoreReportPageState extends State<StoreReportPage>
   }
 }
 
-// Summary Cards Widget
+// Summary Cards Widget - FIXED VERSION
 class _SummaryCards extends StatelessWidget {
   final StoreReportSummary summaryData;
   final String currentReportType;
@@ -1500,21 +1500,22 @@ class _SummaryCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Expanded(child: _buildSummaryCard('Total Records', summaryData.totalItems.toString(), Icons.inventory_2, Colors.blue)),
+          _buildSummaryCard('Total Records', summaryData.totalItems.toString(), Icons.inventory_2, Colors.blue),
           const SizedBox(width: 12),
-          Expanded(child: _buildSummaryCard('Groups', summaryData.uniqueGroups.toString(), Icons.business, Colors.purple)),
+          _buildSummaryCard('Groups', summaryData.uniqueGroups.toString(), Icons.business, Colors.purple),
           const SizedBox(width: 12),
-          Expanded(child: _buildSummaryCard('Merchants', summaryData.uniqueMerchants.toString(), Icons.store, Colors.orange)),
+          _buildSummaryCard('Merchants', summaryData.uniqueMerchants.toString(), Icons.store, Colors.orange),
           const SizedBox(width: 12),
-          Expanded(child: _buildSummaryCard('Stores', summaryData.uniqueStores.toString(), Icons.location_on, Colors.teal)),
+          _buildSummaryCard('Stores', summaryData.uniqueStores.toString(), Icons.location_on, Colors.teal),
           const SizedBox(width: 12),
-          Expanded(child: _buildSummaryCard('Active Terminals', summaryData.activeTerminals.toString(), Icons.check_circle, Colors.green)),
+          _buildSummaryCard('Active Terminals', summaryData.activeTerminals.toString(), Icons.check_circle, Colors.green),
           const SizedBox(width: 12),
-          Expanded(child: _buildSummaryCard('Inactive', summaryData.inactiveTerminals.toString(), Icons.cancel, Colors.red)),
+          _buildSummaryCard('Inactive', summaryData.inactiveTerminals.toString(), Icons.cancel, Colors.red),
         ],
       ),
     );
@@ -1522,6 +1523,7 @@ class _SummaryCards extends StatelessWidget {
 
   Widget _buildSummaryCard(String title, String value, IconData icon, Color color) {
     return Container(
+      width: 140,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1535,16 +1537,23 @@ class _SummaryCards extends StatelessWidget {
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, color: color, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
                   overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
             ],
@@ -1552,7 +1561,11 @@ class _SummaryCards extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
         ],
       ),
