@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:inventory/business/UserAdd.dart';
-import 'package:inventory/business/UserEdit.dart';
 import 'package:inventory/config/company_config.dart';
+import 'package:inventory/business/RoleAddPage.dart';
+import 'package:inventory/business/RoleEditPage.dart';
 import 'package:inventory/config/config.dart';
 import 'package:inventory/config/theme.dart';
 import 'dart:convert';
 import '../utils/simple_translations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:inventory/business/RolePermissionPage.dart';
 
-class UserPage extends StatefulWidget {
-  const UserPage({Key? key}) : super(key: key);
+class RoleListPage extends StatefulWidget {
+  const RoleListPage({Key? key}) : super(key: key);
 
   @override
-  State<UserPage> createState() => _UserPageState();
+  State<RoleListPage> createState() => _RoleListPageState();
 }
 
 String langCode = 'en';
 
-class _UserPageState extends State<UserPage> {
-  List<User> users = [];
-  List<User> filteredUsers = [];
+class _RoleListPageState extends State<RoleListPage> {
+  List<IoRole> roles = [];
+  List<IoRole> filteredRoles = [];
   bool loading = true;
   String? error;
   String currentTheme = ThemeConfig.defaultTheme;
@@ -31,16 +32,16 @@ class _UserPageState extends State<UserPage> {
   @override
   void initState() {
     super.initState();
-    print('UserPage initState() called');
+    print('RoleListPage initState() called');
     debugPrint('Language code: $langCode');
 
     _loadLangCode();
     _loadCurrentTheme();
-    fetchUsers();
+    fetchRoles();
     
     _searchController.addListener(() {
       print('Search query: ${_searchController.text}');
-      filterUsers(_searchController.text);
+      filterRoles(_searchController.text);
     });
   }
 
@@ -64,38 +65,33 @@ class _UserPageState extends State<UserPage> {
 
   @override
   void dispose() {
-    print('UserPage dispose() called');
+    print('RoleListPage dispose() called');
     _searchController.dispose();
     super.dispose();
   }
 
-  void filterUsers(String query) {
-    print('Filtering users with query: "$query"');
+  void filterRoles(String query) {
+    print('Filtering roles with query: "$query"');
     final lowerQuery = query.toLowerCase();
     setState(() {
-      filteredUsers = users.where((user) {
-        if (user.status == 'delete') return false;
-        
-        final nameLower = user.name.toLowerCase();
-        final phoneLower = user.phone.toLowerCase();
-        final usernameLower = user.username.toLowerCase();
-        final roleNameLower = (user.roleName ?? '').toLowerCase(); // NEW: Search by role name
-        
+      filteredRoles = roles.where((role) {
+        final nameLower = role.roleName.toLowerCase();
+        final codeLower = role.roleCode?.toLowerCase() ?? '';
+        final descLower = role.description?.toLowerCase() ?? '';
         bool matches = nameLower.contains(lowerQuery) || 
-                      phoneLower.contains(lowerQuery) ||
-                      usernameLower.contains(lowerQuery) ||
-                      roleNameLower.contains(lowerQuery); // NEW
+                      codeLower.contains(lowerQuery) || 
+                      descLower.contains(lowerQuery);
         return matches;
       }).toList();
-      print('Filtered users count: ${filteredUsers.length}');
+      print('Filtered roles count: ${filteredRoles.length}');
     });
   }
 
-  Future<void> fetchUsers() async {
-    print('Starting fetchUsers()');
+  Future<void> fetchRoles() async {
+    print('Starting fetchRoles()');
     
     if (!mounted) {
-      print('Widget not mounted, aborting fetchUsers()');
+      print('Widget not mounted, aborting fetchRoles()');
       return;
     }
     
@@ -104,7 +100,7 @@ class _UserPageState extends State<UserPage> {
       error = null;
     });
 
-    final url = AppConfig.api('/api/iouser/iouserRole');
+    final url = AppConfig.api('/api/iorole');
     print('API URL: $url');
     
     try {
@@ -112,29 +108,26 @@ class _UserPageState extends State<UserPage> {
       final token = prefs.getString('access_token');
       final companyId = CompanyConfig.getCompanyId();
       
-      // NEW: Get current user's role_code instead of old 'role'
-      final roleCode = prefs.getString('role_code') ?? 'admin';
-      
       print('Token: ${token != null ? '${token.substring(0, 20)}...' : 'null'}');
       print('Company ID: $companyId');
-      print('Role Code: $roleCode');
+      
+      final queryParams = {
+        if (companyId != null) 'company_id': companyId.toString(),
+      };
+      
+      final uri = Uri.parse(url.toString()).replace(queryParameters: queryParams);
+      print('Full URI: $uri');
       
       final headers = {
         'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
       };
+      print('Request headers: $headers');
       
-      // UPDATED: Use role_code (or keep 'role' for backward compatibility)
-      final body = jsonEncode({
-        'role_code': roleCode,  // NEW: Preferred
-        'role': roleCode,       // Keep for backward compatibility
-        'company_id': companyId
-      });
-      print('Request body: $body');
-      
-      final response = await http.post(url, headers: headers, body: body);
+      final response = await http.get(uri, headers: headers);
 
       print('Response Status Code: ${response.statusCode}');
+      print('Response Headers: ${response.headers}');
       print('Response Body: ${response.body}');
 
       if (!mounted) {
@@ -142,39 +135,34 @@ class _UserPageState extends State<UserPage> {
         return;
       }
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response.statusCode == 200) {
         try {
           final data = jsonDecode(response.body);
           print('Parsed JSON successfully');
           print('API Response structure: ${data.keys.toList()}');
           
           if (data['status'] == 'success') {
-            final List<dynamic> rawUsers = data['data'] ?? [];
-            print('Raw users count: ${rawUsers.length}');
+            final List<dynamic> rawRoles = data['data'] ?? [];
+            print('Raw roles count: ${rawRoles.length}');
             
-            // Print first user for debugging (see role fields)
-            if (rawUsers.isNotEmpty) {
-              print('First user data: ${rawUsers[0]}');
-              print('First user role_id: ${rawUsers[0]['role_id']}');
-              print('First user role_code: ${rawUsers[0]['role_code']}');
-              print('First user role_name: ${rawUsers[0]['role_name']}');
+            if (rawRoles.isNotEmpty) {
+              print('First role data: ${rawRoles[0]}');
             }
             
-            users = rawUsers.map((e) {
+            roles = rawRoles.map((e) {
               try {
-                return User.fromJson(e);
+                return IoRole.fromJson(e);
               } catch (parseError) {
-                print('Error parsing user: $parseError');
-                print('Problem user data: $e');
+                print('Error parsing role: $parseError');
+                print('Problem role data: $e');
                 rethrow;
               }
             }).toList();
             
-            // Filter out deleted users immediately
-            filteredUsers = users.where((user) => user.status != 'delete').toList();
+            filteredRoles = List.from(roles);
             
-            print('Total users loaded: ${users.length}');
-            print('Active users (excluding deleted): ${filteredUsers.length}');
+            print('Total roles loaded: ${roles.length}');
+            print('Filtered roles: ${filteredRoles.length}');
             
             setState(() => loading = false);
           } else {
@@ -211,94 +199,58 @@ class _UserPageState extends State<UserPage> {
     }
   }
 
-  void _onAddUser() async {
-    print('Add User button pressed');
+  void _onAddRole() async {
+    print('Add Role button pressed');
     
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => UserAddPage()),
+      MaterialPageRoute(builder: (context) => RoleAddPage()),
     );
 
-    print('Add User result: $result');
+    print('Add Role result: $result');
     if (result == true) {
-      print('Refreshing users after add');
-      fetchUsers();
+      print('Refreshing roles after add');
+      fetchRoles();
     }
   }
 
-  Widget _buildUserImage(User user) {
-    print('Building image for user: ${user.name}');
-    print('Image URL: ${user.photo}');
-    
-    if (user.photo.isEmpty) {
-      print('No image URL, showing placeholder');
-      return CircleAvatar(
-        radius: 25,
-        backgroundColor: Colors.grey[200],
-        child: Icon(
-          Icons.person,
-          color: Colors.grey[600],
-          size: 30,
-        ),
-      );
-    }
+  Color _getLevelColor(int level) {
+    if (level >= 90) return Colors.purple;
+    if (level >= 70) return Colors.blue;
+    if (level >= 50) return Colors.green;
+    if (level >= 30) return Colors.orange;
+    return Colors.grey;
+  }
 
-    String imageUrl = user.photo;
-    
-    if (!imageUrl.startsWith('http')) {
-      final baseUrl = AppConfig.api('').toString().replaceAll('/api', '');
-      
-      if (imageUrl.startsWith('/')) {
-        imageUrl = '$baseUrl$imageUrl';
-      } else {
-        imageUrl = '$baseUrl/$imageUrl';
-      }
-    }
-    
-    print('Final image URL: $imageUrl');
+  IconData _getLevelIcon(int level) {
+    if (level >= 90) return Icons.stars;
+    if (level >= 70) return Icons.workspace_premium;
+    if (level >= 50) return Icons.verified;
+    if (level >= 30) return Icons.badge;
+    return Icons.person;
+  }
 
+  Widget _buildRoleIcon(IoRole role) {
+    print('Building icon for role: ${role.roleName}');
+    
+    final levelColor = _getLevelColor(role.level);
+    final levelIcon = _getLevelIcon(role.level);
+    
     return CircleAvatar(
       radius: 25,
-      backgroundColor: Colors.grey[200],
-      child: ClipOval(
-        child: Image.network(
-          imageUrl,
-          width: 50,
-          height: 50,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) {
-              print('Image loaded successfully for ${user.name}');
-              return child;
-            }
-            print('Loading image for ${user.name}...');
-            return Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            print('Error loading image for ${user.name}: $error');
-            print('Failed URL: $imageUrl');
-            return Icon(
-              Icons.person,
-              color: Colors.grey[600],
-              size: 30,
-            );
-          },
-        ),
+      backgroundColor: levelColor.withOpacity(0.1),
+      child: Icon(
+        levelIcon,
+        color: levelColor,
+        size: 30,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    print('Building UserPage widget');
-    print('Current state - loading: $loading, error: $error, users: ${users.length}');
+    print('Building RoleListPage widget');
+    print('Current state - loading: $loading, error: $error, roles: ${roles.length}');
     
     final screenWidth = MediaQuery.of(context).size.width;
     final isWideScreen = screenWidth > 600;
@@ -311,7 +263,7 @@ class _UserPageState extends State<UserPage> {
       print('Showing loading indicator');
       return Scaffold(
         appBar: AppBar(
-          title: Text('Users'),
+          title: Text('Roles'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         ),
@@ -325,7 +277,7 @@ class _UserPageState extends State<UserPage> {
                 ),
               ),
               SizedBox(height: 16),
-              Text('Loading Users...'),
+              Text('Loading Roles...'),
             ],
           ),
         ),
@@ -336,7 +288,7 @@ class _UserPageState extends State<UserPage> {
       print('Showing error state: $error');
       return Scaffold(
         appBar: AppBar(
-          title: Text('Users'),
+          title: Text('Roles'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         ),
@@ -351,7 +303,7 @@ class _UserPageState extends State<UserPage> {
                   Icon(Icons.error_outline, size: 64, color: Colors.red),
                   SizedBox(height: 16),
                   Text(
-                    'Error Loading Users',
+                    'Error Loading Roles',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
@@ -366,7 +318,7 @@ class _UserPageState extends State<UserPage> {
                   ElevatedButton.icon(
                     onPressed: () {
                       print('Retry button pressed');
-                      fetchUsers();
+                      fetchRoles();
                     },
                     icon: Icon(Icons.refresh),
                     label: Text('Retry'),
@@ -383,18 +335,18 @@ class _UserPageState extends State<UserPage> {
       );
     }
 
-    if (filteredUsers.isEmpty && users.isEmpty) {
+    if (roles.isEmpty) {
       print('Showing empty state');
       return Scaffold(
         appBar: AppBar(
-          title: Text('Users (0)'),
+          title: Text('Roles (0)'),
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
           actions: [
             IconButton(
               onPressed: () {
                 print('Refresh button pressed from empty state');
-                fetchUsers();
+                fetchRoles();
               },
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh',
@@ -407,17 +359,17 @@ class _UserPageState extends State<UserPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.person_add, size: 80, color: Colors.grey),
+                Icon(Icons.work_off, size: 80, color: Colors.grey),
                 SizedBox(height: 16),
                 Text(
-                  'No Users found',
+                  'No Roles found',
                   style: TextStyle(fontSize: 18, color: Colors.grey),
                 ),
                 SizedBox(height: 16),
                 ElevatedButton.icon(
-                  onPressed: _onAddUser,
+                  onPressed: _onAddRole,
                   icon: Icon(Icons.add),
-                  label: Text('Add First User'),
+                  label: Text('Add First Role'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
                     foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
@@ -428,37 +380,37 @@ class _UserPageState extends State<UserPage> {
           ),
         ),
         floatingActionButton: isWideScreen ? null : FloatingActionButton(
-          onPressed: _onAddUser,
+          onPressed: _onAddRole,
           backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
           foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-          tooltip: SimpleTranslations.get(langCode, 'add_user'),
+          tooltip: 'Add Role',
           child: const Icon(Icons.add),
         ),
       );
     }
 
-    print('Rendering main user list with ${filteredUsers.length} users');
+    print('Rendering main role list with ${filteredRoles.length} roles');
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('${SimpleTranslations.get(langCode, 'users')} (${filteredUsers.length})'),
+        title: Text('Roles (${filteredRoles.length})'),
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
         actions: [
           if (isWideScreen) ...[
             IconButton(
-              onPressed: _onAddUser,
+              onPressed: _onAddRole,
               icon: const Icon(Icons.add),
-              tooltip: SimpleTranslations.get(langCode, 'add_user'),
+              tooltip: 'Add Role',
             ),
           ],
           IconButton(
             onPressed: () {
               print('Refresh button pressed from app bar');
-              fetchUsers();
+              fetchRoles();
             },
             icon: const Icon(Icons.refresh),
-            tooltip: SimpleTranslations.get(langCode, 'refresh'),
+            tooltip: 'Refresh',
           ),
         ],
       ),
@@ -472,8 +424,7 @@ class _UserPageState extends State<UserPage> {
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    labelText: SimpleTranslations.get(langCode, 'search'),
-                    hintText: 'Search by name, phone, username, or role...',
+                    labelText: 'Search',
                     prefixIcon: Icon(
                       Icons.search,
                       color: ThemeConfig.getPrimaryColor(currentTheme),
@@ -501,7 +452,7 @@ class _UserPageState extends State<UserPage> {
                 ),
               ),
               Expanded(
-                child: filteredUsers.isEmpty
+                child: filteredRoles.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -510,8 +461,8 @@ class _UserPageState extends State<UserPage> {
                             const SizedBox(height: 16),
                             Text(
                               _searchController.text.isNotEmpty
-                                  ? 'No Users match your search'
-                                  : 'No Users found',
+                                  ? 'No Roles match your search'
+                                  : 'No Roles found',
                               style: const TextStyle(fontSize: 18, color: Colors.grey),
                             ),
                             if (_searchController.text.isNotEmpty) ...[
@@ -525,7 +476,7 @@ class _UserPageState extends State<UserPage> {
                         ),
                       )
                     : RefreshIndicator(
-                        onRefresh: fetchUsers,
+                        onRefresh: fetchRoles,
                         child: isWideScreen
                             ? _buildGridView(cardMargin)
                             : _buildListView(cardMargin),
@@ -536,10 +487,10 @@ class _UserPageState extends State<UserPage> {
         ),
       ),
       floatingActionButton: isWideScreen ? null : FloatingActionButton(
-        onPressed: _onAddUser,
+        onPressed: _onAddRole,
         backgroundColor: ThemeConfig.getPrimaryColor(currentTheme),
         foregroundColor: ThemeConfig.getButtonTextColor(currentTheme),
-        tooltip: SimpleTranslations.get(langCode, 'add_user'),
+        tooltip: 'Add Role',
         child: const Icon(Icons.add),
       ),
     );
@@ -547,76 +498,146 @@ class _UserPageState extends State<UserPage> {
 
   Widget _buildListView(EdgeInsets cardMargin) {
     return ListView.builder(
-      itemCount: filteredUsers.length,
+      itemCount: filteredRoles.length,
       itemBuilder: (ctx, i) {
-        final user = filteredUsers[i];
-        print('Building list item for user: ${user.name}');
+        final role = filteredRoles[i];
+        print('Building list item for role: ${role.roleName}');
 
         return Card(
           margin: cardMargin,
           elevation: 2,
-          child: ListTile(
-            leading: _buildUserImage(user),
-            title: Text(
-              user.name,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+          child: 
+// Update the ListTile in the ListView.builder to include permission button:
+ListTile(
+  leading: CircleAvatar(
+    backgroundColor: _getLevelColor(role.level).withOpacity(0.1),
+    child: Icon(_getLevelIcon(role.level), color: _getLevelColor(role.level)),
+  ),
+  title: Row(
+    children: [
+      Expanded(child: Text(role.roleName, style: TextStyle(fontWeight: FontWeight.bold))),
+      Container(
+        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: _getLevelColor(role.level),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text('Lvl ${role.level}', style: TextStyle(color: Colors.white, fontSize: 11)),
+      ),
+    ],
+  ),
+  subtitle: role.roleCode != null
+      ? Text(role.roleCode!.toUpperCase(), style: TextStyle(fontSize: 12))
+      : null,
+  trailing: Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      IconButton(
+        icon: Icon(Icons.security, color: Colors.orange),
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => RolePermissionPage(roleData: role.toJson()),
             ),
-            subtitle: _buildUserSubtitle(user),
-            trailing: Icon(
-              Icons.edit,
-              color: ThemeConfig.getPrimaryColor(currentTheme),
-            ),
-            onTap: () => _navigateToEdit(user),
-          ),
+          );
+          if (result == true) fetchRoles();
+        },
+        tooltip: 'Manage Permissions',
+      ),
+      IconButton(
+        icon: Icon(Icons.edit, color: ThemeConfig.getPrimaryColor(currentTheme)),
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => RoleEditPage(roleData: role.toJson())),
+          );
+          if (result == true || result == 'deleted') fetchRoles();
+        },
+        tooltip: 'Edit Role',
+      ),
+    ],
+  ),
+  onTap: () async {
+    // Open permission page on tap
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RolePermissionPage(roleData: role.toJson()),
+      ),
+    );
+    if (result == true) fetchRoles();
+  },
+)
         );
       },
     );
   }
+
+
 
   Widget _buildGridView(EdgeInsets cardMargin) {
     return GridView.builder(
       padding: EdgeInsets.symmetric(horizontal: cardMargin.horizontal / 2),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: MediaQuery.of(context).size.width > 900 ? 3 : 2,
-        childAspectRatio: 3.5,
+        childAspectRatio: 3.2,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
-      itemCount: filteredUsers.length,
+      itemCount: filteredRoles.length,
       itemBuilder: (ctx, i) {
-        final user = filteredUsers[i];
-        print('Building grid item for user: ${user.name}');
+        final role = filteredRoles[i];
+        print('Building grid item for role: ${role.roleName}');
 
         return Card(
           elevation: 2,
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
-            onTap: () => _navigateToEdit(user),
+            onTap: () => _navigateToEdit(role),
             child: Padding(
               padding: EdgeInsets.all(12),
               child: Row(
                 children: [
-                  _buildUserImage(user),
+                  _buildRoleIcon(role),
                   SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          user.name,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                role.roleName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _getLevelColor(role.level),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                'Lvl ${role.level}',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         SizedBox(height: 4),
-                        _buildUserSubtitle(user, compact: true),
+                        _buildRoleSubtitle(role, compact: true),
                       ],
                     ),
                   ),
@@ -634,100 +655,86 @@ class _UserPageState extends State<UserPage> {
     );
   }
 
-  // UPDATED: Show role_name instead of role
-  Widget _buildUserSubtitle(User user, {bool compact = false}) {
+  Widget _buildRoleSubtitle(IoRole role, {bool compact = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (user.phone.isNotEmpty)
-          Text(
-            'Phone: ${user.phone}',
-            style: TextStyle(
-              fontSize: compact ? 11 : 13,
-              fontWeight: FontWeight.w500,
-              color: ThemeConfig.getPrimaryColor(currentTheme),
+        if (role.roleCode != null && role.roleCode!.isNotEmpty)
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(6),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            child: Text(
+              role.roleCode!.toUpperCase(),
+              style: TextStyle(
+                fontSize: compact ? 10 : 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+                letterSpacing: 0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        // UPDATED: Show role_name (user-friendly) instead of role_code
-        if (!compact && user.roleName != null && user.roleName!.isNotEmpty)
-          Text(
-            'Role: ${user.roleName}',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+        if (!compact && role.description != null && role.description!.isNotEmpty)
+          Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              role.description!,
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        if (!compact && user.username.isNotEmpty)
-          Text(
-            'Username: ${user.username}',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+        if (!compact)
+          Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Row(
+              children: [
+                Icon(
+                  role.status == 'active' ? Icons.check_circle : Icons.pause_circle,
+                  size: 12,
+                  color: role.status == 'active' ? Colors.green : Colors.orange,
+                ),
+                SizedBox(width: 4),
+                Text(
+                  role.status.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: role.status == 'active' ? Colors.green : Colors.orange,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
       ],
     );
   }
 
-  // UPDATED: Pass all role fields to edit page
-  void _navigateToEdit(User user) async {
-    print('User tapped: ${user.name}');
-    print('=== PASSING USER DATA TO EDIT ===');
-    print('User branch_id: ${user.branchId}');
-    print('User role_id: ${user.roleId}');
-    print('User role_code: ${user.roleCode}');
-    print('User role_name: ${user.roleName}');
-    print('User status: ${user.status}');
-    print('=================================');
+  void _navigateToEdit(IoRole role) async {
+    print('Role tapped: ${role.roleName}');
     
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => UserEditPage(
-          userData: {
-            'user_id': user.userId,
-            'username': user.username,
-            'phone': user.phone,
-            'email': user.email,
-            'name': user.name,
-            'photo': user.photo,
-            'photo_id': user.photo_id,
-            'document_id': user.documentId ?? '',
-            'account_no': user.accountNo ?? '',
-            'account_name': user.accountName ?? '',
-            'status': user.status ?? 'active',
-            
-            // UPDATED: Pass new role fields
-            'role_id': user.roleId,
-            'role_code': user.roleCode ?? '',
-            'role_name': user.roleName ?? '',
-            'role_level': user.roleLevel,
-            
-            // Keep old role for backward compatibility
-            'role': user.roleCode ?? user.role ?? 'user',
-            
-            'branch_id': user.branchId,
-            'company_id': user.companyId,
-            'bio': user.bio ?? '',
-            'language': user.language ?? 'en',
-            'village_id': user.villageId,
-            'district_id': user.districtId,
-            'province_id': user.provinceId,
-            'account_bank_id': user.accountBankId,
-          },
+        builder: (_) => RoleEditPage(
+          roleData: role.toJson(),
         ),
       ),
     );
 
-    print('Edit User result: $result');
+    print('Edit Role result: $result');
     if (result == true || result == 'deleted') {
-      print('User operation completed, refreshing list...');
-      fetchUsers();
+      print('Role operation completed, refreshing list...');
+      fetchRoles();
       
       if (result == 'deleted') {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('User removed from list'),
+            content: Text('Role removed from list'),
             backgroundColor: ThemeConfig.getThemeColors(currentTheme)['success'] ?? Colors.green,
             duration: Duration(seconds: 2),
           ),
@@ -737,107 +744,50 @@ class _UserPageState extends State<UserPage> {
   }
 }
 
-// ========================================
-// UPDATED USER CLASS
-// ========================================
-class User {
-  final int? userId;
-  final String username;
-  final String name;
-  final String email;
-  final String phone;
-  final String photo;
-  final String photo_id;
-  final String? documentId;
-  final String? accountNo;
-  final String? accountName;
-  final String? status;
-  
-  // UPDATED: New role fields
-  final int? roleId;
+class IoRole {
+  final int roleId;
+  final String roleName;
   final String? roleCode;
-  final String? roleName;
-  final int? roleLevel;
-  
-  // DEPRECATED: Keep for backward compatibility
-  final String? role;
-  
-  final int? branchId;
+  final String? description;
+  final int level;
+  final String status;
   final int? companyId;
-  final String? bio;
-  final String? language;
-  final int? villageId;
-  final int? districtId;
-  final int? provinceId;
-  final int? accountBankId;
+  final String? createdAt;
+  final String? updatedAt;
   
-  User({
-    this.userId,
-    required this.username,
-    required this.name,
-    required this.email,
-    required this.phone,
-    required this.photo,
-    required this.photo_id,
-    this.documentId,
-    this.accountNo,
-    this.accountName,
-    this.status,
-    this.roleId,
+  IoRole({
+    required this.roleId,
+    required this.roleName,
     this.roleCode,
-    this.roleName,
-    this.roleLevel,
-    this.role,
-    this.branchId,
+    this.description,
+    required this.level,
+    required this.status,
     this.companyId,
-    this.bio,
-    this.language,
-    this.villageId,
-    this.districtId,
-    this.provinceId,
-    this.accountBankId,
+    this.createdAt,
+    this.updatedAt,
   });
   
-  factory User.fromJson(Map<String, dynamic> json) {
-    print('Converting JSON to User');
+  factory IoRole.fromJson(Map<String, dynamic> json) {
+    print('Converting JSON to IoRole');
     print('JSON keys: ${json.keys.toList()}');
+    print('JSON data: $json');
     
     try {
-      final user = User(
-        userId: json['user_id'],
-        username: json['username'] ?? '',
-        name: json['name'] ?? '',
-        email: json['email'] ?? '',
-        phone: json['phone'] ?? '',
-        photo: json['photo'] ?? '',
-        photo_id: json['photo_id'] ?? '',
-        documentId: json['document_id'],
-        accountNo: json['account_no'],
-        accountName: json['account_name'],
-        status: json['status'],
-        
-        // NEW: Parse role fields from backend
-        roleId: json['role_id'],
+      final role = IoRole(
+        roleId: json['role_id'] ?? 0,
+        roleName: json['role_name'] ?? '',
         roleCode: json['role_code'],
-        roleName: json['role_name'],
-        roleLevel: json['role_level'] ?? json['role_level'],
-        
-        // DEPRECATED: Keep for backward compatibility
-        role: json['role'],
-        
-        branchId: json['branch_id'],
+        description: json['description'],
+        level: json['level'] ?? 0,
+        status: json['status'] ?? 'active',
         companyId: json['company_id'],
-        bio: json['bio'],
-        language: json['language'],
-        villageId: json['village_id'],
-        districtId: json['district_id'],
-        provinceId: json['province_id'],
-        accountBankId: json['account_bank_id'],
+        createdAt: json['created_at'],
+        updatedAt: json['updated_at'],
       );
-      print('Successfully created User: ${user.name} with role: ${user.roleName}');
-      return user;
+      print('Successfully created IoRole: ${role.roleName}');
+      return role;
     } catch (e, stackTrace) {
-      print('Error parsing User JSON: $e');
+      print('Error parsing IoRole JSON: $e');
       print('Stack trace: $stackTrace');
       print('Problem JSON: $json');
       rethrow;
@@ -846,35 +796,15 @@ class User {
   
   Map<String, dynamic> toJson() {
     return {
-      'user_id': userId,
-      'username': username,
-      'name': name,
-      'email': email,
-      'phone': phone,
-      'photo': photo,
-      'photo_id': photo_id,
-      'document_id': documentId,
-      'account_no': accountNo,
-      'account_name': accountName,
-      'status': status,
-      
-      // NEW: Include role fields
       'role_id': roleId,
-      'role_code': roleCode,
       'role_name': roleName,
-      'role_level': roleLevel,
-      
-      // DEPRECATED: Keep for compatibility
-      'role': role,
-      
-      'branch_id': branchId,
+      'role_code': roleCode,
+      'description': description,
+      'level': level,
+      'status': status,
       'company_id': companyId,
-      'bio': bio,
-      'language': language,
-      'village_id': villageId,
-      'district_id': districtId,
-      'province_id': provinceId,
-      'account_bank_id': accountBankId,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
     };
   }
 }

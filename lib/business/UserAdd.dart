@@ -10,7 +10,6 @@ import 'dart:typed_data';
 
 import '../config/config.dart';
 import '../config/theme.dart';
-// ignore: unused_import
 import '../utils/simple_translations.dart';
 
 class UserAddPage extends StatefulWidget {
@@ -24,7 +23,8 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
   final _formKey = GlobalKey<FormState>();
   final _controllers = _Controllers();
   
-  String _selectedRole = 'office';
+  _Role? _selectedRole;
+  
   File? _selectedImage;
   Uint8List? _webImageBytes;
   String _base64Image = '';
@@ -34,8 +34,8 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
 
   _CompanyData? _companyData;
   _BranchData _branchData = const _BranchData();
+  _RoleData _roleData = const _RoleData();
 
-  final List<String> _roles = ['office', 'admin', 'user', 'regitster', 'autorizer1', 'autorizer2', 'autorizer3'];
   final ImagePicker _picker = ImagePicker();
 
   late AnimationController _fadeController;
@@ -69,6 +69,7 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
   Future<void> _initialize() async {
     await _loadPreferences();
     await _loadCompanyData();
+    await _loadRoles();
   }
 
   Future<void> _loadPreferences() async {
@@ -95,6 +96,85 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
         _companyData = const _CompanyData(id: null, name: '');
       });
       _showErrorSnackBar('Error loading company information');
+    }
+  }
+
+  Future<void> _loadRoles() async {
+    print('Loading roles from backend...');
+    
+    if (!mounted) return;
+    
+    setState(() {
+      _roleData = _roleData.copyWith(isLoading: true);
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final companyId = _companyData?.id;
+      
+      final uri = AppConfig.api('/api/iorole').replace(queryParameters: {
+        'status': 'active',
+        if (companyId != null) 'company_id': companyId.toString(),
+      });
+
+      print('Fetching roles from: $uri');
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('Roles response status: ${response.statusCode}');
+      print('Roles response body: ${response.body}');
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['status'] == 'success' && data['data'] != null) {
+          final roles = (data['data'] as List)
+              .map((role) => _Role.fromJson(role))
+              .toList();
+          
+          print('Loaded ${roles.length} roles');
+          
+          setState(() {
+            _roleData = _roleData.copyWith(
+              roles: roles,
+              isLoading: false,
+            );
+            
+            if (roles.isNotEmpty && _selectedRole == null) {
+              _selectedRole = roles.first;
+              print('Auto-selected role: ${_selectedRole?.name}');
+            }
+          });
+        } else {
+          print('No roles found in response');
+          setState(() {
+            _roleData = _roleData.copyWith(isLoading: false);
+          });
+          _showErrorSnackBar('No roles found');
+        }
+      } else {
+        print('Failed to load roles: ${response.statusCode}');
+        setState(() {
+          _roleData = _roleData.copyWith(isLoading: false);
+        });
+        _showErrorSnackBar('Failed to load roles: ${response.statusCode}');
+      }
+    } catch (e, stackTrace) {
+      print('Error loading roles: $e');
+      print('Stack trace: $stackTrace');
+      setState(() {
+        _roleData = _roleData.copyWith(isLoading: false);
+      });
+      _showErrorSnackBar('Error loading roles: $e');
     }
   }
 
@@ -291,9 +371,14 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
   Future<void> _addUser() async {
     FocusScope.of(context).unfocus();
     
-    if (!_formKey.currentState!.validate() || _branchData.selectedBranch == null) {
+    if (!_formKey.currentState!.validate() || 
+        _branchData.selectedBranch == null || 
+        _selectedRole == null) {
       if (_branchData.selectedBranch == null) {
         _showErrorSnackBar('Please select a branch');
+      }
+      if (_selectedRole == null) {
+        _showErrorSnackBar('Please select a role');
       }
       return;
     }
@@ -307,11 +392,21 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
       final token = prefs.getString('access_token');
       final url = AppConfig.api('/api/iouser/add');
 
+      print('=== ADDING USER ===');
+      print('Selected role: ${_selectedRole?.name}');
+      print('Role ID: ${_selectedRole?.id}');
+      print('Role Code: ${_selectedRole?.code}');
+      print('==================');
+
       final requestBody = {
         'phone': _controllers.phone.text.trim(),
         'name': _controllers.name.text.trim(),
         'email': _controllers.email.text.trim(),
-        'role': _selectedRole,
+        
+        'role_id': _selectedRole!.id,
+        'role_code': _selectedRole!.code,
+        'role': _selectedRole!.code,
+        
         'company_id': _companyData?.id,
         'branch_id': _branchData.selectedBranch!.id,
         'photo': _base64Image,
@@ -323,6 +418,8 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
         'language': _langCode,
       };
 
+      print('Request body: ${jsonEncode(requestBody)}');
+
       final response = await http.post(
         url,
         headers: {
@@ -331,6 +428,9 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
         },
         body: jsonEncode(requestBody),
       );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -347,6 +447,7 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
         _showErrorSnackBar('Error (${response.statusCode}): $errorMessage');
       }
     } catch (e) {
+      print('Error adding user: $e');
       _showErrorSnackBar('Network error occurred');
     } finally {
       setState(() => _isLoading = false);
@@ -366,7 +467,7 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
             const Text('Success!'),
           ],
         ),
-        content: Text('User "${_controllers.name.text}" has been created successfully for ${_companyData?.name}.'),
+        content: Text('User "${_controllers.name.text}" has been created successfully with role "${_selectedRole?.name}" for ${_companyData?.name}.'),
         actions: [
           TextButton(
             onPressed: () {
@@ -526,7 +627,7 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
             color: Colors.grey[50],
           ),
           child: _branchData.isLoading
-              ? _buildLoadingIndicator()
+              ? _buildLoadingIndicator('Loading branches...')
               : _buildBranchDropdownButton(),
         ),
         if (_branchData.selectedBranch == null)
@@ -541,7 +642,7 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildLoadingIndicator() {
+  Widget _buildLoadingIndicator(String text) {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -557,67 +658,63 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
             ),
           ),
           const SizedBox(width: 12),
-          const Text('Loading branches...'),
+          Text(text),
         ],
       ),
     );
   }
 
-  Widget _buildBranchDropdownButton() {
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<_Branch>(
-        value: _branchData.selectedBranch,
-        hint: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(Icons.location_on, color: Colors.grey[600]),
-              const SizedBox(width: 12),
-              const Text('Select branch'),
-            ],
-          ),
-        ),
-        isExpanded: true,
-        items: _branchData.branches.map(_buildBranchMenuItem).toList(),
-        onChanged: (branch) => setState(() {
-          _branchData = _branchData.copyWith(selectedBranch: branch);
-        }),
-      ),
-    );
-  }
-
-  DropdownMenuItem<_Branch> _buildBranchMenuItem(_Branch branch) {
-    return DropdownMenuItem<_Branch>(
-      value: branch,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+Widget _buildBranchDropdownButton() {
+  return DropdownButtonHideUnderline(
+    child: DropdownButton<_Branch>(
+      value: _branchData.selectedBranch,
+      hint: Padding(
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            _buildBranchImage(branch),
+            Icon(Icons.location_on, color: Colors.grey[600]),
             const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    branch.name,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (branch.code.isNotEmpty)
-                    Text(
-                      branch.code,
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                ],
-              ),
-            ),
+            const Text('Select branch'),
           ],
         ),
       ),
-    );
-  }
+      isExpanded: true,
+      itemHeight: 56, // ← Set consistent height
+      menuMaxHeight: 300, // ← Limit menu height
+      items: _branchData.branches.map(_buildBranchMenuItem).toList(),
+      onChanged: (branch) => setState(() {
+        _branchData = _branchData.copyWith(selectedBranch: branch);
+      }),
+    ),
+  );
+}
 
+
+DropdownMenuItem<_Branch> _buildBranchMenuItem(_Branch branch) {
+  return DropdownMenuItem<_Branch>(
+    value: branch,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), // ← Reduced padding
+      child: Row(
+        children: [
+          _buildBranchImage(branch),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text( // ← Changed from Column to just Text
+              branch.name,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
   Widget _buildBranchImage(_Branch branch) {
     return Container(
       width: 40,
@@ -667,6 +764,152 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
     );
   }
 
+  // FIXED: Role dropdown with no overflow
+  Widget _buildRoleDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Role *',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (_selectedRole != null && _selectedRole!.description.isNotEmpty)
+              Expanded(
+                child: Text(
+                  '(${_selectedRole!.description})',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                    fontStyle: FontStyle.italic,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _selectedRole == null 
+                  ? Colors.red[300]!
+                  : Colors.grey[300]!
+            ),
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.grey[50],
+          ),
+          child: _roleData.isLoading
+              ? _buildLoadingIndicator('Loading roles...')
+              : _buildRoleDropdownButton(),
+        ),
+        if (_selectedRole != null && _selectedRole!.description.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, left: 12),
+            child: Text(
+              '📝 ${_selectedRole!.description}',
+              style: TextStyle(
+                color: ThemeConfig.getPrimaryColor(_currentTheme),
+                fontSize: 12,
+              ),
+            ),
+          ),
+        if (_selectedRole == null && _roleData.roles.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, left: 12),
+            child: Text(
+              'Role is required',
+              style: TextStyle(color: Colors.red[700], fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+ Widget _buildRoleDropdownButton() {
+  if (_roleData.roles.isEmpty) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Icon(Icons.warning, color: Colors.orange[600]),
+          const SizedBox(width: 12),
+          const Text('No roles available'),
+        ],
+      ),
+    );
+  }
+
+  return DropdownButtonHideUnderline(
+    child: DropdownButton<_Role>(
+      value: _selectedRole,
+      hint: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(Icons.work, color: Colors.grey[600]),
+            const SizedBox(width: 12),
+            const Text('Select role'),
+          ],
+        ),
+      ),
+      isExpanded: true,
+      itemHeight: 48, // ← Changed from 56 to 48
+      menuMaxHeight: 300, // ← Added: Limit menu height
+      items: _roleData.roles.map(_buildRoleMenuItem).toList(),
+      onChanged: (role) {
+        setState(() {
+          _selectedRole = role;
+        });
+        print('Selected role: ${role?.name} (ID: ${role?.id})');
+      },
+    ),
+  );
+}
+  // FIXED: Simple dropdown item with no overflow
+ DropdownMenuItem<_Role> _buildRoleMenuItem(_Role role) {
+  return DropdownMenuItem<_Role>(
+    value: role,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // ← Reduced padding
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6), // ← Smaller padding
+            decoration: BoxDecoration(
+              color: ThemeConfig.getPrimaryColor(_currentTheme).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              Icons.work,
+              color: ThemeConfig.getPrimaryColor(_currentTheme),
+              size: 18, // ← Smaller icon
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              role.name,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -762,48 +1005,6 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildRoleDropdown() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: DropdownButtonFormField<String>(
-        value: _selectedRole,
-        decoration: InputDecoration(
-          labelText: 'Role *',
-          prefixIcon: Icon(
-            Icons.work,
-            color: ThemeConfig.getPrimaryColor(_currentTheme),
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: ThemeConfig.getPrimaryColor(_currentTheme),
-              width: 2,
-            ),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey[300]!),
-          ),
-          filled: true,
-          fillColor: Colors.grey[50],
-        ),
-        items: _roles.map((role) => DropdownMenuItem(
-          value: role,
-          child: Text(role.toUpperCase()),
-        )).toList(),
-        onChanged: (newValue) {
-          if (newValue != null) {
-            setState(() => _selectedRole = newValue);
-          }
-        },
-        validator: (value) => value?.isEmpty == true ? 'Please select role' : null,
-      ),
-    );
-  }
-
   Widget _buildFormContent() {
     final screenWidth = MediaQuery.of(context).size.width;
     final isWideScreen = screenWidth > 600;
@@ -863,7 +1064,6 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
                       keyboardType: TextInputType.emailAddress,
                       hint: 'Enter email address',
                       required: true,
-                     
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -898,7 +1098,6 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
                 keyboardType: TextInputType.emailAddress,
                 hint: 'Enter email address',
                 required: true,
-               
               ),
               _buildRoleDropdown(),
             ],
@@ -923,7 +1122,16 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
                       hint: 'Enter document/ID number (optional)',
                     ),
                   ),
-                  
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _controllers.username,
+                      label: 'Username',
+                      icon: Icons.account_circle,
+                      hint: 'Auto-filled from phone number',
+                      readOnly: true,
+                    ),
+                  ),
                 ],
               ),
               Row(
@@ -1000,7 +1208,10 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
   }
 
   Widget _buildActionButtons() {
-    final isEnabled = !_isLoading && _companyData?.id != null && _branchData.selectedBranch != null;
+    final isEnabled = !_isLoading && 
+        _companyData?.id != null && 
+        _branchData.selectedBranch != null &&
+        _selectedRole != null;
     
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -1050,7 +1261,7 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
                         Text(
                           isEnabled 
                               ? 'ADD USER'
-                              : 'SELECT COMPANY & BRANCH',
+                              : 'COMPLETE REQUIRED FIELDS',
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                       ],
@@ -1099,8 +1310,6 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
     
     return null;
   }
-
-
 
   void _showSuccessSnackBar(String message) {
     if (!mounted) return;
@@ -1209,7 +1418,10 @@ class _UserAddPageState extends State<UserAddPage> with TickerProviderStateMixin
   }
 }
 
-// Data Classes
+// ========================================
+// DATA CLASSES
+// ========================================
+
 class _Controllers {
   final phone = TextEditingController();
   final name = TextEditingController();
@@ -1287,7 +1499,52 @@ class _BranchData {
   }
 }
 
-// Extensions
+class _Role {
+  final int id;
+  final String name;
+  final String code;
+  final String description;
+  final int level;
+
+  const _Role({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.description,
+    required this.level,
+  });
+
+  factory _Role.fromJson(Map<String, dynamic> json) {
+    return _Role(
+      id: json['role_id'] as int,
+      name: json['role_name'] ?? 'Unknown Role',
+      code: json['role_code'] ?? '',
+      description: json['description'] ?? '',
+      level: json['level'] ?? 0,
+    );
+  }
+}
+
+class _RoleData {
+  final List<_Role> roles;
+  final bool isLoading;
+
+  const _RoleData({
+    this.roles = const [],
+    this.isLoading = false,
+  });
+
+  _RoleData copyWith({
+    List<_Role>? roles,
+    bool? isLoading,
+  }) {
+    return _RoleData(
+      roles: roles ?? this.roles,
+      isLoading: isLoading ?? this.isLoading,
+    );
+  }
+}
+
 extension StringExtensions on String {
   String? get nullIfEmpty => isEmpty ? null : this;
 }

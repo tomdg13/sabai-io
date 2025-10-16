@@ -28,35 +28,80 @@ class _UserEditPageState extends State<UserEditPage> {
   String _langCode = 'en';
   String _currentTheme = ThemeConfig.defaultTheme;
   
-  // Image handling - compatible with both mobile and web
   final ImagePicker _picker = ImagePicker();
   File? _selectedImage;
   File? _selectedIdImage;
   String _base64Image = '';
   String _base64IdImage = '';
 
-  // Dropdown selections
-  String _selectedRole = 'office';
-  String _selectedStatus = 'active';
+  // UPDATED: Role and Status data
+  List<_Role> _roles = [];
+  _Role? _selectedRole;
+  bool _isLoadingRoles = false;
+  
+  List<_Status> _statuses = [];
+  _Status? _selectedStatus;
 
   // Branch data
   List<Map<String, dynamic>> _branches = [];
   Map<String, dynamic>? _selectedBranch;
   bool _isLoadingBranches = false;
 
-  final List<String> _roles = ['office', 'admin', 'user'];
-  final List<String> _statuses = ['active', 'inactive'];
-
   @override
   void initState() {
     super.initState();
+    _initializeStatuses();
     _initialize();
+  }
+
+  // NEW: Initialize status options
+  void _initializeStatuses() {
+    _statuses = [
+      _Status(
+        code: 'active',
+        name: 'Active',
+        description: 'User account is active and can login',
+        icon: Icons.check_circle,
+        color: Colors.green,
+      ),
+      _Status(
+        code: 'inactive',
+        name: 'Inactive',
+        description: 'User account is temporarily disabled',
+        icon: Icons.pause_circle,
+        color: Colors.orange,
+      ),
+      _Status(
+        code: 'resetpassword',
+        name: 'Reset Password',
+        description: 'User must reset password on next login',
+        icon: Icons.lock_reset,
+        color: Colors.blue,
+      ),
+      _Status(
+        code: 'suspended',
+        name: 'Suspended',
+        description: 'User account is suspended',
+        icon: Icons.block,
+        color: Colors.red,
+      ),
+      _Status(
+        code: 'delete',
+        name: 'Deleted',
+        description: 'User account is marked for deletion',
+        icon: Icons.delete_forever,
+        color: Colors.grey,
+      ),
+    ];
   }
 
   Future<void> _initialize() async {
     await _loadPreferences();
     _initializeControllers();
-    await _loadBranches();
+    await Future.wait([
+      _loadRoles(),
+      _loadBranches(),
+    ]);
   }
 
   Future<void> _loadPreferences() async {
@@ -77,120 +122,159 @@ class _UserEditPageState extends State<UserEditPage> {
     _controllers.accountName.text = widget.userData['account_name'] ?? '';
     _controllers.bio.text = widget.userData['bio'] ?? '';
     
-    _selectedRole = widget.userData['role'] ?? 'office';
-    _selectedStatus = widget.userData['status'] ?? 'active';
+    // Initialize status
+    final userStatus = widget.userData['status'] ?? 'active';
+    _selectedStatus = _statuses.firstWhere(
+      (status) => status.code == userStatus,
+      orElse: () => _statuses.first,
+    );
+    
+    print('=== INITIALIZING USER DATA ===');
+    print('User role_id: ${widget.userData['role_id']}');
+    print('User role_code: ${widget.userData['role_code']}');
+    print('User role_name: ${widget.userData['role_name']}');
+    print('User status: ${_selectedStatus?.code}');
+    print('==============================');
+  }
+
+  Future<void> _loadRoles() async {
+    print('Loading roles for edit page...');
+    
+    setState(() => _isLoadingRoles = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final companyId = CompanyConfig.getCompanyId();
+      
+      final uri = AppConfig.api('/api/iorole').replace(queryParameters: {
+        'status': 'active',
+        if (companyId != null) 'company_id': companyId.toString(),
+      });
+
+      print('Fetching roles from: $uri');
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('Roles response status: ${response.statusCode}');
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['status'] == 'success' && data['data'] != null) {
+          final rolesList = (data['data'] as List)
+              .map((role) => _Role.fromJson(role))
+              .toList();
+          
+          print('Loaded ${rolesList.length} roles');
+          
+          setState(() {
+            _roles = rolesList;
+            
+            final userRoleId = widget.userData['role_id'];
+            final userRoleCode = widget.userData['role_code'];
+            
+            if (userRoleId != null) {
+              _selectedRole = _roles.firstWhere(
+                (role) => role.id == userRoleId,
+                orElse: () => _roles.isNotEmpty ? _roles.first : _Role.empty(),
+              );
+              print('Selected role by ID: ${_selectedRole?.name}');
+            } else if (userRoleCode != null) {
+              _selectedRole = _roles.firstWhere(
+                (role) => role.code.toLowerCase() == userRoleCode.toLowerCase(),
+                orElse: () => _roles.isNotEmpty ? _roles.first : _Role.empty(),
+              );
+              print('Selected role by code: ${_selectedRole?.name}');
+            } else if (_roles.isNotEmpty) {
+              _selectedRole = _roles.first;
+              print('No role set, defaulting to: ${_selectedRole?.name}');
+            }
+            
+            _isLoadingRoles = false;
+          });
+        } else {
+          setState(() => _isLoadingRoles = false);
+          _showErrorSnackBar('No roles found');
+        }
+      } else {
+        setState(() => _isLoadingRoles = false);
+        _showErrorSnackBar('Failed to load roles: ${response.statusCode}');
+      }
+    } catch (e, stackTrace) {
+      print('Error loading roles: $e');
+      print('Stack trace: $stackTrace');
+      setState(() => _isLoadingRoles = false);
+      _showErrorSnackBar('Error loading roles: $e');
+    }
   }
 
   Future<void> _loadBranches() async {
-  setState(() => _isLoadingBranches = true);
+    setState(() => _isLoadingBranches = true);
 
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
-    final companyId = CompanyConfig.getCompanyId();
-    
-    final uri = AppConfig.api('/api/iobranch').replace(queryParameters: {
-      'status': 'admin',
-      'company_id': companyId.toString(),
-    });
-
-    final response = await http.get(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final companyId = CompanyConfig.getCompanyId();
       
-      if (data['status'] == 'success' && data['data'] != null) {
-        final List<dynamic> branchList = data['data'];
+      final uri = AppConfig.api('/api/iobranch').replace(queryParameters: {
+        'status': 'admin',
+        'company_id': companyId.toString(),
+      });
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
         
-        setState(() {
-          _branches = branchList.map((branch) => {
-            'id': branch['branch_id'],
-            'branch_name': branch['branch_name'] ?? 'Unknown Branch',
-            'branch_code': branch['branch_code'] ?? '',
-            'address': branch['address'] ?? '',
-            'image_url': branch['image_url'] ?? '',
-          }).toList();
+        if (data['status'] == 'success' && data['data'] != null) {
+          final List<dynamic> branchList = data['data'];
           
-          // Find and set the user's current branch
-          final userBranchId = widget.userData['branch_id'];
-          if (userBranchId != null) {
-            _selectedBranch = _branches.firstWhere(
-              (branch) => branch['id'].toString() == userBranchId.toString(),
-              orElse: () => _branches.isNotEmpty ? _branches[0] : {},
-            );
-          } else if (_branches.isNotEmpty) {
-            _selectedBranch = _branches[0];
-          }
-          
-          _isLoadingBranches = false;
-        });
+          setState(() {
+            _branches = branchList.map((branch) => {
+              'id': branch['branch_id'],
+              'branch_name': branch['branch_name'] ?? 'Unknown Branch',
+              'branch_code': branch['branch_code'] ?? '',
+              'address': branch['address'] ?? '',
+              'image_url': branch['image_url'] ?? '',
+            }).toList();
+            
+            final userBranchId = widget.userData['branch_id'];
+            if (userBranchId != null) {
+              _selectedBranch = _branches.firstWhere(
+                (branch) => branch['id'].toString() == userBranchId.toString(),
+                orElse: () => _branches.isNotEmpty ? _branches[0] : {},
+              );
+            } else if (_branches.isNotEmpty) {
+              _selectedBranch = _branches[0];
+            }
+            
+            _isLoadingBranches = false;
+          });
+        }
       }
+    } catch (e) {
+      setState(() => _isLoadingBranches = false);
+      _showErrorSnackBar('Error loading branches: $e');
     }
-  } catch (e) {
-    setState(() => _isLoadingBranches = false);
-    _showErrorSnackBar('Error loading branches: $e');
   }
-}
 
-  // Future<void> _loadBranches() async {
-  //   setState(() => _isLoadingBranches = true);
-
-  //   try {
-  //     final prefs = await SharedPreferences.getInstance();
-  //     final token = prefs.getString('access_token');
-  //     final url = AppConfig.api('/api/iobranch');
-
-  //     final response = await http.get(
-  //       url,
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //         'Authorization': 'Bearer $token',
-  //       },
-  //     );
-
-  //     if (response.statusCode == 200) {
-  //       final data = jsonDecode(response.body);
-        
-  //       if (data['status'] == 'success' && data['data'] != null) {
-  //         final List<dynamic> branchList = data['data'];
-          
-  //         setState(() {
-  //           _branches = branchList.map((branch) => {
-  //             'id': branch['branch_id'],
-  //             'branch_name': branch['branch_name'] ?? 'Unknown Branch',
-  //             'branch_code': branch['branch_code'] ?? '',
-  //             'address': branch['address'] ?? '',
-  //             'image_url': branch['image_url'] ?? '',
-  //           }).toList();
-            
-  //           // Find and set the user's current branch
-  //           final userBranchId = widget.userData['branch_id'];
-  //           if (userBranchId != null) {
-  //             _selectedBranch = _branches.firstWhere(
-  //               (branch) => branch['id'].toString() == userBranchId.toString(),
-  //               orElse: () => _branches.isNotEmpty ? _branches[0] : {},
-  //             );
-  //           } else if (_branches.isNotEmpty) {
-  //             _selectedBranch = _branches[0];
-  //           }
-            
-  //           _isLoadingBranches = false;
-  //         });
-  //       }
-  //     }
-  //   } catch (e) {
-  //     setState(() => _isLoadingBranches = false);
-  //     _showErrorSnackBar('Error loading branches: $e');
-  //   }
-  // }
-
-  // Image picker compatible with both mobile and web
   Future<void> _pickImage({bool isIdImage = false}) async {
     if (kIsWeb) {
       await _pickImageFromSource(ImageSource.gallery, isIdImage: isIdImage);
@@ -264,7 +348,6 @@ class _UserEditPageState extends State<UserEditPage> {
     }
   }
 
-  // Responsive layout helpers
   bool get _isWebWideScreen => kIsWeb && MediaQuery.of(context).size.width > 600;
   
   Widget _buildResponsiveContainer({required Widget child}) {
@@ -327,7 +410,6 @@ class _UserEditPageState extends State<UserEditPage> {
   }
 
   Widget _buildImageContent(File? selectedImage, String base64Image, String? existingImageUrl, IconData icon) {
-    // Handle new image selection
     if (selectedImage != null || base64Image.isNotEmpty) {
       return ClipOval(
         child: kIsWeb && base64Image.isNotEmpty
@@ -348,7 +430,6 @@ class _UserEditPageState extends State<UserEditPage> {
       );
     }
 
-    // Handle existing image
     if (existingImageUrl != null && existingImageUrl.isNotEmpty) {
       return ClipOval(
         child: Image.network(
@@ -361,7 +442,6 @@ class _UserEditPageState extends State<UserEditPage> {
       );
     }
 
-    // Default placeholder
     return _buildDefaultImageContent(icon);
   }
 
@@ -444,6 +524,261 @@ class _UserEditPageState extends State<UserEditPage> {
     );
   }
 
+  // NEW: Beautiful status dropdown matching role dropdown style
+  Widget _buildStatusDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              '${_translate('status')} *',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(width: 8),
+            if (_selectedStatus != null && _selectedStatus!.description.isNotEmpty)
+              Expanded(
+                child: Text(
+                  '(${_selectedStatus!.description})',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                    fontStyle: FontStyle.italic,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _selectedStatus == null ? Colors.red[300]! : Colors.grey[300]!
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<_Status>(
+              value: _selectedStatus,
+              hint: const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('Select status'),
+              ),
+              isExpanded: true,
+              itemHeight: 48,
+              menuMaxHeight: 300,
+              items: _statuses.map((status) {
+                return DropdownMenuItem<_Status>(
+                  value: status,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: status.color.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            status.icon,
+                            color: status.color,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            status.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() => _selectedStatus = value);
+                print('Selected status: ${value?.name} (${value?.code})');
+              },
+            ),
+          ),
+        ),
+        if (_selectedStatus != null && _selectedStatus!.description.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 8),
+            child: Row(
+              children: [
+                Icon(
+                  _selectedStatus!.icon,
+                  size: 14,
+                  color: _selectedStatus!.color,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    _selectedStatus!.description,
+                    style: TextStyle(
+                      color: _selectedStatus!.color,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (_selectedStatus == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 8),
+            child: Text(
+              'Status is required',
+              style: TextStyle(color: Colors.red[700], fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildRoleDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              '${_translate('role')} *',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(width: 8),
+            if (_selectedRole != null && _selectedRole!.description.isNotEmpty)
+              Expanded(
+                child: Text(
+                  '(${_selectedRole!.description})',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                    fontStyle: FontStyle.italic,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _selectedRole == null ? Colors.red[300]! : Colors.grey[300]!
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: _isLoadingRoles
+              ? Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            ThemeConfig.getPrimaryColor(_currentTheme),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text('Loading roles...'),
+                    ],
+                  ),
+                )
+              : DropdownButtonHideUnderline(
+                  child: DropdownButton<_Role>(
+                    value: _selectedRole != null && _roles.contains(_selectedRole) 
+                        ? _selectedRole 
+                        : null,
+                    hint: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('Select role'),
+                    ),
+                    isExpanded: true,
+                    itemHeight: 48,
+                    menuMaxHeight: 300,
+                    items: _roles.map((role) {
+                      return DropdownMenuItem<_Role>(
+                        value: role,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: ThemeConfig.getPrimaryColor(_currentTheme).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Icon(
+                                  Icons.work,
+                                  color: ThemeConfig.getPrimaryColor(_currentTheme),
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  role.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() => _selectedRole = value);
+                      print('Selected role: ${value?.name} (ID: ${value?.id})');
+                    },
+                  ),
+                ),
+        ),
+        if (_selectedRole != null && _selectedRole!.description.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 8),
+            child: Text(
+              '📝 ${_selectedRole!.description}',
+              style: TextStyle(
+                color: ThemeConfig.getPrimaryColor(_currentTheme),
+                fontSize: 12,
+              ),
+            ),
+          ),
+        if (_selectedRole == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 8),
+            child: Text(
+              'Role is required',
+              style: TextStyle(color: Colors.red[700], fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildBranchDropdown() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,17 +815,21 @@ class _UserEditPageState extends State<UserEditPage> {
                 )
               : DropdownButtonHideUnderline(
                   child: DropdownButton<Map<String, dynamic>>(
-                    value: _selectedBranch != null && _branches.contains(_selectedBranch) ? _selectedBranch : null,
+                    value: _selectedBranch != null && _branches.contains(_selectedBranch) 
+                        ? _selectedBranch 
+                        : null,
                     hint: const Padding(
                       padding: EdgeInsets.all(12),
                       child: Text('Select branch'),
                     ),
                     isExpanded: true,
+                    itemHeight: 56,
+                    menuMaxHeight: 300,
                     items: _branches.map((branch) {
                       return DropdownMenuItem<Map<String, dynamic>>(
                         value: branch,
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           child: Row(
                             children: [
                               Container(
@@ -537,6 +876,7 @@ class _UserEditPageState extends State<UserEditPage> {
                                     fontSize: 14,
                                   ),
                                   overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
                                 ),
                               ),
                             ],
@@ -560,47 +900,16 @@ class _UserEditPageState extends State<UserEditPage> {
     );
   }
 
-  Widget _buildDropdownField({
-    required String label,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-    IconData? icon,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: DropdownButtonFormField<String>(
-        value: value,
-        decoration: InputDecoration(
-          labelText: '$label *',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: ThemeConfig.getPrimaryColor(_currentTheme),
-              width: 2,
-            ),
-          ),
-          prefixIcon: icon != null ? Icon(
-            icon,
-            color: ThemeConfig.getPrimaryColor(_currentTheme),
-          ) : null,
-          filled: true,
-          fillColor: Colors.grey[50],
-        ),
-        items: items.map((item) => DropdownMenuItem(
-          value: item,
-          child: Text(item.toUpperCase()),
-        )).toList(),
-        onChanged: onChanged,
-      ),
-    );
-  }
-
   Future<void> _updateUser() async {
-    if (!_formKey.currentState!.validate() || _selectedBranch == null) {
+    if (!_formKey.currentState!.validate() || _selectedBranch == null || _selectedRole == null || _selectedStatus == null) {
       if (_selectedBranch == null) {
         _showErrorSnackBar('Please select a branch');
+      }
+      if (_selectedRole == null) {
+        _showErrorSnackBar('Please select a role');
+      }
+      if (_selectedStatus == null) {
+        _showErrorSnackBar('Please select a status');
       }
       return;
     }
@@ -614,13 +923,24 @@ class _UserEditPageState extends State<UserEditPage> {
       final phone = widget.userData['phone'];
       final url = AppConfig.api('/api/iouser/update/$phone');
 
+      print('=== UPDATING USER ===');
+      print('Selected role: ${_selectedRole?.name}');
+      print('Role ID: ${_selectedRole?.id}');
+      print('Role Code: ${_selectedRole?.code}');
+      print('Selected status: ${_selectedStatus?.code}');
+      print('====================');
+
       final updateData = <String, dynamic>{
         'name': _controllers.name.text.trim(),
-        'username': _controllers.phone.text.trim(), // Username same as phone
+        'username': _controllers.phone.text.trim(),
         'email': _controllers.email.text.trim(),
         'phone': _controllers.phone.text.trim(),
-        'role': _selectedRole,
-        'status': _selectedStatus,
+        
+        'role_id': _selectedRole!.id,
+        'role_code': _selectedRole!.code,
+        'role': _selectedRole!.code,
+        
+        'status': _selectedStatus!.code,
         'branch_id': _selectedBranch?['id'],
         'company_id': CompanyConfig.getCompanyId(),
         'document_id': _controllers.documentId.text.trim().isEmpty ? null : _controllers.documentId.text.trim(),
@@ -630,7 +950,6 @@ class _UserEditPageState extends State<UserEditPage> {
         'language': _langCode,
       };
 
-      // Add photos only if new ones were selected
       if (_base64Image.isNotEmpty) {
         updateData['photo'] = _base64Image;
       }
@@ -638,14 +957,19 @@ class _UserEditPageState extends State<UserEditPage> {
         updateData['photo_id'] = _base64IdImage;
       }
 
+      print('Update data: ${jsonEncode(updateData)}');
+
       final response = await http.put(
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
+          if (token != null) 'Authorization': 'Bearer $token',
         },
         body: jsonEncode(updateData),
       );
+
+      print('Update response status: ${response.statusCode}');
+      print('Update response body: ${response.body}');
 
       if (!mounted) return;
 
@@ -661,6 +985,7 @@ class _UserEditPageState extends State<UserEditPage> {
         _showErrorSnackBar('Server error: ${response.statusCode}');
       }
     } catch (e) {
+      print('Error updating user: $e');
       _showErrorSnackBar('Failed to update user: $e');
     } finally {
       setState(() => _isLoading = false);
@@ -706,7 +1031,7 @@ class _UserEditPageState extends State<UserEditPage> {
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
+          if (token != null) 'Authorization': 'Bearer $token',
         },
         body: jsonEncode({'status': 'delete'}),
       );
@@ -782,7 +1107,6 @@ class _UserEditPageState extends State<UserEditPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Image Selection Section
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -808,9 +1132,7 @@ class _UserEditPageState extends State<UserEditPage> {
                 ),
                 const SizedBox(height: 32),
 
-                // Form Fields
                 if (_isWebWideScreen) ...[
-                  // Web Layout - Two columns
                   Row(
                     children: [
                       Expanded(
@@ -859,29 +1181,12 @@ class _UserEditPageState extends State<UserEditPage> {
                   ),
                   Row(
                     children: [
-                      Expanded(
-                        child: _buildDropdownField(
-                          label: 'Role',
-                          value: _selectedRole,
-                          items: _roles,
-                          onChanged: (value) => setState(() => _selectedRole = value!),
-                          icon: Icons.work,
-                        ),
-                      ),
+                      Expanded(child: _buildRoleDropdown()),
                       const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildDropdownField(
-                          label: 'Status',
-                          value: _selectedStatus,
-                          items: _statuses,
-                          onChanged: (value) => setState(() => _selectedStatus = value!),
-                          icon: Icons.info,
-                        ),
-                      ),
+                      Expanded(child: _buildStatusDropdown()),
                     ],
                   ),
                 ] else ...[
-                  // Mobile Layout - Single column
                   _buildTextField(
                     controller: _controllers.name,
                     label: 'Full Name',
@@ -910,27 +1215,13 @@ class _UserEditPageState extends State<UserEditPage> {
                     required: true,
                     icon: Icons.email,
                   ),
-                  _buildDropdownField(
-                    label: 'Role',
-                    value: _selectedRole,
-                    items: _roles,
-                    onChanged: (value) => setState(() => _selectedRole = value!),
-                    icon: Icons.work,
-                  ),
-                  _buildDropdownField(
-                    label: 'Status',
-                    value: _selectedStatus,
-                    items: _statuses,
-                    onChanged: (value) => setState(() => _selectedStatus = value!),
-                    icon: Icons.info,
-                  ),
+                  _buildRoleDropdown(),
+                  _buildStatusDropdown(),
                 ],
 
-                // Branch Selection
                 const SizedBox(height: 8),
                 _buildBranchDropdown(),
 
-                // Additional Fields
                 const SizedBox(height: 8),
                 _buildTextField(
                   controller: _controllers.documentId,
@@ -956,7 +1247,6 @@ class _UserEditPageState extends State<UserEditPage> {
 
                 const SizedBox(height: 32),
 
-                // Action Buttons
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -993,7 +1283,6 @@ class _UserEditPageState extends State<UserEditPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Cancel Button
                 TextButton(
                   onPressed: _isLoading ? null : () => Navigator.pop(context, false),
                   child: Text(
@@ -1015,7 +1304,6 @@ class _UserEditPageState extends State<UserEditPage> {
   }
 }
 
-// Controllers class for managing text editing controllers
 class _Controllers {
   final phone = TextEditingController();
   final name = TextEditingController();
@@ -1036,4 +1324,73 @@ class _Controllers {
     username.dispose();
     bio.dispose();
   }
+}
+
+class _Role {
+  final int id;
+  final String name;
+  final String code;
+  final String description;
+  final int level;
+
+  const _Role({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.description,
+    required this.level,
+  });
+
+  factory _Role.fromJson(Map<String, dynamic> json) {
+    return _Role(
+      id: json['role_id'] as int,
+      name: json['role_name'] ?? 'Unknown Role',
+      code: json['role_code'] ?? '',
+      description: json['description'] ?? '',
+      level: json['level'] ?? 0,
+    );
+  }
+
+  factory _Role.empty() {
+    return const _Role(
+      id: 0,
+      name: '',
+      code: '',
+      description: '',
+      level: 0,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _Role && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
+}
+
+// NEW: Status class with icon and color
+class _Status {
+  final String code;
+  final String name;
+  final String description;
+  final IconData icon;
+  final Color color;
+
+  const _Status({
+    required this.code,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _Status && runtimeType == other.runtimeType && code == other.code;
+
+  @override
+  int get hashCode => code.hashCode;
 }

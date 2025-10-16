@@ -6,7 +6,7 @@ import 'dart:convert';
 import '../config/config.dart';
 import '../config/theme.dart';
 import '../utils/simple_translations.dart';
-import 'ForgetPasswordPage.dart'; // Import your existing ForgetPasswordPage
+import 'ForgetPasswordPage.dart';
 
 class LoginPage extends StatefulWidget {
   final Future<void> Function(Locale)? setLocale;
@@ -34,6 +34,129 @@ class _LoginPageState extends State<LoginPage> {
     return SimpleTranslations.get(currecntl, key);
   }
 
+  // ========================================
+  // UPDATED: Enhanced token decoding methods
+  // ========================================
+  
+  /// Decode the full JWT token payload
+  Map<String, dynamic>? _decodeTokenPayload(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) {
+        print('TOKEN: Invalid token format - expected 3 parts, got ${parts.length}');
+        return null;
+      }
+      
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(parts[1])),
+      );
+      final decoded = json.decode(payload) as Map<String, dynamic>;
+      print('TOKEN: Successfully decoded payload: $decoded');
+      return decoded;
+    } catch (e, stackTrace) {
+      print('TOKEN: Error decoding token: $e');
+      print('TOKEN: Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  /// Get role_code from token (preferred method)
+  String? _getRoleCode(String token) {
+    final payload = _decodeTokenPayload(token);
+    if (payload == null) return null;
+    
+    // Try role_code first (new structure)
+    if (payload['role_code'] != null) {
+      final roleCode = payload['role_code'].toString().toLowerCase();
+      print('TOKEN: Found role_code: $roleCode');
+      return roleCode;
+    }
+    
+    // Fallback to old 'role' field for backward compatibility
+    if (payload['role'] != null) {
+      final role = payload['role'].toString().toLowerCase();
+      print('TOKEN: Using fallback role field: $role');
+      return role;
+    }
+    
+    print('TOKEN: No role information found in token');
+    return null;
+  }
+
+  /// Get role_id from token
+  int? _getRoleId(String token) {
+    final payload = _decodeTokenPayload(token);
+    if (payload == null) return null;
+    
+    if (payload['role_id'] != null) {
+      final roleId = payload['role_id'] is int 
+          ? payload['role_id'] as int 
+          : int.tryParse(payload['role_id'].toString());
+      print('TOKEN: Found role_id: $roleId');
+      return roleId;
+    }
+    
+    return null;
+  }
+
+  /// Get role_name from token for display purposes
+  String? _getRoleName(String token) {
+    final payload = _decodeTokenPayload(token);
+    if (payload == null) return null;
+    
+    if (payload['role_name'] != null) {
+      final roleName = payload['role_name'].toString();
+      print('TOKEN: Found role_name: $roleName');
+      return roleName;
+    }
+    
+    return null;
+  }
+
+  /// Get role_level from token (for permissions/hierarchy)
+  int? _getRoleLevel(String token) {
+    final payload = _decodeTokenPayload(token);
+    if (payload == null) return null;
+    
+    if (payload['role_level'] != null) {
+      final roleLevel = payload['role_level'] is int 
+          ? payload['role_level'] as int 
+          : int.tryParse(payload['role_level'].toString());
+      print('TOKEN: Found role_level: $roleLevel');
+      return roleLevel;
+    }
+    
+    return null;
+  }
+
+  /// Get user_id from token
+  int? _getUserId(String token) {
+    final payload = _decodeTokenPayload(token);
+    if (payload == null) return null;
+    
+    if (payload['user_id'] != null) {
+      return payload['user_id'] is int 
+          ? payload['user_id'] as int 
+          : int.tryParse(payload['user_id'].toString());
+    }
+    
+    return null;
+  }
+
+  /// Get company_id from token
+  int? _getCompanyId(String token) {
+    final payload = _decodeTokenPayload(token);
+    if (payload == null) return null;
+    
+    if (payload['company_id'] != null) {
+      return payload['company_id'] is int 
+          ? payload['company_id'] as int 
+          : int.tryParse(payload['company_id'].toString());
+    }
+    
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -43,7 +166,6 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Reload theme when page becomes visible
     _reloadTheme();
   }
 
@@ -99,18 +221,6 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
-  String? _decodeRole(String token) {
-    try {
-      final parts = token.split('.');
-      final payload = utf8.decode(
-        base64Url.decode(base64Url.normalize(parts[1])),
-      );
-      return json.decode(payload)['role']?.toLowerCase();
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<void> login() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -155,10 +265,10 @@ class _LoginPageState extends State<LoginPage> {
       print('LOGIN: Token received: ${token != null ? "Yes (${token.length} chars)" : "No"}');
       print('LOGIN: User status: $status');
 
-      // Check for password reset requirement in multiple scenarios
+      // ========================================
+      // Check for password reset requirement
+      // ========================================
       bool needsPasswordReset = false;
-      // ignore: unused_local_variable
-      String? resetToken;
 
       // Scenario 1: 401 status with resetpassword message
       if (response.statusCode == 401 && message == 'resetpassword') {
@@ -168,13 +278,11 @@ class _LoginPageState extends State<LoginPage> {
       // Scenario 2: Message field contains resetpassword
       else if (message == 'resetpassword') {
         needsPasswordReset = true;
-        resetToken = token;
         print('LOGIN: Password reset required (message field)');
       }
-      // Scenario 3: Status field contains resetpassword (for successful logins)
+      // Scenario 3: Status field contains resetpassword
       else if (status == 'resetpassword') {
         needsPasswordReset = true;
-        resetToken = token;
         print('LOGIN: Password reset required (status field)');
       }
 
@@ -185,7 +293,6 @@ class _LoginPageState extends State<LoginPage> {
         
         print('LOGIN: Navigating to ForgetPasswordPage with phone: ${userCtrl.text.trim()}');
         
-        // Navigate to your existing ForgetPasswordPage
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -196,31 +303,90 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // Handle successful login (normal flow)
+      // ========================================
+      // Handle successful login
+      // ========================================
       if (code == '00' && token != null) {
-        print('LOGIN: Login successful - proceeding with normal flow');
+        print('LOGIN: Login successful - processing token');
         
+        // Save access token
         await prefs.setString('access_token', token);
         print('LOGIN: Token saved to SharedPreferences');
         
-        final role = _decodeRole(token);
-        print('LOGIN: Decoded role: $role');
+        // Decode token and extract all role information
+        final payload = _decodeTokenPayload(token);
+        final roleCode = _getRoleCode(token);
+        final roleId = _getRoleId(token);
+        final roleName = _getRoleName(token);
+        final roleLevel = _getRoleLevel(token);
+        final userId = _getUserId(token);
+        final companyId = _getCompanyId(token);
         
+        print('LOGIN: ==========================================');
+        print('LOGIN: Token payload: $payload');
+        print('LOGIN: Decoded role_code: $roleCode');
+        print('LOGIN: Decoded role_id: $roleId');
+        print('LOGIN: Decoded role_name: $roleName');
+        print('LOGIN: Decoded role_level: $roleLevel');
+        print('LOGIN: Decoded user_id: $userId');
+        print('LOGIN: Decoded company_id: $companyId');
+        print('LOGIN: ==========================================');
+        
+        // Save all role information to SharedPreferences
+        if (roleCode != null) {
+          await prefs.setString('role_code', roleCode);
+          print('LOGIN: Saved role_code to prefs');
+        }
+        if (roleId != null) {
+          await prefs.setInt('role_id', roleId);
+          print('LOGIN: Saved role_id to prefs');
+        }
+        if (roleName != null) {
+          await prefs.setString('role_name', roleName);
+          print('LOGIN: Saved role_name to prefs');
+        }
+        if (roleLevel != null) {
+          await prefs.setInt('role_level', roleLevel);
+          print('LOGIN: Saved role_level to prefs');
+        }
+        if (userId != null) {
+          await prefs.setInt('user_id', userId);
+          print('LOGIN: Saved user_id to prefs');
+        }
+        if (companyId != null) {
+          await prefs.setInt('company_id', companyId);
+          print('LOGIN: Saved company_id to prefs');
+        }
+        
+        // Save user credentials if remember me is checked
         await _savePrefs();
         print('LOGIN: User preferences saved');
 
         if (!mounted) return;
         
-        final menuArguments = {'role': role ?? 'unknown', 'token': token};
+        // Prepare arguments for menu navigation
+        final menuArguments = {
+          'role': roleCode ?? 'unknown',  // Use role_code as primary role
+          'role_code': roleCode ?? 'unknown',
+          'role_id': roleId,
+          'role_name': roleName ?? 'Unknown',
+          'role_level': roleLevel ?? 0,
+          'user_id': userId,
+          'company_id': companyId,
+          'token': token,
+        };
         print('LOGIN: Navigating to menu with arguments: $menuArguments');
         
+        // Navigate to menu
         Navigator.pushReplacementNamed(
           context,
           '/menu',
           arguments: menuArguments,
         );
       } else {
+        // ========================================
         // Handle login failure
+        // ========================================
         print('LOGIN: Login failed');
         print('LOGIN: Error details - Code: $code, Data: ${data['data']}');
         
@@ -308,7 +474,9 @@ class _LoginPageState extends State<LoginPage> {
     return GestureDetector(
       onTap: () async {
         await _saveTheme(themeKey);
-        Navigator.pop(context);
+        if (mounted) {
+          Navigator.pop(context);
+        }
       },
       child: Container(
         decoration: BoxDecoration(
@@ -402,200 +570,209 @@ class _LoginPageState extends State<LoginPage> {
             colors: [backgroundColor, primaryColor.withOpacity(0.05)],
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                const SizedBox(height: 40),
 
-              // App logo/title area
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: primaryColor.withOpacity(0.2),
-                    width: 1,
+                // App logo/title area
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: primaryColor.withOpacity(0.2),
+                      width: 1,
+                    ),
                   ),
+                  child: Icon(Icons.devices_other, size: 64, color: primaryColor),
                 ),
-                child: Icon(Icons.devices_other, size: 64, color: primaryColor),
-              ),
 
-              const SizedBox(height: 40),
+                const SizedBox(height: 40),
 
-              // Phone input
-              TextField(
-                controller: userCtrl,
-                style: TextStyle(color: textColor, fontSize: 16),
-                decoration: InputDecoration(
-                  labelText: _getText('phone'),
-                  labelStyle: TextStyle(color: primaryColor),
-                  prefixIcon: Icon(Icons.phone, color: primaryColor),
-                  filled: true,
-                  fillColor: backgroundColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: primaryColor.withOpacity(0.3),
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: primaryColor, width: 2),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: primaryColor.withOpacity(0.3),
-                    ),
-                  ),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-
-              const SizedBox(height: 16),
-
-              // Password input
-              TextField(
-                controller: passCtrl,
-                obscureText: _obscurePassword,
-                style: TextStyle(color: textColor, fontSize: 16),
-                decoration: InputDecoration(
-                  labelText: _getText('password'),
-                  labelStyle: TextStyle(color: primaryColor),
-                  prefixIcon: Icon(Icons.lock, color: primaryColor),
-                  filled: true,
-                  fillColor: backgroundColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: primaryColor.withOpacity(0.3),
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: primaryColor, width: 2),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: primaryColor.withOpacity(0.3),
-                    ),
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility
-                          : Icons.visibility_off,
-                      color: primaryColor,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Remember me checkbox
-              Row(
-                children: [
-                  Checkbox(
-                    value: rememberMe,
-                    activeColor: primaryColor,
-                    onChanged: (v) => setState(() => rememberMe = v!),
-                  ),
-                  Text(
-                    _getText('rememberMe'),
-                    style: TextStyle(color: textColor, fontSize: 14),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              // Login button
-              loading
-                  ? Container(
-                      padding: const EdgeInsets.all(16),
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                // Phone input
+                TextField(
+                  controller: userCtrl,
+                  style: TextStyle(color: textColor, fontSize: 16),
+                  decoration: InputDecoration(
+                    labelText: _getText('phone'),
+                    labelStyle: TextStyle(color: primaryColor),
+                    prefixIcon: Icon(Icons.phone, color: primaryColor),
+                    filled: true,
+                    fillColor: backgroundColor,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: primaryColor.withOpacity(0.3),
                       ),
-                    )
-                  : Container(
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: primaryColor, width: 2),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: primaryColor.withOpacity(0.3),
+                      ),
+                    ),
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+
+                const SizedBox(height: 16),
+
+                // Password input
+                TextField(
+                  controller: passCtrl,
+                  obscureText: _obscurePassword,
+                  style: TextStyle(color: textColor, fontSize: 16),
+                  decoration: InputDecoration(
+                    labelText: _getText('password'),
+                    labelStyle: TextStyle(color: primaryColor),
+                    prefixIcon: Icon(Icons.lock, color: primaryColor),
+                    filled: true,
+                    fillColor: backgroundColor,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: primaryColor.withOpacity(0.3),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: primaryColor, width: 2),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: primaryColor.withOpacity(0.3),
+                      ),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        color: primaryColor,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Remember me checkbox
+                Row(
+                  children: [
+                    Checkbox(
+                      value: rememberMe,
+                      activeColor: primaryColor,
+                      onChanged: (v) => setState(() => rememberMe = v!),
+                    ),
+                    Text(
+                      _getText('rememberMe'),
+                      style: TextStyle(color: textColor, fontSize: 14),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Login button
+                loading
+                    ? Container(
+                        padding: const EdgeInsets.all(16),
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                        ),
+                      )
+                    : Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryColor.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              foregroundColor: buttonTextColor,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: login,
+                            child: Text(
+                              _getText('login'),
+                              style: TextStyle(
+                                color: buttonTextColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                // Error message
+                if (msg.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primaryColor.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              msg,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: buttonTextColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          onPressed: login,
-                          child: Text(
-                            _getText('login'),
-                            style: TextStyle(
-                              color: buttonTextColor,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-              // Error message
-              if (msg.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline, color: Colors.red, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            msg,
-                            style: const TextStyle(
-                              color: Colors.red,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   ),
-                ),
 
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    userCtrl.dispose();
+    passCtrl.dispose();
+    super.dispose();
   }
 }

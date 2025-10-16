@@ -5,7 +5,10 @@ import 'package:inventory/business/CompanyPage.dart';
 import 'package:inventory/business/GroupPage.dart' show GroupPage;
 import 'package:inventory/business/LocationPage.dart';
 import 'package:inventory/business/MerchantPage.dart';
+import 'package:inventory/business/PermissionManagementPage.dart';
 import 'package:inventory/business/ProductPage.dart';
+import 'package:inventory/business/RoleList.dart';
+import 'package:inventory/business/RolePermissionPage.dart';
 import 'package:inventory/business/StorePage.dart';
 import 'package:inventory/business/TerminalPage.dart';
 import 'package:inventory/business/UserPage.dart';
@@ -14,6 +17,8 @@ import 'package:inventory/csv_upload/csv_upload_page.dart';
 import 'package:inventory/login/login_page.dart' show LoginPage;
 import 'package:inventory/upload/settlement_upload_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../business/RolePermissionMappingPage.dart';
+import '../services/menu_permission_service.dart';
 import '../config/theme.dart';
 import '../utils/simple_translations.dart';
 
@@ -333,6 +338,12 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         onTap: _navigateToBranchPage,
       ),
       _buildGridItem(
+        icon: Icons.location_on,
+        title: SimpleTranslations.get(_langCode, 'location'),
+        color: Colors.green.shade600,
+        onTap: _navigateToLocationPage,
+      ),
+      _buildGridItem(
         icon: Icons.local_shipping,
         title: SimpleTranslations.get(_langCode, 'vendor'),
         color: Colors.indigo,
@@ -344,20 +355,9 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         color: Colors.amber.shade700,
         onTap: _navigateToProductPage,
       ),
-      _buildGridItem(
-        icon: Icons.location_on,
-        title: SimpleTranslations.get(_langCode, 'location'),
-        color: Colors.green.shade600,
-        onTap: _navigateToLocationPage,
-      ),
-      _buildGridItem(
-        icon: Icons.person,
-        title: SimpleTranslations.get(_langCode, 'user'),
-        color: Colors.cyan,
-        onTap: _navigateToUserPage,
-      ),
+      
 
-       _buildGridItem(
+      _buildGridItem(
         icon: Icons.upload,
         title: SimpleTranslations.get(_langCode, 'uploadSettle'),
         color: Colors.green,
@@ -369,6 +369,38 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
         color: Colors.green,
         onTap: _navigateTouploadCSV,
       ),
+      _buildGridItem(
+        icon: Icons.person,
+        title: SimpleTranslations.get(_langCode, 'User'),
+        color: Colors.cyan,
+        onTap: _navigateToUserPage,
+      ),
+
+      _buildGridItem(
+        icon: Icons.keyboard_option_key,
+        title: SimpleTranslations.get(_langCode, 'Role'),
+        color: Colors.indigo,
+        onTap: _navigateToRoleListPage,
+      ),
+//
+
+      _buildGridItem(
+        icon: Icons.key,
+        title: SimpleTranslations.get(_langCode, 'Permission'),
+        color: Colors.lightGreenAccent.shade700,
+        onTap: _navigateToRolePermissionPage,
+      ),
+
+      _buildGridItem(
+        icon: Icons.mediation,
+        title: SimpleTranslations.get(_langCode, 'Role Permission Map'),
+        color: Colors.purple,
+        // onTap: _navigateToRolePermissionPage,
+        onTap: _navigateToMenuPermission,
+      ),
+      
+
+       
       
       _buildGridItem(
         icon: Icons.grass,
@@ -674,6 +706,30 @@ class _MenuSettingsPageState extends State<MenuSettingsPage> {
       MaterialPageRoute(builder: (context) => UserPage()),
     );
   }
+
+  void _navigateToRoleListPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => RoleListPage()),
+    );
+  }
+
+  
+  void _navigateToRolePermissionPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => PermissionManagementPage()),
+    );
+  }
+
+  void _navigateToMenuPermission() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => RolePermissionMappingPage()),
+    );
+  }
+
+  
 
    void _navigateTosettleupload() {
     Navigator.push(
